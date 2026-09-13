@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Menu, X, UserRound } from "lucide-react";
 import { Locale, locales, localeLabels, localeTagLabel, t, setPersistedLocale } from "@/lib/i18n";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useSeuilScroll } from "@/lib/motion";
+import { lireSession, type Session } from "@/lib/auth";
 
 /**
  * Bande du haut — slice 1 (+ habillage Dewi).
@@ -22,6 +23,12 @@ export default function Header({ locale }: { locale: Locale }) {
   const auDessus = useSeuilScroll(12);
   const router = useRouter();
   const pathname = usePathname();
+  // Session locale lue après montage: le HTML serveur porte toujours le bouton « Espace client »,
+  // l'effet le remplace par le pilule du compte si une session existe (pas de mismatch).
+  const [session, setSession] = useState<Session | null>(null);
+  useEffect(() => {
+    setSession(lireSession());
+  }, [pathname]);
 
   const switchLocale = (l: Locale) => {
     // Persistance: uniquement ici (handler), jamais au render.
@@ -59,6 +66,27 @@ export default function Header({ locale }: { locale: Locale }) {
             <Link key={a.href} href={a.href} className="nav-link whitespace-nowrap">{a.label}</Link>
           ))}
         </nav>
+
+        {/* Espace client : bouton vers l'authentification, ou pilule du compte si session locale.
+            La session n'est lue qu'après montage — le HTML serveur reste déterministe. */}
+        <div className="hidden lg:block">
+          {session ? (
+            <Link
+              href={`/${locale}/account`}
+              className="flex items-center gap-2 h-8 pl-2 pr-3 rounded-full bg-primary text-white text-[11px] font-extrabold uppercase tracking-wide hover:bg-primary-hover transition"
+            >
+              <span className="w-5 h-5 rounded-full bg-white/20 grid place-items-center"><UserRound className="w-3 h-3" aria-hidden="true" /></span>
+              {session.nom.split(" ")[0]}
+            </Link>
+          ) : (
+            <Link
+              href={`/${locale}/auth`}
+              className="flex items-center gap-2 h-8 px-3.5 rounded-full bg-white/10 border border-white/10 text-white text-[11px] font-extrabold uppercase tracking-wide hover:bg-white/15 transition backdrop-blur"
+            >
+              <UserRound className="w-3.5 h-3.5 text-white/60" aria-hidden="true" /> {tr("nav.login")}
+            </Link>
+          )}
+        </div>
 
         {/* Langues — pilules visibles sur desktop. Les codes FR/EN/NL/DE sont des étiquettes
             techniques (jamais de la copie), d'où l'aria-label d'énumération; le libellé plein de
@@ -107,6 +135,13 @@ export default function Header({ locale }: { locale: Locale }) {
                 {a.label}
               </Link>
             ))}
+            <Link
+              href={session ? `/${locale}/account` : `/${locale}/auth`}
+              onClick={() => setOpen(false)}
+              className="py-2.5 text-primary text-sm font-extrabold tracking-widest uppercase"
+            >
+              {session ? session.nom : tr("nav.login")}
+            </Link>
             <div className="mt-2 pt-3 border-t border-white/10 grid grid-cols-4 gap-2">
               {locales.map((l) => (
                 <button

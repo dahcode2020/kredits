@@ -6,16 +6,16 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 & 2 — ce qui existe aujourd'hui
+## Slices 1 à 4 — ce qui existe aujourd'hui
 
-**Une page d'accueil irréprochable et un simulateur complet, en 4 langues, animés, sans une seule
-donnée fausse à l'écran.**
+**Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie et un portail
+d'authentification, en 4 langues, animés, sans une seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 11 namespaces,
-  **728 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
-  matériel fourni en alignait 715, les slices 2-3 en ajoutent 13 dans les 4 langues à la fois —
+  **792 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  matériel fourni en alignait 715, les slices 2-4 en ajoutent 77 dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
 - Tout **nombre** affiché sort d'une seule table : `frontend/lib/credit-engine.ts`
@@ -73,6 +73,26 @@ donnée fausse à l'écran.**
 - `lib/application.ts` : le pont query ⇄ état, pur et testé en Node ; le localStorage ne vit que
   dans le composant.
 
+### Slice 4 — l'espace client (`/[locale]/auth`, `/[locale]/account`)
+
+- Bouton **« Espace client »** dans l'en-tête (desktop + mobile) ; une session locale le remplace
+  par la pilule du compte (lue après montage, HTML serveur déterministe).
+- **Une seule page d'authentification** pour se connecter OU s'inscrire, et pour les trois profils
+  (CUSTOMER / ADMIN / SUPER_ADMIN) : l'inscription est réservée au profil client — les comptes
+  staff sont « fournis par l'organisation », en démo via trois boutons explicites.
+- **Inscription exhaustive** en quatre sections : identité (nom, prénom, naissance avec contrôle
+  de majorité, nationalité, état civil), adresse & coordonnées (rue/numéro/boîte, code postal,
+  ville, pays, mobile), situation & activités (employeur, profession, ancienneté, secteur,
+  entreprise, TVA, revenus nets), informations financières (logement, charge, IBAN, crédits
+  existants) — plus double consentement RGPD + conditions.
+- Sans backend, tout est local et dit : comptes en localStorage avec **empreinte SHA-256** du mot
+  de passe (jamais en clair), session locale, bannière « aucune donnée envoyée ». Verrous purs :
+  `tests/unit/auth-local.spec.ts` (email, majorité au jour près).
+- Le crédit reste mis en avant : le panneau ludique de la page auth porte le CTA
+  « Faire une demande de crédit » vers le simulateur.
+- `/account` : espace connecté (profil, demandes locales de la slice 3, déconnexion) ; sans
+  session, le portail renvoie vers l'authentification.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -120,8 +140,8 @@ donnée fausse à l'écran.**
 ├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions à chaque poussée
 ├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
 └── frontend/
-    ├── app/                   layout racine (noscript), [locale] (accueil, simulateur, demande, 404…)
-    ├── components/            layout/ motion/ ui/ home/ (accueil) simulator/ (slice 2)
+    ├── app/                   layout racine (noscript), [locale] (accueil, simulateur, demande, auth…)
+    ├── components/            layout/ motion/ ui/ home/ simulator/ auth/
     ├── i18n/                  11 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, motion…
     ├── scripts/               les 6 gardes + fresh.mjs + copy.baseline.json ({})
@@ -145,7 +165,8 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 1. **Accueil** — fait (slice 1 + habillage Dewi).
 2. **Simulateur** — fait (réglettes, score, échéancier ; verrous échéancier posés).
 3. **Demande pré-remplie** — fait (query rendue côté serveur, persistance locale honnête).
-4. Portail (connexion + inscription) ← en cours.
+4. **Portail** — fait (auth 3 profils + inscription exhaustive + espace connecté local).
+5. Tableau de bord client ← prochaine passe.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.
