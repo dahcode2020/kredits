@@ -14,5 +14,18 @@
   "notifications.title": "Benachrichtigungen",
   "quick.simulate": "Kredit simulieren",
   "quick.documents": "Meine Unterlagen",
-  "quick.profile": "Mein Profil"
+  "quick.profile": "Mein Profil",
+  "dashboard.tab.overview": "Übersicht",
+  "dashboard.tab.security": "Sicherheit",
+  "dashboard.projection": "Berechnete Projektion nach dem aktuellen Zinsraster — kein verbindliches Angebot.",
+  "dashboard.card.member": "Mitgliedskarte",
+  "dashboard.card.since": "Mitglied seit",
+  "dashboard.changePassword": "Passwort ändern",
+  "dashboard.currentPassword": "Aktuelles Passwort",
+  "dashboard.newPassword": "Neues Passwort",
+  "dashboard.passwordUpdated": "Passwort auf diesem Gerät aktualisiert.",
+  "dashboard.errCurrent": "Aktuelles Passwort falsch.",
+  "dashboard.docsMarked": "Als bereit markiert — lokale Demo, keine Datei gesendet.",
+  "dashboard.noApproved": "Zahlungen erscheinen, sobald ein Antrag von einem Berater genehmigt wurde.",
+  "dashboard.kycHow": "Die Identitätsprüfung (KYC) wird während der Bearbeitung Ihres Antrags kontrolliert."
 }

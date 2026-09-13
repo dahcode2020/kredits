@@ -14,5 +14,18 @@
   "notifications.title": "Notifications",
   "quick.simulate": "Simuler un crédit",
   "quick.documents": "Mes documents",
-  "quick.profile": "Mon profil"
+  "quick.profile": "Mon profil",
+  "dashboard.tab.overview": "Aperçu",
+  "dashboard.tab.security": "Sécurité",
+  "dashboard.projection": "Projection calculée selon la grille en vigueur — ne constitue pas une offre ferme.",
+  "dashboard.card.member": "Carte membre",
+  "dashboard.card.since": "Membre depuis",
+  "dashboard.changePassword": "Changer le mot de passe",
+  "dashboard.currentPassword": "Mot de passe actuel",
+  "dashboard.newPassword": "Nouveau mot de passe",
+  "dashboard.passwordUpdated": "Mot de passe mis à jour sur cet appareil.",
+  "dashboard.errCurrent": "Mot de passe actuel incorrect.",
+  "dashboard.docsMarked": "Marqué comme fourni — démo locale, aucun fichier envoyé.",
+  "dashboard.noApproved": "Les paiements apparaîtront dès qu'une demande est approuvée par un conseiller.",
+  "dashboard.kycHow": "La vérification d'identité (KYC) est contrôlée lors du traitement de votre demande."
 }

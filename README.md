@@ -6,16 +6,17 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 4 — ce qui existe aujourd'hui
+## Slices 1 à 5 — ce qui existe aujourd'hui
 
-**Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie et un portail
-d'authentification, en 4 langues, animés, sans une seule donnée fausse à l'écran.**
+**Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
+d'authentification et un tableau de bord client façon néo-banque, en 4 langues, animés, sans une
+seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 11 namespaces,
-  **792 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
-  matériel fourni en alignait 715, les slices 2-4 en ajoutent 77 dans les 4 langues à la fois —
+  **805 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  matériel fourni en alignait 715, les slices 2-5 en ajoutent 90 dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
 - Tout **nombre** affiché sort d'une seule table : `frontend/lib/credit-engine.ts`
@@ -93,6 +94,27 @@ d'authentification, en 4 langues, animés, sans une seule donnée fausse à l'é
 - `/account` : espace connecté (profil, demandes locales de la slice 3, déconnexion) ; sans
   session, le portail renvoie vers l'authentification.
 
+### Slice 5 — le tableau de bord client (`/account` connecté)
+
+Néo-banque, mais sans une donnée fausse — tout chiffre sort des demandes réellement déposées sur
+l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur :
+
+- **Aperçu** : salutation, statut KYC « en attente » avec explication, carte membre habillée
+  néo-banque qui porte les *vraies* données du compte (nom, email, rôle, date — pas un PAN),
+  tuiles animées (dossiers, mensualité moyenne, prochaine échéance projetée étiquetée
+  `dashboard.projection`), actions rapides.
+- **Mes demandes** : cartes dépliables (TAEG, coût total, ratio, score) renvoyant vers
+  l'échéancier ; **Échéanciers** : courbe SVG du restant dû (calculée, pas décorative), totaux
+  intérêts/coût, sur fond encre ; **Paiements** : état vide honnête (« apparaîtront après
+  approbation ») + rappel mandat SEPA.
+- **Documents** : checklist par demande dérivée du moteur, marquée « fournie » localement
+  (statut passe à « en attente », l'écran précise qu'aucun fichier n'est envoyé).
+- **Notifications** : préférences email/SMS/WhatsApp/push persistées, consentement WhatsApp lié.
+- **Profil & sécurité** : les données d'inscription relues du compte, changement de mot de passe
+  (contrôle de l'empreinte actuelle, nouvelle empreinte SHA-256), déconnexion.
+- Verrous : `tests/unit/compte.spec.ts` (échéance projetée, moyenne, courbe) ; `lib/compte.ts`
+  pur pour le calcul, localStorage seulement côté navigateur.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -166,7 +188,8 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 2. **Simulateur** — fait (réglettes, score, échéancier ; verrous échéancier posés).
 3. **Demande pré-remplie** — fait (query rendue côté serveur, persistance locale honnête).
 4. **Portail** — fait (auth 3 profils + inscription exhaustive + espace connecté local).
-5. Tableau de bord client ← prochaine passe.
+5. **Tableau de bord client** — fait (aperçu néo-banque, demandes, échéanciers projetés, documents,
+   notifications, profil & sécurité). Prochaine passe : PWA complète + backend-miroir.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

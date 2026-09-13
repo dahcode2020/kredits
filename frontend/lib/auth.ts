@@ -106,6 +106,19 @@ export function comptePour(email: string, role: Role): Compte | null {
   return lireComptes().find((c) => c.email.toLowerCase() === e && c.role === role) ?? null;
 }
 
+/** Remplace un compte (ex. changement de mot de passe) — même email+role. */
+export function mettreAJourCompte(email: string, role: Role, patch: Partial<Compte>): void {
+  const e = email.trim().toLowerCase();
+  const liste = lireComptes().map((c) =>
+    c.email.toLowerCase() === e && c.role === role ? { ...c, ...patch } : c,
+  );
+  try {
+    window.localStorage.setItem(CLE_COMPTES, JSON.stringify(liste));
+  } catch {
+    // idem.
+  }
+}
+
 export function lireSession(): Session | null {
   try {
     const brut = window.localStorage.getItem(CLE_SESSION);

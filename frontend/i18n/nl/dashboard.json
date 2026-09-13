@@ -14,5 +14,18 @@
   "notifications.title": "Meldingen",
   "quick.simulate": "Krediet simuleren",
   "quick.documents": "Mijn documenten",
-  "quick.profile": "Mijn profiel"
+  "quick.profile": "Mijn profiel",
+  "dashboard.tab.overview": "Overzicht",
+  "dashboard.tab.security": "Veiligheid",
+  "dashboard.projection": "Berekende projectie volgens het geldende tariefrooster — geen bindende offerte.",
+  "dashboard.card.member": "Ledenkaart",
+  "dashboard.card.since": "Lid sinds",
+  "dashboard.changePassword": "Wachtwoord wijzigen",
+  "dashboard.currentPassword": "Huidig wachtwoord",
+  "dashboard.newPassword": "Nieuw wachtwoord",
+  "dashboard.passwordUpdated": "Wachtwoord bijgewerkt op dit apparaat.",
+  "dashboard.errCurrent": "Huidig wachtwoord onjuist.",
+  "dashboard.docsMarked": "Gemarkeerd als aangeleverd — lokale demo, geen bestand verzonden.",
+  "dashboard.noApproved": "Betalingen verschijnen zodra een aanvraag door een adviseur is goedgekeurd.",
+  "dashboard.kycHow": "Identiteitscontrole (KYC) wordt gecontroleerd tijdens de behandeling van uw aanvraag."
 }
