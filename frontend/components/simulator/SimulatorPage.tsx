@@ -12,11 +12,12 @@
  * - chaque libellé vient des dictionnaires, via des clés STATIQUES (le scan de parité doit les
  *   voir ; les codes produit/revenu/statut/objet/alerte/document passent par des tables de clés
  *   littérales, jamais par concaténation) ;
- * - pas de bouton « Déposer ma demande » : la destination (slice 3) n'existe pas encore.
+ * - le bouton « Déposer ma demande » (slice 3) mène à la route de demande pré-remplie, l'état de
+ *   simulation voyageant dans la query (lib/application.ts).
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calculator, FileText, Gauge, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calculator, FileText, Gauge, ShieldAlert } from "lucide-react";
 import Reveal from "@/components/motion/Reveal";
 import CountUp from "@/components/motion/CountUp";
 import { buttonClasses } from "@/components/ui/Button";
@@ -24,6 +25,7 @@ import { formatCurrency0, formatPercent } from "@/lib/formatters";
 import { formatEUR2 } from "@/lib/utils";
 import { Locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { DEFAUT_SIM, borne, queryDepuisEtat } from "@/lib/application";
 import {
   EMPLOYMENT_STATUSES, INCOME_TYPES, LOAN_PURPOSES, PRODUITS, PRODUCT_TYPES,
   SIMULATION_WARNINGS, DOCUMENT_CODES, simulateCredit,
@@ -84,29 +86,13 @@ const CLES_FACTEUR: Record<string, string> = {
   term: "credit:simulator.scoreFactor.term",
 };
 
-/* L'exemple du dictionnaire (heroCard.example) : 15 000 € / 48 mois. État initial déterministe,
-   identique serveur et client. */
-const DEFAUT = {
-  product: "PERSONAL" as ProductCode,
-  amount: 15_000,
-  term: 48,
-  income: 3_200,
-  charges: 600,
-  existing: 0,
-  incomeType: "SALARY" as IncomeType,
-  employment: "CDI" as EmploymentStatus,
-  purpose: "CONSUMPTION" as LoanPurpose,
-};
-
+/* L'exemple du dictionnaire (heroCard.example) : 15 000 € / 48 mois — état initial déterministe,
+   identique serveur et client (DEFAUT_SIM, lib/application). */
 const MOIS_AFFICHES = 12;
 
-function borne(v: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, v));
-}
-
 export default function SimulatorPage({ locale }: { locale: Locale }) {
-  const tr = (k: string, vars?: Record<string, string>) => t(locale, k, vars);
-  const [etat, setEtat] = useState(DEFAUT);
+  const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
+  const [etat, setEtat] = useState(DEFAUT_SIM);
 
   const produit = PRODUITS[etat.product];
 
@@ -456,6 +442,12 @@ export default function SimulatorPage({ locale }: { locale: Locale }) {
               ))}
             </ul>
           </details>
+
+          {/* Slice 3: la destination existe, le CTA aussi — l'état voyage dans la query, rendue
+              côté serveur sur la page de demande (pré-remplie, partageable). */}
+          <Link href={`/${locale}/credit/apply?${queryDepuisEtat(etat)}`} className={buttonClasses("primary", "lg", "w-full gap-2")}>
+            {tr("credit:simulator.request")} <ArrowRight className="w-4 h-4" aria-hidden="true" />
+          </Link>
         </Reveal>
       </div>
 

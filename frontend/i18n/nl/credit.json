@@ -90,5 +90,18 @@
   "documents.PROPERTY_VALUATION": "Taxatie van het goed",
   "documents.BANK_STATEMENTS_3M": "Bankuittreksels, 3 maanden",
   "documents.TAX_RETURN_2Y": "Aanslagbiljetten, 2 jaar",
-  "documents.BUSINESS_PLAN": "Financieel plan van de onderneming"
+  "documents.BUSINESS_PLAN": "Financieel plan van de onderneming",
+  "application.newSub": "Uw simulatie wordt ongewijzigd overgenomen. Vul uw gegevens aan, controleer, dien in.",
+  "application.contactTitle": "Uw gegevens",
+  "application.phone": "Telefoon",
+  "application.phonePh": "0465 12 34 56",
+  "application.submit": "Aanvraag indienen",
+  "application.summaryTitle": "Uw simulatie",
+  "application.statusLabel": "Status",
+  "application.reference": "Referentie",
+  "application.saved": "Aanvraag op dit apparaat opgeslagen — demo zonder backend, er wordt niets verzonden.",
+  "application.errName": "Geef uw naam op.",
+  "application.errEmail": "Ongeldig e-mailadres.",
+  "application.errConsent": "AVG-toestemming is vereist.",
+  "application.afterBody": "De aanvraag blijft op dit apparaat bewaard. Het klantenportaal (login, opvolging) komt in de volgende stap — er wordt niets verzonden zolang het niet bestaat."
 }

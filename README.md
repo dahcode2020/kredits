@@ -14,8 +14,9 @@ donnée fausse à l'écran.**
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 11 namespaces,
-  **715 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
-  matériel fourni en aligne 715 — la parité est verrouillée par
+  **728 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  matériel fourni en alignait 715, les slices 2-3 en ajoutent 13 dans les 4 langues à la fois —
+  la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
 - Tout **nombre** affiché sort d'une seule table : `frontend/lib/credit-engine.ts`
   (paliers 2,50 / 1,90 / 1,80 / 1,50 % par montant ; bornes et durées des quatre produits ;
@@ -60,13 +61,24 @@ donnée fausse à l'écran.**
   constante, capital sommé au centime, solde final zéro, codes ⊆ tables × 4 langues).
 - SEO par langue : titre, description, canonical et hreflang propres à chaque segment.
 
+### Slice 3 — la demande pré-remplie (`/[locale]/credit/apply`)
+
+- Le CTA « Déposer ma demande » du simulateur porte l'état complet dans la query ; la page est
+  `force-dynamic` : le HTML rendu côté serveur est **déjà pré-rempli** (lisible sans JavaScript,
+  partageable). `etatDepuisQuery` valide et borne tout — une URL bricolée reste dans la grille
+  (verrou : `tests/unit/application-params.spec.ts`).
+- Coordonnées + consentement RGPD obligatoires ; au dépôt, la demande (référence `KRD-…`, état,
+  documents requis recalculés) est conservée **sur l'appareil** (localStorage) et l'écran le dit —
+  démonstration sans backend, rien n'est « envoyé » en silence.
+- `lib/application.ts` : le pont query ⇄ état, pur et testé en Node ; le localStorage ne vit que
+  dans le composant.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
 | --- | --- |
 | `stats.*`, `trust.*`, `hero.trust` (« 8 400+ clients », « 4 800 avis »…) | Statistiques marketing sans source réelle : les clés existent, elles resteront non rendues tant qu'aucune donnée réelle ne peut les porter. |
 | `cta.simulate` (« Simuler maintenant ») | Variante du CTA simulateur, déjà rendu au hero, à la carte et à la navigation ; reste non rendue tant qu'aucun emplacement ne la réclame. |
-| `simulator.request` (« Déposer ma demande ») | La demande pré-remplie est la slice 3 ; le bouton apparaîtra avec sa route. |
 | `faq.q1` / `faq.a1` | Sa copie attend un nombre (« TAEG à partir de, … ») que seule la slice simulateur pourra fournir proprement ; l'information équivalente est déjà à l'écran (grille + contre-exemple). |
 | sections `roles` / `auth`, formulaire `contact` | Écrans des slices 3 et suivantes ; un formulaire qui ne répond pas est un écran faux. |
 | `testimonials.verified`, étoiles | Les témoignages rendus sont **explicitement illustratifs** (`testimonials.note` est affiché) ; un badge « client vérifié » sur un avis illustratif serait une donnée fausse. |
@@ -108,7 +120,7 @@ donnée fausse à l'écran.**
 ├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions à chaque poussée
 ├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
 └── frontend/
-    ├── app/                   layout racine (noscript), [locale] (accueil, simulateur, 404, erreur)
+    ├── app/                   layout racine (noscript), [locale] (accueil, simulateur, demande, 404…)
     ├── components/            layout/ motion/ ui/ home/ (accueil) simulator/ (slice 2)
     ├── i18n/                  11 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, motion…
@@ -122,7 +134,7 @@ donnée fausse à l'écran.**
 npm run dev                # serveur de dev (0.0.0.0:3000, compile dans .next-dev)
 npm run build && npm run start
 npm run check              # typecheck + hydration + copy + routes
-npm run check:assets       # serveur lancé: chaque ressource du HTML (accueil + simulateur × 4 locales) est servie
+npm run check:assets       # serveur lancé: chaque ressource du HTML (accueil + simulateur + demande × 4 locales) est servie
 npm run check:state        # l'état du poste (pull arrivé, .next cohérent, chunks = disque)
 npm run test:unit          # les verrous jest
 npm run fresh              # remise à zéro du dev (processus + .next-dev), sans taper 5 commandes
@@ -131,8 +143,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 ## Feuille de route (une passe = un écran visible)
 
 1. **Accueil** — fait (slice 1 + habillage Dewi).
-2. **Simulateur** ← vous êtes ici (réglettes, score, échéancier ; verrous échéancier posés).
-3. Demande pré-remplie (le CTA `simulator.request` apparaîtra avec elle).
+2. **Simulateur** — fait (réglettes, score, échéancier ; verrous échéancier posés).
+3. **Demande pré-remplie** — fait (query rendue côté serveur, persistance locale honnête).
+4. Portail (connexion + inscription) ← en cours.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

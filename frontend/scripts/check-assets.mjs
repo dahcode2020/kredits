@@ -32,7 +32,7 @@ const BASE = (arg("base", "http://localhost:3000")).replace(/\/$/, "");
 // Les routes par défaut sont celles qui EXISTENT: l'accueil et le simulateur (slice 2), quatre
 // langues. (L'ancienne liste promettait aussi /fr/admin/dashboard: un défaut par rapport à la
 // règle « un écran qui ne fait rien est pire qu'un écran absent » — le remettre quand il vit.)
-const ROUTES = (drapeau("routes") ? process.argv.slice(process.argv.indexOf("--routes") + 1).filter((a) => !a.startsWith("--")) : ["/fr", "/en", "/nl", "/de", "/fr/credit/simulator", "/en/credit/simulator", "/nl/credit/simulator", "/de/credit/simulator"]);
+const ROUTES = (drapeau("routes") ? process.argv.slice(process.argv.indexOf("--routes") + 1).filter((a) => !a.startsWith("--")) : ["/fr", "/en", "/nl", "/de", "/fr/credit/simulator", "/en/credit/simulator", "/nl/credit/simulator", "/de/credit/simulator", "/fr/credit/apply", "/en/credit/apply", "/nl/credit/apply", "/de/credit/apply"]);
 // `--detail` et pas seulement `--verbose`: npm réserve --verbose (comme --dry-run) comme sa propre
 // config et ne le transmet PAS au script -> `npm run check:assets -- --verbose` passerait en muet.
 const VERBOSITE = drapeau("verbose") || drapeau("detail");

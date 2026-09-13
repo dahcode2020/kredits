@@ -90,5 +90,18 @@
   "documents.PROPERTY_VALUATION": "Property valuation",
   "documents.BANK_STATEMENTS_3M": "Bank statements, 3 months",
   "documents.TAX_RETURN_2Y": "Tax assessments, 2 years",
-  "documents.BUSINESS_PLAN": "Company financial plan"
+  "documents.BUSINESS_PLAN": "Company financial plan",
+  "application.newSub": "Your simulation is carried over as is. Add your details, review, submit.",
+  "application.contactTitle": "Your details",
+  "application.phone": "Phone",
+  "application.phonePh": "0465 12 34 56",
+  "application.submit": "Submit the application",
+  "application.summaryTitle": "Your simulation",
+  "application.statusLabel": "Status",
+  "application.reference": "Reference",
+  "application.saved": "Application stored on this device — backend-less demo, nothing is sent.",
+  "application.errName": "Please enter your name.",
+  "application.errEmail": "Invalid email address.",
+  "application.errConsent": "GDPR consent is required.",
+  "application.afterBody": "The application is kept on this device. The client portal (login, tracking) arrives with the next step — nothing is sent until it exists."
 }
