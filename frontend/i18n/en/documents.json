@@ -1,0 +1,1 @@
+{ "title": "Documents", "type.ID": "Identity card", "type.INCOME_3M": "3-month payslips", "type.PROOF_ADDRESS": "Proof of address", "status.VERIFIED": "Verified", "status.PENDING": "Pending", "status.REJECTED": "Rejected", "status.MISSING": "Missing", "upload.cta": "Upload", "scan.ok": "Scan OK" }

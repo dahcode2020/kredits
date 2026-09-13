@@ -1,0 +1,18 @@
+{
+  "greeting": "Hallo {name},",
+  "subtitle": "Ihr Kredit- & Investmentbereich — Belgien • EUR",
+  "kyc.verified": "KYC verifiziert",
+  "kyc.pending": "KYC ausstehend",
+  "kyc.expired": "KYC abgelaufen",
+  "stats.dossiers": "Anträge",
+  "stats.monthly": "Ø Rate",
+  "stats.nextDue": "Nächste Fälligkeit",
+  "applications.title": "Meine Anträge",
+  "applications.empty": "Keine Anträge — Simulation starten.",
+  "applications.cta": "Neuer Antrag",
+  "investments.title": "Meine Investitionen",
+  "notifications.title": "Benachrichtigungen",
+  "quick.simulate": "Kredit simulieren",
+  "quick.documents": "Meine Unterlagen",
+  "quick.profile": "Mein Profil"
+}

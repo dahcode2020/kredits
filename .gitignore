@@ -1,0 +1,23 @@
+# Dépendances
+node_modules/
+
+# Compilations Next — le dev (.next-dev) et la production (.next) sont ISOLÉS par
+# frontend/next.config.js: ne jamais les partager (voir check:state).
+.next/
+.next-dev/
+out/
+
+# Tests & caches
+coverage/
+test-results/
+playwright-report/
+.pytest_cache/
+.mypy_cache/
+*.tsbuildinfo
+
+# Divers
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example

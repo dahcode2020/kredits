@@ -1,0 +1,18 @@
+{
+  "greeting": "Hello {name},",
+  "subtitle": "Your credit & investment space — Belgium • EUR",
+  "kyc.verified": "KYC verified",
+  "kyc.pending": "KYC pending",
+  "kyc.expired": "KYC expired",
+  "stats.dossiers": "Files",
+  "stats.monthly": "Avg. monthly",
+  "stats.nextDue": "Next due",
+  "applications.title": "My applications",
+  "applications.empty": "No applications — start a simulation.",
+  "applications.cta": "New application",
+  "investments.title": "My investments",
+  "notifications.title": "Notifications",
+  "quick.simulate": "Simulate a loan",
+  "quick.documents": "My documents",
+  "quick.profile": "My profile"
+}

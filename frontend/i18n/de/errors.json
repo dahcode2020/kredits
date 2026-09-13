@@ -1,0 +1,6 @@
+{
+  "CREDIT_AMOUNT_EXCEEDS_CEILING": "Betrag überschreitet Obergrenze {max} für {product} in {country}.",
+  "KYC_EXPIRED": "Identitätsprüfung abgelaufen — bitte via itsme® neu starten.",
+  "INVALID_PHONE": "Ungültige Telefonnummer für Belgien.",
+  "TEMPLATE_NOT_FOUND": "Benachrichtigungsvorlage nicht gefunden."
+}

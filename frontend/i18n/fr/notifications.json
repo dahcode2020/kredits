@@ -1,0 +1,13 @@
+{
+  "title": "Notifications",
+  "channel.email": "E-mail",
+  "channel.sms": "SMS",
+  "channel.whatsapp": "WhatsApp",
+  "channel.push": "Push",
+  "preferences.title": "Préférences",
+  "preferences.whatsappConsent": "Jautorise KREDIT à me contacter via WhatsApp",
+  "event.ACCOUNT_CREATED": "Compte créé",
+  "event.APPLICATION_APPROVED": "Dossier approuvé",
+  "event.PAYMENT_DUE": "Échéance à venir",
+  "empty": "Aucune notification."
+}

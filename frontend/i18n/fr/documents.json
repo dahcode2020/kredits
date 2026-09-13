@@ -1,0 +1,1 @@
+{ "title": "Documents", "type.ID": "Carte didentité", "type.INCOME_3M": "Fiches paie 3 mois", "type.PROOF_ADDRESS": "Justificatif domicile", "status.VERIFIED": "Vérifié", "status.PENDING": "En attente", "status.REJECTED": "Rejeté", "status.MISSING": "Manquant", "upload.cta": "Téléverser", "scan.ok": "Scan OK" }

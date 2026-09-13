@@ -1,0 +1,6 @@
+{
+  "CREDIT_AMOUNT_EXCEEDS_CEILING": "Montant supérieur au plafond de {max} pour {product} en {country}.",
+  "KYC_EXPIRED": "Vérification didentité expirée — veuillez recommencer via itsme®.",
+  "INVALID_PHONE": "Numéro de téléphone invalide pour la Belgique.",
+  "TEMPLATE_NOT_FOUND": "Modèle de notification introuvable."
+}

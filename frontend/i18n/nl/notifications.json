@@ -1,0 +1,13 @@
+{
+  "title": "Meldingen",
+  "channel.email": "E-mail",
+  "channel.sms": "Sms",
+  "channel.whatsapp": "WhatsApp",
+  "channel.push": "Push",
+  "preferences.title": "Voorkeuren",
+  "preferences.whatsappConsent": "Ik sta toe dat KREDIT mij via WhatsApp contacteert",
+  "event.ACCOUNT_CREATED": "Account aangemaakt",
+  "event.APPLICATION_APPROVED": "Aanvraag goedgekeurd",
+  "event.PAYMENT_DUE": "Betaling vervalt",
+  "empty": "Geen meldingen."
+}

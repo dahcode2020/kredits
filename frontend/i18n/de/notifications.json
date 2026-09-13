@@ -1,0 +1,13 @@
+{
+  "title": "Benachrichtigungen",
+  "channel.email": "E-Mail",
+  "channel.sms": "SMS",
+  "channel.whatsapp": "WhatsApp",
+  "channel.push": "Push",
+  "preferences.title": "Einstellungen",
+  "preferences.whatsappConsent": "Ich erlaube KREDIT, mich via WhatsApp zu kontaktieren",
+  "event.ACCOUNT_CREATED": "Konto erstellt",
+  "event.APPLICATION_APPROVED": "Antrag genehmigt",
+  "event.PAYMENT_DUE": "Zahlung fällig",
+  "empty": "Keine Benachrichtigungen."
+}

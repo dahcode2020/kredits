@@ -1,0 +1,1 @@
+{ "title": "Zahlungen", "dueOn": "Fällig am {date}", "amount": "Betrag", "status.CONFIRMED": "Bestätigt", "status.PENDING": "Ausstehend", "status.FAILED": "Fehlgeschlagen", "sepa.mandate": "SEPA-Mandat", "psp.mollie": "Mollie", "overdue": "Überfällig seit {days} Tagen" }

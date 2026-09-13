@@ -1,0 +1,6 @@
+{
+  "CREDIT_AMOUNT_EXCEEDS_CEILING": "Bedrag overschrijdt plafond {max} voor {product} in {country}.",
+  "KYC_EXPIRED": "Identiteitsverificatie verlopen — herstart via itsme®.",
+  "INVALID_PHONE": "Ongeldig telefoonnummer voor België.",
+  "TEMPLATE_NOT_FOUND": "Meldingssjabloon niet gevonden."
+}

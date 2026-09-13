@@ -1,0 +1,18 @@
+{
+  "name": "kredits",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Racine du monorepo KREDIT (plateforme de crédit belge, EUR, FR/EN/NL/DE). Aucun paquet n'est installé ici: ce fichier relaie les scripts vers frontend/, pour que `npm run <script>` fonctionne depuis la racine au lieu d'échouer en ENOENT sur un package.json inexistant. Les scripts qui acceptent des options (check:state, check:assets, fresh) appellent le .mjs directement: deux étages de `npm` avalent les flags, même après `--`.",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start",
+    "lint": "npm --prefix frontend run lint",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test": "npm --prefix frontend run test",
+    "check": "npm --prefix frontend run check",
+    "check:assets": "node frontend/scripts/check-assets.mjs",
+    "check:state": "node frontend/scripts/check-state.mjs",
+    "fresh": "node frontend/scripts/fresh.mjs"
+  }
+}

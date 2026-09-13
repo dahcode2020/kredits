@@ -1,0 +1,18 @@
+{
+  "greeting": "Bonjour {name},",
+  "subtitle": "Votre espace crédit & investissement — Belgique • EUR",
+  "kyc.verified": "KYC vérifié",
+  "kyc.pending": "KYC en attente",
+  "kyc.expired": "KYC expiré",
+  "stats.dossiers": "Dossiers",
+  "stats.monthly": "Mensualité moyenne",
+  "stats.nextDue": "Prochaine échéance",
+  "applications.title": "Mes demandes",
+  "applications.empty": "Aucune demande — lancez une simulation.",
+  "applications.cta": "Nouvelle demande",
+  "investments.title": "Mes investissements",
+  "notifications.title": "Notifications",
+  "quick.simulate": "Simuler un crédit",
+  "quick.documents": "Mes documents",
+  "quick.profile": "Mon profil"
+}

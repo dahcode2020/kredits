@@ -1,0 +1,1 @@
+{ "title": "Betalingen", "dueOn": "Vervaldag op {date}", "amount": "Bedrag", "status.CONFIRMED": "Bevestigd", "status.PENDING": "In afwachting", "status.FAILED": "Mislukt", "sepa.mandate": "SEPA-mandaat", "psp.mollie": "Mollie", "overdue": "Achterstallig sinds {days} dagen" }

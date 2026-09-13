@@ -1,0 +1,1 @@
+{ "title": "Unterlagen", "type.ID": "Personalausweis", "type.INCOME_3M": "Gehaltsnachweise 3 Monate", "type.PROOF_ADDRESS": "Wohnsitznachweis", "status.VERIFIED": "Verifiziert", "status.PENDING": "Ausstehend", "status.REJECTED": "Abgelehnt", "status.MISSING": "Fehlt", "upload.cta": "Hochladen", "scan.ok": "Scan OK" }

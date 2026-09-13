@@ -1,0 +1,18 @@
+{
+  "greeting": "Hallo {name},",
+  "subtitle": "Uw krediet- & beleggingsruimte — België • EUR",
+  "kyc.verified": "KYC geverifieerd",
+  "kyc.pending": "KYC in afwachting",
+  "kyc.expired": "KYC verlopen",
+  "stats.dossiers": "Dossiers",
+  "stats.monthly": "Gem. maandlast",
+  "stats.nextDue": "Volgende vervaldag",
+  "applications.title": "Mijn aanvragen",
+  "applications.empty": "Geen aanvragen — start een simulatie.",
+  "applications.cta": "Nieuwe aanvraag",
+  "investments.title": "Mijn beleggingen",
+  "notifications.title": "Meldingen",
+  "quick.simulate": "Krediet simuleren",
+  "quick.documents": "Mijn documenten",
+  "quick.profile": "Mijn profiel"
+}

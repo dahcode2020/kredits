@@ -1,0 +1,1 @@
+{ "title": "Payments", "dueOn": "Due on {date}", "amount": "Amount", "status.CONFIRMED": "Confirmed", "status.PENDING": "Pending", "status.FAILED": "Failed", "sepa.mandate": "SEPA mandate", "psp.mollie": "Mollie", "overdue": "Overdue {days} days" }

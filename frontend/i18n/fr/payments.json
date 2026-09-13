@@ -1,0 +1,1 @@
+{ "title": "Paiements", "dueOn": "Échéance le {date}", "amount": "Montant", "status.CONFIRMED": "Confirmé", "status.PENDING": "En attente", "status.FAILED": "Échoué", "sepa.mandate": "Mandat SEPA", "psp.mollie": "Mollie", "overdue": "Impayé depuis {days} jours" }
