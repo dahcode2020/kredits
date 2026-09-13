@@ -62,8 +62,9 @@ inventées, liens morts).
 5. **Les 6 gardes + la CI.** `scripts/check-{hydration,dom-nesting,copy,routes,assets,state}.mjs`
    enchaînés par `npm run check` (statique) + `check:assets`/`check:state` (serveur lancé).
    Le workflow CI est fourni en `docs/ci.yml`, prêt à poser tel quel dans
-   `.github/workflows/ci.yml` : la connexion GitHub de cette session n'a pas la permission
-   `workflows` (le même mur que l'ancien dépôt, qui avait fini par livrer `ci.example.yml`).
+   `.github/workflows/ci.yml` : la permission `workflows` n'est pas encore effective
+   côté GitHub pour la connexion de cette session (push refusé, comme dans l'ancien
+   dépôt qui avait fini par livrer un `ci.example.yml` inerte).
    4 jobs : gardes → tests → build → assets/state, à chaque poussée dès qu'il est en place.
 6. **Pas de CTA sans destination réelle.** `check:routes` croise chaque lien interne (code ET
    dictionnaires) avec les `page.tsx` réellement présents ; l'accueil n'affiche que des ancres
@@ -73,8 +74,7 @@ inventées, liens morts).
 
 ```
 ├── package.json               relais de scripts (npm run check depuis la racine)
-├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions
-├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
+├── docs/                      hydration.md, motion.md, i18n.md + ci.yml (le workflow, à activer)
 └── frontend/
     ├── app/                   layout racine (noscript), [locale] (accueil, 404, erreur)
     ├── components/            layout/ motion/ ui/ home/ (sections de l'accueil)
