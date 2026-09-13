@@ -6,13 +6,14 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 8 — ce qui existe aujourd'hui
+## Slices 1 à 9 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
-hors-ligne sécurisé, la grille de taux en table unique partagée avec le futur backend — et la
-banque du compte client (solde, IBAN, virements avec pipeline de validation, chat support) —
-en 4 langues, animés, sans une seule donnée fausse à l'écran.**
+hors-ligne sécurisé, la grille de taux en table unique partagée avec le futur backend, la banque
+du compte client (solde, IBAN, virements avec pipeline de validation, chat support) — et l'écran
+SUPER_ADMIN de l'historique des grilles — en 4 langues, animés, sans une seule donnée fausse à
+l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
@@ -260,7 +261,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 8. **Banque du compte client** — fait (solde + réservé, IBAN fictif mais formellement valide,
    mouvements, virements sortants avec pipeline de validation par niveaux et blocages pour défaut,
    chat client ⇄ support, opérations admin ; référentiel canonique `operations/virements.json`).
-   Prochaine passe : l'écran SUPER_ADMIN de l'historique des grilles.
+9. **Écran SUPER_ADMIN de l'historique des grilles** — fait (versions scellées, chaînons validés,
+   paliers/produits/règles dérivées par version, sonde d'audit daté). Prochaine passe : le backend
+   réel (API + auth serveur) qui lit ces mêmes tables.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

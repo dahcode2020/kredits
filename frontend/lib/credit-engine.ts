@@ -99,26 +99,27 @@ export const DOCUMENT_CODES = ["ID","INCOME_3M","PROOF_ADDRESS","PROPERTY_VALUAT
 
 export interface SimulateInput { amount: number; termMonths: number; monthlyIncome: number; monthlyCharges: number; incomeType: IncomeType; employmentStatus: EmploymentStatus; loanPurpose: LoanPurpose; existingCreditsMonthly?: number; country?: string; productType?: string; birthDate?: string; }
 /**
- * Règles pays-produit-palier, GÉNÉRÉES de la croix `PRODUITS × PALIERS_TAUX`. Un produit qui change de
- * bornes change donc de grille tout seul — et il n'existe plus de règle de taux oubliée dans un
- * tableau parallèle. Les identifiants restent stables et explicites (`rate_BE_MORTGAGE_20000_50000`)
- * parce qu'ils sortent dans `meta.rateRuleId` et dans le journal d'audit.
+ * Règles pays-produit-palier, GÉNÉRÉES de la croix `produits × paliers` d'une entrée de
+ * l'historique. Un produit qui change de bornes change donc de grille tout seul — et il n'existe
+ * plus de règle de taux oubliée dans un tableau parallèle. Les identifiants restent stables et
+ * explicites (`rate_BE_MORTGAGE_20000_50000`) parce qu'ils sortent dans `meta.rateRuleId`, dans
+ * le journal d'audit et sur l'écran SUPER_ADMIN de l'historique des grilles — la MÊME dérivation
+ * pour la grille effective et pour les grilles passées.
  */
-type Frais = { filePct: number; fileMin: number; fileMax: number };
-export type RegleTaux = { id: string; country: string; product: ProductCode; minAmount: number; maxAmount: number; minTerm: number; maxTerm: number; baseRate: number; fees: Frais };
+export type RegleTaux = { id: string; country: string; product: ProductCode; minAmount: number; maxAmount: number; minTerm: number; maxTerm: number; baseRate: number; fees: FraisGrille };
 
-function genererReglesTaux(pays: string): RegleTaux[] {
+export function reglesDeEntree(entree: EntreeGrille, pays: string): RegleTaux[] {
+  const paliers = entree.paliers_taux.map((p) => ({ min: p.min, max: p.max === null ? Number.POSITIVE_INFINITY : p.max, taux: p.taux }));
   const regles: RegleTaux[] = [];
-  for (const code of PRODUCT_TYPES) {
-    const p = PRODUITS[code];
-    for (const b of PALIERS_TAUX) {
+  for (const [code, p] of Object.entries(entree.produits)) {
+    for (const b of paliers) {
       if (b.min > p.max) continue;
       const plafond = b.max === Infinity ? p.max : Math.min(b.max, p.max);
       if (plafond < p.min) continue;
       const plancher = Math.max(b.min, p.min);
       if (plancher > plafond) continue;
       regles.push({
-        id: `rate_${pays}_${code}_${plancher}_${plafond}`, country: pays, product: code,
+        id: `rate_${pays}_${code}_${plancher}_${plafond}`, country: pays, product: code as ProductCode,
         minAmount: plancher, maxAmount: plafond, minTerm: p.minTerm, maxTerm: p.maxTerm,
         baseRate: b.taux, fees: { ...p.frais },
       });
@@ -126,7 +127,11 @@ function genererReglesTaux(pays: string): RegleTaux[] {
   }
   return regles;
 }
-const rateRules: RegleTaux[] = genererReglesTaux("BE");
+/** Intégrité du chaînage : le pointeur d'une entrée vise bien le hash de la précédente. */
+export function chainonValide(entree: EntreeGrille, precedente: EntreeGrille | null): boolean {
+  return entree.hash_precedent === (precedente?.hash ?? null);
+}
+const rateRules: RegleTaux[] = reglesDeEntree(grilleCourante, "BE");
 export function findRateRule(country:string, product:string, amount:number, term:number){ const c = rateRules.filter(r=> r.country===country && r.product===product && amount>=r.minAmount && amount<=r.maxAmount && term>=r.minTerm && term<=r.maxTerm); if(!c.length) return null; return c[0]; }
 export function simulateCredit(input: SimulateInput){
   const country = (input.country||'BE').toUpperCase();

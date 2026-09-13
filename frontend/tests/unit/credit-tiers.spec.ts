@@ -24,8 +24,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  EFFECTIF_DEPUIS, GRILLE_VERSION, PALIERS_TAUX, PRODUITS, PRODUCT_TYPES, findRateRule,
-  grilleValideA, palierPour, simulateCredit, tauxMiniProduit, tauxPour,
+  EFFECTIF_DEPUIS, GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, PALIERS_TAUX, PRODUITS,
+  PRODUCT_TYPES, chainonValide, findRateRule, grilleValideA, palierPour, reglesDeEntree,
+  simulateCredit, tauxMiniProduit, tauxPour,
 } from "@/lib/credit-engine";
 
 const FRONT = join(__dirname, "..", "..");
@@ -263,5 +264,45 @@ describe("miroir backend — rate_be/grille.json (slice 7)", () => {
     const out = simulateCredit({ amount: 15_000, termMonths: 48, ...base, productType: "PERSONAL" } as any);
     expect(out.simulation.meta.rateRuleId).toBe("rate_BE_PERSONAL_1500_50000");
     expect(out.simulation.meta.grilleVersion).toBe(ouverte.version);
+  });
+});
+
+describe("historique des grilles — écran SUPER_ADMIN (slice 9)", () => {
+  const grille = JSON.parse(lu("rate_be/grille.json")) as {
+    pays: string; historique: Array<{ version: string; effectif_du: string; effectif_au: string | null }>;
+  };
+
+  it("reglesDeEntree dérive pour l'écran EXACTEMENT les règles que le simulateur applique", () => {
+    for (const entree of HISTORIQUE_GRILLES) {
+      const regles = reglesDeEntree(entree, GRILLE.pays);
+      expect(regles.length).toBeGreaterThan(0);
+      const ids = new Set(regles.map((r) => r.id));
+      expect(ids.size).toBe(regles.length); // unicité par version
+      if (entree.effectif_au === null) {
+        // Grille effective : chaque règle dérivée est celle que findRateRule résout.
+        for (const r of regles) {
+          const resolue = findRateRule(r.country, r.product, r.minAmount, r.minTerm);
+          expect(resolue?.id).toBe(r.id);
+          expect(resolue?.baseRate).toBe(r.baseRate);
+        }
+      }
+    }
+  });
+
+  it("chaque chaînon de l'historique pointe vers le hash de la version précédente", () => {
+    HISTORIQUE_GRILLES.forEach((entree, i) => {
+      const precedente = i > 0 ? HISTORIQUE_GRILLES[i - 1] : null;
+      expect(chainonValide(entree, precedente)).toBe(true);
+      if (i === 0) expect(entree.hash_precedent).toBeNull();
+    });
+  });
+
+  it("la sonde d'audit daté résout chaque version sur sa période", () => {
+    for (const entree of HISTORIQUE_GRILLES) {
+      expect(grilleValideA(`${entree.effectif_du}T00:00:00Z`).version).toBe(entree.version);
+    }
+    const derniere = HISTORIQUE_GRILLES[HISTORIQUE_GRILLES.length - 1];
+    expect(grilleValideA("2100-01-01T00:00:00Z").version).toBe(derniere.version);
+    expect(grille.historique.length).toBe(HISTORIQUE_GRILLES.length);
   });
 });

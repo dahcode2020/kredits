@@ -15,7 +15,7 @@ import Link from "next/link";
 import {
   ArrowRight, BadgeCheck, Bell, BellRing, CalendarClock, Camera, ChevronDown, CreditCard,
   FileText, Fingerprint, Landmark, LayoutDashboard, Lock, LogOut, Mail, MessageCircle,
-  ShieldAlert, Smartphone, UserRound, Wallet,
+  ScrollText, ShieldAlert, Smartphone, UserRound, Wallet,
 } from "lucide-react";
 import Reveal from "@/components/motion/Reveal";
 import CountUp from "@/components/motion/CountUp";
@@ -30,6 +30,7 @@ import {
 } from "@/lib/auth";
 import BankPortal from "@/components/auth/BankPortal";
 import OpsPortal from "@/components/auth/OpsPortal";
+import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { enregistrerBanque, lireBanque, ouvrirBanqueClient, type BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
@@ -38,7 +39,7 @@ import {
   mensualiteDe, moyenne, pointsCourbe, prochaineEcheance, type PrefsNotif,
 } from "@/lib/compte";
 
-type Onglet = "apercu" | "demandes" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil" | "banque" | "operations";
+type Onglet = "apercu" | "demandes" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil" | "banque" | "operations" | "grille";
 
 const CLES_ROLE: Record<Role, string> = {
   CUSTOMER: "auth.role.customer", ADMIN: "auth.role.admin", SUPER_ADMIN: "auth.role.super",
@@ -201,6 +202,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     { id: "apercu", icone: LayoutDashboard, cle: "dashboard.tab.overview" },
     ...(session.role === "CUSTOMER" ? [{ id: "banque" as Onglet, icone: Landmark, cle: "banque:tab" }] : []),
     ...(session.role !== "CUSTOMER" ? [{ id: "operations" as Onglet, icone: ShieldAlert, cle: "banque:opsTab" }] : []),
+    ...(session.role === "SUPER_ADMIN" ? [{ id: "grille" as Onglet, icone: ScrollText, cle: "admin.grille.tab" }] : []),
     { id: "demandes", icone: FileText, cle: "dashboard.applications.title" },
     { id: "echeanciers", icone: CalendarClock, cle: "nav.repayments" },
     { id: "paiements", icone: Wallet, cle: "payments.title" },
@@ -494,6 +496,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
           {onglet === "banque" && session.role === "CUSTOMER" && <BankPortal locale={locale} session={session} />}
 
           {onglet === "operations" && session.role !== "CUSTOMER" && <OpsPortal locale={locale} session={session} />}
+
+          {onglet === "grille" && session.role === "SUPER_ADMIN" && <GrilleHistorique locale={locale} />}
 
           {onglet === "profil" && (
             <div className="grid lg:grid-cols-2 gap-6 items-start">
