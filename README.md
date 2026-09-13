@@ -6,11 +6,12 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 7 — ce qui existe aujourd'hui
+## Slices 1 à 8 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
-hors-ligne sécurisé — et la grille de taux en table unique partagée avec le futur backend —
+hors-ligne sécurisé, la grille de taux en table unique partagée avec le futur backend — et la
+banque du compte client (solde, IBAN, virements avec pipeline de validation, chat support) —
 en 4 langues, animés, sans une seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
@@ -156,6 +157,25 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 - **Verrous jest** : `tests/unit/credit-tiers.spec.ts` compare chaque export du moteur à l'entrée
   ouverte de la table, valide la chaîne de hashes et date les simulations (108 tests verts).
 
+### Slice 8 — la banque du compte client (démo locale, sans backend)
+
+- **Compte** : à l'inscription, IBAN belge fictif mais **formellement valide** (checksum ISO 7064
+  mod 97, déterministe par compte) + dotation de démonstration étiquetée telle quelle ; solde,
+  disponible et réservé ; profil enrichi (toutes les données d'inscription) et photo de profil
+  (redimensionnée en 256×256 sur canvas avant stockage local).
+- **Virements sortants** (client vérifié uniquement) : la machine à états suit le référentiel
+  canonique `operations/virements.json` — niveaux RECEPTION 10 % → CONFORMITE 30 % →
+  CERTIFICATS 60 % → EXECUTION 100 %, confirmés un à un par l'administration ; un défaut du
+  référentiel (ex. certificat d'assurance manquant, coût 150 €) **arrête le virement exactement au
+  niveau atteint**, la barre de progression passe en rouge, le blocage se lève ou le virement est
+  refusé/annulé ; le débit (montant + frais des défauts) n'a lieu qu'au dénouement.
+- **Opérations (ADMIN / SUPER_ADMIN)** : vérifier un compte, le créditer (virement entrant),
+  confirmer/bloquer/lever/refuser, répondre au chat, ajuster coûts et activation des défauts —
+  ces surcharges ne touchent que l'appareil (démo), la table canonique reste `operations/virements.json`.
+- **Messagerie** client ⇄ support par compte, persistée localement.
+- `lib/banque.ts` est pur et verrouillé (`tests/unit/banque.spec.ts`, 120 tests au total) ;
+  `check:regles` valide aussi le référentiel (pct croissants vers 100, codes, coûts, libellés ×4).
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -203,13 +223,14 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 ├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions à chaque poussée
 ├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
 ├── rate_be/grille.json        LA table de la grille BE : paliers, produits, frais, historique hash-chaîné
+├── operations/virements.json  LE référentiel des virements : niveaux de validation, défauts, coûts
 └── frontend/
     ├── app/                   layout racine (noscript, manifest, heal-sw), [locale] (accueil, simulateur, demande, auth, offline…)
     ├── components/            layout/ motion/ ui/ home/ simulator/ auth/ pwa/
     ├── i18n/                  11 namespaces × 4 langues, parité stricte
-    ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, motion…
-    ├── scripts/               les 6 gardes + fresh.mjs + copy.baseline.json ({})
-    └── tests/unit/            parité, clés utilisées, hydratation/Intl, motion, grille, échéancier
+    ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque, motion…
+    ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque
 ```
 
 ## Commandes
@@ -235,8 +256,11 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 6. **PWA** — fait (worker v9, hors-ligne sécurisé, installation, pages offline ×4).
 7. **Miroir backend de la grille** — fait (`rate_be/grille.json` : paliers, bornes produits, frais
    et historique hash-chaîné ; le moteur frontend la lit, le futur backend lira le même fichier ;
-   identifiants `rate_BE_…` dérivés de la table ; garde `check:regles`). Prochaine passe :
-   l'écran SUPER_ADMIN qui affiche l'historique des grilles depuis cette table.
+   identifiants `rate_BE_…` dérivés de la table ; garde `check:regles`).
+8. **Banque du compte client** — fait (solde + réservé, IBAN fictif mais formellement valide,
+   mouvements, virements sortants avec pipeline de validation par niveaux et blocages pour défaut,
+   chat client ⇄ support, opérations admin ; référentiel canonique `operations/virements.json`).
+   Prochaine passe : l'écran SUPER_ADMIN de l'historique des grilles.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

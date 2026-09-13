@@ -175,5 +175,41 @@ for (const dossier of dossiersUI) {
 }
 if (!idEnDur && !echecs) ok("miroir : le moteur importe la table partagée, aucune règle recodée dans l'UI");
 
+/* --- 5. référentiel des virements (pipeline + défauts définis par l'administration) ---------- */
+const REFERENTIEL = join(DEPOT, "operations", "virements.json");
+try {
+  const ref = JSON.parse(readFileSync(REFERENTIEL, "utf8"));
+  const p = ref.pipeline;
+  if (!Array.isArray(p) || p.length < 2) probleme("référentiel : pipeline doit avoir au moins 2 niveaux");
+  else {
+    p.forEach((n, i) => {
+      if (!/^[A-Z][A-Z_]*$/.test(n.code)) probleme(`référentiel : code de niveau mal formé (${n.code})`);
+      if (!(Number.isInteger(n.pct) && n.pct > 0 && n.pct <= 100)) probleme(`référentiel : pct invalide pour ${n.code}`);
+      if (i > 0 && n.pct <= p[i - 1].pct) probleme(`référentiel : les pct doivent strictement croître (${n.code})`);
+    });
+    if (p[p.length - 1].pct !== 100) probleme("référentiel : le dernier niveau doit atteindre 100 %");
+  }
+  const codes = new Set();
+  for (const d of ref.defauts || []) {
+    if (!/^[A-Z][A-Z_]*$/.test(d.code)) probleme(`référentiel : code de défaut mal formé (${d.code})`);
+    if (!(typeof d.cout === "number" && d.cout >= 0)) probleme(`référentiel : coût invalide pour ${d.code}`);
+    if (codes.has(d.code)) probleme(`référentiel : défaut en double (${d.code})`);
+    codes.add(d.code);
+  }
+  // Chaque code a son libellé dans les quatre langues (clés banque.pipeline.<CODE> / banque.defaut.<CODE>).
+  for (const loc of ["fr", "en", "nl", "de"]) {
+    const d = JSON.parse(readFileSync(join(FRONT, "i18n", loc, "banque.json"), "utf8"));
+    for (const n of p || []) if (!d[`pipeline.${n.code}`]) probleme(`clé manquante : banque.pipeline.${n.code} (${loc})`);
+    for (const c of codes) if (!d[`defaut.${c}`]) probleme(`clé manquante : banque.defaut.${c} (${loc})`);
+  }
+  const moteurBanque = readFileSync(join(FRONT, "lib", "banque.ts"), "utf8");
+  if (!/from\s+["']\.\.\/\.\.\/operations\/virements\.json["']/.test(moteurBanque)) {
+    probleme("lib/banque.ts doit importer operations/virements.json (le référentiel ne vit qu'à un seul endroit)");
+  }
+  if (!echecs) ok(`référentiel virements : ${p.length} niveaux, ${codes.size} défauts, libellés ×4 présents`);
+} catch (e) {
+  probleme(`référentiel virements illisible : ${e.message}`);
+}
+
 if (echecs) { console.log(`\ncheck-regles: ${echecs} problème(s)`); process.exit(1); }
 console.log("✔ check-regles: la grille partagée est valide et son miroir tient.");

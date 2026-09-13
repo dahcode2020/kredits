@@ -1,0 +1,17 @@
+{
+  "schema": "kredit.pipeline-virement/1",
+  "devise": "EUR",
+  "note": "Référentiel des virements sortants : niveaux de validation (pct atteints quand l'administration confirme le niveau) et défauts bloquants (codes, coûts) — définis par l'administration, lus par le moteur local (lib/banque.ts) et, à terme, par le backend. Les libellés sortent des clés i18n banque.pipeline.<CODE> et banque.defaut.<CODE>.",
+  "pipeline": [
+    { "code": "RECEPTION", "pct": 10 },
+    { "code": "CONFORMITE", "pct": 30 },
+    { "code": "CERTIFICATS", "pct": 60 },
+    { "code": "EXECUTION", "pct": 100 }
+  ],
+  "defauts": [
+    { "code": "CERT_ASSURANCE", "cout": 150, "actif": true },
+    { "code": "JUSTIF_DOMICILE", "cout": 25, "actif": true },
+    { "code": "ORIGINE_FONDS", "cout": 75, "actif": true },
+    { "code": "CAPACITE_INSUFFISANTE", "cout": 0, "actif": true }
+  ]
+}

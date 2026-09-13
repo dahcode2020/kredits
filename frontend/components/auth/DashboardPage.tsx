@@ -13,8 +13,9 @@
 import { useEffect, useMemo, useId, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowRight, Bell, BellRing, CalendarClock, ChevronDown, CreditCard, FileText, Fingerprint,
-  LayoutDashboard, Lock, LogOut, Mail, MessageCircle, Smartphone, UserRound, Wallet,
+  ArrowRight, BadgeCheck, Bell, BellRing, CalendarClock, Camera, ChevronDown, CreditCard,
+  FileText, Fingerprint, Landmark, LayoutDashboard, Lock, LogOut, Mail, MessageCircle,
+  ShieldAlert, Smartphone, UserRound, Wallet,
 } from "lucide-react";
 import Reveal from "@/components/motion/Reveal";
 import CountUp from "@/components/motion/CountUp";
@@ -27,6 +28,9 @@ import {
   comptePour, fermerSession, hacher, lireSession, mettreAJourCompte,
   type Role, type Session,
 } from "@/lib/auth";
+import BankPortal from "@/components/auth/BankPortal";
+import OpsPortal from "@/components/auth/OpsPortal";
+import { enregistrerBanque, lireBanque, ouvrirBanqueClient, type BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
 import {
@@ -34,7 +38,7 @@ import {
   mensualiteDe, moyenne, pointsCourbe, prochaineEcheance, type PrefsNotif,
 } from "@/lib/compte";
 
-type Onglet = "apercu" | "demandes" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil";
+type Onglet = "apercu" | "demandes" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil" | "banque" | "operations";
 
 const CLES_ROLE: Record<Role, string> = {
   CUSTOMER: "auth.role.customer", ADMIN: "auth.role.admin", SUPER_ADMIN: "auth.role.super",
@@ -90,6 +94,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const [mdpActuel, setMdpActuel] = useState("");
   const [mdpNeuf, setMdpNeuf] = useState("");
   const [msgMdp, setMsgMdp] = useState<"ok" | "err" | null>(null);
+  const [banqueProfil, setBanqueProfil] = useState<BanqueCompte | null>(null);
+  const [erreurPhoto, setErreurPhoto] = useState(false);
 
   useEffect(() => {
     const s = lireSession();
@@ -98,6 +104,14 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
       setDemandes(lireDemandes().filter((d) => d.email.toLowerCase() === s.email.toLowerCase()));
       setPrefs(lirePrefs());
       setDocsFournis(lireDocsFournis());
+      if (s.role === "CUSTOMER") {
+        let banque = lireBanque(s.email, s.role);
+        if (!banque) {
+          banque = ouvrirBanqueClient(s.email, s.role, new Date().toISOString());
+          enregistrerBanque(s.email, s.role, banque);
+        }
+        setBanqueProfil(banque);
+      }
     }
     setPret(true);
   }, []);
@@ -150,8 +164,43 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     setPrefs(p); enregistrerPrefs(p);
   };
 
+  /** Photo de profil : redimensionnée en 256×256 sur canvas avant stockage local (démo). */
+  const choisirPhoto = (fichier: File | null) => {
+    setErreurPhoto(false);
+    if (!fichier || !session || !banqueProfil) return;
+    if (fichier.size > 5 * 1024 * 1024) { setErreurPhoto(true); return; }
+    const lecteur = new FileReader();
+    lecteur.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const taille = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = taille; canvas.height = taille;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const cote = Math.min(image.width, image.height);
+        ctx.drawImage(image, (image.width - cote) / 2, (image.height - cote) / 2, cote, cote, 0, 0, taille, taille);
+        const donnees = canvas.toDataURL("image/jpeg", 0.85);
+        const neuf = { ...banqueProfil, photo: donnees };
+        setBanqueProfil(neuf);
+        enregistrerBanque(session.email, session.role, neuf);
+      };
+      image.src = String(lecteur.result);
+    };
+    lecteur.readAsDataURL(fichier);
+  };
+
+  const retirerPhoto = () => {
+    if (!session || !banqueProfil) return;
+    const neuf = { ...banqueProfil, photo: null };
+    setBanqueProfil(neuf);
+    enregistrerBanque(session.email, session.role, neuf);
+  };
+
   const ONGLETS: Array<{ id: Onglet; icone: typeof Wallet; cle: string }> = [
     { id: "apercu", icone: LayoutDashboard, cle: "dashboard.tab.overview" },
+    ...(session.role === "CUSTOMER" ? [{ id: "banque" as Onglet, icone: Landmark, cle: "banque:tab" }] : []),
+    ...(session.role !== "CUSTOMER" ? [{ id: "operations" as Onglet, icone: ShieldAlert, cle: "banque:opsTab" }] : []),
     { id: "demandes", icone: FileText, cle: "dashboard.applications.title" },
     { id: "echeanciers", icone: CalendarClock, cle: "nav.repayments" },
     { id: "paiements", icone: Wallet, cle: "payments.title" },
@@ -166,9 +215,14 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
         {/* ——— Rail de navigation ——— */}
         <nav className="lg:sticky lg:top-24 flex lg:flex-col gap-1.5 overflow-x-auto pb-2 lg:pb-0" aria-label={tr("account.title")}>
           <div className="hidden lg:flex items-center gap-3 px-3 pb-4">
-            <span className="w-11 h-11 rounded-2xl bg-primary text-white grid place-items-center font-extrabold">
-              {session.nom.slice(0, 1).toUpperCase()}
-            </span>
+            {banqueProfil?.photo
+              ? // eslint-disable-next-line @next/next/no-img-element
+                <img src={banqueProfil.photo} alt="" className="w-11 h-11 rounded-2xl object-cover border" />
+              : (
+                <span className="w-11 h-11 rounded-2xl bg-primary text-white grid place-items-center font-extrabold">
+                  {session.nom.slice(0, 1).toUpperCase()}
+                </span>
+              )}
             <div>
               <div className="font-extrabold text-ink leading-tight">{session.nom}</div>
               <div className="text-[11px] font-bold tracking-widest uppercase text-primary">{tr(CLES_ROLE[session.role])}</div>
@@ -437,32 +491,83 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
             </Reveal>
           )}
 
+          {onglet === "banque" && session.role === "CUSTOMER" && <BankPortal locale={locale} session={session} />}
+
+          {onglet === "operations" && session.role !== "CUSTOMER" && <OpsPortal locale={locale} session={session} />}
+
           {onglet === "profil" && (
             <div className="grid lg:grid-cols-2 gap-6 items-start">
               <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
-                <h2 className="font-extrabold text-ink text-lg">{tr("nav.profile")}</h2>
-                {comptePour(session.email, session.role)?.profil ? (
-                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                    {([
-                      ["auth.lastName", comptePour(session.email, session.role)!.profil!.nom],
-                      ["auth.firstName", comptePour(session.email, session.role)!.profil!.prenom],
-                      ["auth.birthDate", formatDate(comptePour(session.email, session.role)!.profil!.naissance, locale)],
-                      ["auth.maritalLabel", tr(`auth.marital.${comptePour(session.email, session.role)!.profil!.marital}` as string)],
-                      ["auth.city", comptePour(session.email, session.role)!.profil!.ville],
-                      ["auth.country", comptePour(session.email, session.role)!.profil!.pays],
-                      ["auth.phoneMobile", comptePour(session.email, session.role)!.profil!.telephone],
-                      ["auth.jobTitle", comptePour(session.email, session.role)!.profil!.profession || "—"],
-                      ["auth.iban", comptePour(session.email, session.role)!.profil!.iban || "—"],
-                    ] as Array<[string, string]>).map(([cle, val]) => (
-                      <div key={cle}>
-                        <dt className="text-[10px] font-bold tracking-widest uppercase text-slate-400">{tr(cle)}</dt>
-                        <dd className="font-bold text-ink mt-0.5">{val}</dd>
+                <h2 className="font-extrabold text-ink text-lg">{tr("banque:profile.title")}</h2>
+                {(() => {
+                  const compte = comptePour(session.email, session.role);
+                  const profil = compte?.profil;
+                  if (!profil) return <p className="mt-3 text-sm text-slate-500">{tr("banque:profile.none")}</p>;
+                  const champs: Array<[string, string]> = [
+                    ["auth.lastName", profil.nom], ["auth.firstName", profil.prenom],
+                    ["auth.birthDate", formatDate(profil.naissance, locale)],
+                    ["auth.nationality", profil.nationalite || "—"],
+                    ["auth.maritalLabel", tr(`auth.marital.${profil.marital}` as string)],
+                    ["auth.street", [profil.rue, profil.numero, profil.boite].filter(Boolean).join(" ") || "—"],
+                    ["auth.postalCode", profil.codePostal || "—"], ["auth.city", profil.ville || "—"],
+                    ["auth.country", profil.pays || "—"], ["auth.phoneMobile", profil.telephone || "—"],
+                    ["auth.employer", profil.employeur || "—"], ["auth.jobTitle", profil.profession || "—"],
+                    ["auth.seniority", profil.anciennete || "—"],
+                    ["auth.companyName", profil.entreprise || "—"], ["auth.vatNumber", profil.tva || "—"],
+                    ["auth.sector", profil.secteur || "—"],
+                    ["auth.monthlyIncomeNet", profil.revenusNets || "—"],
+                    ["auth.housingLabel", tr(`auth.housing.${profil.logement}` as string)],
+                    ["auth.housingCost", profil.chargeLogement || "—"],
+                    ["auth.iban", profil.iban || "—"],
+                    ["auth.existingDebts", profil.creditsExistants || "—"],
+                  ];
+                  return (
+                    <>
+                      <div className="mt-4 flex items-center gap-4 rounded-2xl bg-surface border p-4">
+                        {banqueProfil?.photo
+                          ? // eslint-disable-next-line @next/next/no-img-element
+                            <img src={banqueProfil.photo} alt={session.nom} className="w-16 h-16 rounded-2xl object-cover border" />
+                          : <span className="w-16 h-16 rounded-2xl bg-primary-light text-primary grid place-items-center"><Camera className="w-7 h-7" aria-hidden="true" /></span>}
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{tr("banque:photo")}</div>
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            <label className={buttonClasses("outline-light", "sm", "cursor-pointer")}>
+                              {tr(banqueProfil?.photo ? "banque:photoChange" : "banque:photoAdd")}
+                              <input type="file" accept="image/*" className="sr-only" onChange={(e) => choisirPhoto(e.target.files?.[0] ?? null)} />
+                            </label>
+                            {banqueProfil?.photo && (
+                              <button type="button" onClick={retirerPhoto} className={buttonClasses("outline-light", "sm")}>{tr("banque:photoRemove")}</button>
+                            )}
+                          </div>
+                          {erreurPhoto && <p role="alert" className="mt-1.5 text-[11px] font-bold text-red-600">{tr("banque:photoTooBig")}</p>}
+                        </div>
                       </div>
-                    ))}
-                  </dl>
-                ) : (
-                  <p className="mt-3 text-sm text-slate-500">{tr("roles.demoNote")}</p>
-                )}
+                      {compte && (
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", banqueProfil?.verifie ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                            {banqueProfil?.verifie ? <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" /> : <Lock className="w-3.5 h-3.5" aria-hidden="true" />}
+                            {tr(banqueProfil?.verifie ? "banque:verified" : "banque:unverified")}
+                          </span>
+                          <span className="text-[11px] text-slate-400">{tr("banque:profile.memberSince", { date: formatDate(compte.creeA, locale) })}</span>
+                        </div>
+                      )}
+                      {banqueProfil && (
+                        <div className="mt-4 rounded-2xl bg-ink text-white p-4">
+                          <div className="text-[10px] font-bold tracking-widest uppercase text-white/40">{tr("banque:iban")} — {tr("banque:ibanNote")}</div>
+                          <div className="mt-1 font-mono text-[15px] tracking-wider">{banqueProfil.iban}</div>
+                        </div>
+                      )}
+                      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                        {champs.map(([cle, val]) => (
+                          <div key={cle}>
+                            <dt className="text-[10px] font-bold tracking-widest uppercase text-slate-400">{tr(cle)}</dt>
+                            <dd className="font-bold text-ink mt-0.5">{val}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </>
+                  );
+                })()}
               </Reveal>
               <Reveal as="div" variant="left" retard={100} className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
                 <h2 className="font-extrabold text-ink text-lg flex items-center gap-2">

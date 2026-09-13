@@ -20,6 +20,7 @@ import {
   ROLES, ageEnAnnees, comptePour, emailValide, enregistrerCompte, hacher, ouvrirSession,
   type ProfilInscription, type Role,
 } from "@/lib/auth";
+import { enregistrerBanque, ouvrirBanqueClient } from "@/lib/banque";
 
 const CLES_ROLE: Record<Role, string> = {
   CUSTOMER: "auth.role.customer",
@@ -110,11 +111,14 @@ export default function AuthPage({ locale }: { locale: Locale }) {
       return;
     }
     const hash = await hacher(mdp);
+    const maintenant = new Date().toISOString();
     enregistrerCompte({
       email: lEmail.trim(), hash, role: "CUSTOMER",
-      nom: `${f.prenom.trim()} ${f.nom.trim()}`, creeA: new Date().toISOString(), profil: f,
+      nom: `${f.prenom.trim()} ${f.nom.trim()}`, creeA: maintenant, profil: f,
     });
-    ouvrirSession({ email: lEmail.trim(), role: "CUSTOMER", nom: `${f.prenom.trim()} ${f.nom.trim()}`, ouverteA: new Date().toISOString() });
+    // Ouverture de la banque locale (slice 8) : IBAN fictif déterministe + dotation démo.
+    enregistrerBanque(lEmail.trim(), "CUSTOMER", ouvrirBanqueClient(lEmail.trim(), "CUSTOMER", maintenant));
+    ouvrirSession({ email: lEmail.trim(), role: "CUSTOMER", nom: `${f.prenom.trim()} ${f.nom.trim()}`, ouverteA: maintenant });
     router.push(`/${locale}/account`);
   };
 
