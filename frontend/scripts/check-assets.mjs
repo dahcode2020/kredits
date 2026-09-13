@@ -11,7 +11,7 @@
  * Ce contrôle fait ce que fait le navigateur, mais depuis le terminal :
  *   1. il télécharge le HTML de chaque route ;
  *   2. il en extrait TOUTES les ressources internes (`/_next/static/…`, `/_next/image?…`, `/icons/…`,
- *      `/manifest…`, `/sw.js`) ;
+ *      `/images/…`, `/manifest…`, `/sw.js`) ;
  *   3. il les re-demande une par une et exige un 2xx (ou 3xx pour les ressources servies via redirect).
  *
  *   npm run dev                              # à côté
@@ -47,7 +47,7 @@ function ressources(html) {
   while ((m = PATRON.exec(html)) !== null) {
     const u = m[1];
     if (!u || u.startsWith("//")) continue; // protocole-relatif: hors origine
-    if (!/^\/(_next|icons|manifest|screenshots|sw\.js|favicon)/.test(u)) continue; // pages: testées par la route elle-même
+    if (!/^\/(_next|icons|images|manifest|screenshots|sw\.js|favicon)/.test(u)) continue; // pages: testées par la route elle-même
     vues.add(u);
   }
   return [...vues];

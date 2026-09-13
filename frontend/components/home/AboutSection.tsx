@@ -31,14 +31,14 @@ export default function AboutSection({ locale }: { locale: Locale }) {
         </div>
 
         <div className="relative">
-          {/* Panneau décoratif: dégradés animés (kreditDrive), aucune image mensongère. */}
+          {/* Photo décorative générée (aria-hidden, alt="") : une ambiance architecturale, jamais
+              présentée comme l'équipe ou le siège réel — le badge BE reste la seule affirmation. */}
           <Reveal as="div" variant="right" pas={24} className="relative h-[420px] rounded-[24px] overflow-hidden bg-ink shadow-card">
-            <div className="maillage" aria-hidden="true" />
-            <div className="absolute inset-0 grid place-items-center">
-              <div className="text-center">
-                <div className="font-display font-extrabold text-white text-[88px] leading-none tracking-tight">BE</div>
-                <div className="mt-2 text-[11px] tracking-widest uppercase font-bold text-white/70">{tr("compliance.pilot")}</div>
-              </div>
+            <img src="/images/about.jpg" alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/10 to-transparent" aria-hidden="true" />
+            <div className="absolute left-5 bottom-5 flex items-center gap-3 rounded-2xl bg-ink/70 backdrop-blur border border-white/15 px-4 py-3">
+              <div className="font-display font-extrabold text-white text-[32px] leading-none tracking-tight">BE</div>
+              <div className="text-[10px] tracking-widest uppercase font-bold text-white/80">{tr("compliance.pilot")}</div>
             </div>
           </Reveal>
           <Reveal as="div" retard={200} className="mt-4 bg-white rounded-2xl shadow-card border p-5">

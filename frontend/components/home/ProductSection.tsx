@@ -31,6 +31,15 @@ const ICONES: Record<ProductCode, typeof Wallet> = {
   INVESTMENT: BarChart3,
 };
 
+/* Photographies de marque (générées, décoratives: alt="", aria-hidden) — l'étiquette produit
+   reste la clé products.*.tag du dictionnaire, posée sur la photo comme dans l'ancien visuel. */
+const IMAGES: Record<ProductCode, string> = {
+  PERSONAL: "/images/product-personal.jpg",
+  MORTGAGE: "/images/product-mortgage.jpg",
+  BUSINESS: "/images/product-business.jpg",
+  INVESTMENT: "/images/product-invest.jpg",
+};
+
 /** Le contre-exemple déterministe: plancher du produit personnel dans le moteur. */
 const CONTRE_EXEMPLE = simulateCredit({
   amount: PRODUITS.PERSONAL.min, termMonths: PRODUITS.PERSONAL.minTerm,
@@ -67,12 +76,17 @@ export default function ProductSection({ locale }: { locale: Locale }) {
             const mini = tauxMiniProduit(code);
             const miniFinal = formatPercent(mini, locale, 2);
             return (
-              <Reveal as="div" key={code} retard={i * 80} pas={28} spotlight className="bg-white rounded-[20px] shadow-soft border p-6 lift">
-                <div className="flex items-center justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-primary-light text-primary grid place-items-center"><Icone className="w-5 h-5" aria-hidden="true" /></div>
-                  <span className="px-2.5 py-1 rounded-full bg-surface text-[10px] font-bold tracking-widest uppercase text-ink border">{tr(cles.tag)}</span>
+              <Reveal as="div" key={code} retard={i * 80} pas={28} spotlight className="bg-white rounded-[20px] shadow-soft border overflow-hidden lift">
+                <div className="relative h-40">
+                  <img src={IMAGES[code]} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent" aria-hidden="true" />
+                  <span className="absolute left-4 top-4 px-2.5 py-1 rounded-full bg-ink/70 backdrop-blur text-[10px] font-bold tracking-widest uppercase text-white border border-white/20">{tr(cles.tag)}</span>
                 </div>
-                <h3 className="mt-4 font-extrabold text-ink">{tr(cles.nom)}</h3>
+                <div className="p-6 pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary-light text-primary grid place-items-center shrink-0"><Icone className="w-5 h-5" aria-hidden="true" /></div>
+                  <h3 className="font-extrabold text-ink">{tr(cles.nom)}</h3>
+                </div>
                 <p className="mt-1 text-sm leading-6 text-slate-500">{tr(cles.desc)}</p>
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-1.5 text-[12px] font-semibold text-slate-500">
                   <div className="flex justify-between">
@@ -87,6 +101,7 @@ export default function ProductSection({ locale }: { locale: Locale }) {
                   </div>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-3">{tr("products.note")}</p>
+                </div>
               </Reveal>
             );
           })}

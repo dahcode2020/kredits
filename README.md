@@ -29,6 +29,16 @@ inventées, liens morts).
 - Effet de bord assumé et **affiché** : sur 1 500 € / 12 mois, le TAEG est de 7,50 % (les 75 €
   de frais minimum pèsent 5 % sur un an) — le contre-exemple est calculé par le moteur et rendu
   dans la section taux. Un « dès 2,50 % » sans ce détail serait une promesse fausse.
+- **Habillage visuel inspiré du template Dewi** et des captures de l'ancien site — sans en
+  reprendre les défauts : photos de marque **générées** (`frontend/public/images/`, décoratives,
+  `alt=""`, `aria-hidden`, jamais présentées comme l'équipe ou le siège réel) pour le hero, les
+  quatre cartes produits (étiquette de catégorie posée sur la photo) et le panneau « à propos » ;
+  bandeau de chiffres sous le hero qui compte les **plafonds contractuels** des quatre produits
+  (lus dans `PRODUITS`, zéro clé i18n inventée) ; langues en pilules visibles sur desktop.
+  Les fausses stats de l'ancien site (8 400+ clients, 4,8/5, « avis vérifiés ») et ses CTA morts
+  (Watch demo, EXPLORE →) restent exclus. `<img>` préféré à `next/image` à dessein (conteneurs
+  fixes, pas de CLS, pas de dépendance `sharp` pour le `next start` de la CI) — règle
+  `@next/next/no-img-element` désactivée dans `frontend/.eslintrc.json`.
 
 ### Ce que la page ne montre volontairement PAS
 

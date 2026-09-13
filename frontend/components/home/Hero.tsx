@@ -4,6 +4,7 @@ import Reveal from "@/components/motion/Reveal";
 import Parallax from "@/components/motion/Parallax";
 import { buttonClasses } from "@/components/ui/Button";
 import HeroCard from "./HeroCard";
+import StatsBand from "./StatsBand";
 import { Locale, t } from "@/lib/i18n";
 
 /**
@@ -25,7 +26,9 @@ export default function Hero({ locale }: { locale: Locale }) {
     <section className="relative overflow-hidden bg-ink">
       {/* Profondeur: le maillage dérive doucement (Parallax, translate3d uniquement). */}
       <Parallax amplitude={14} className="absolute -inset-[4%]">
-        <div className="maillage" aria-hidden="true" />
+        {/* Image décorative (générée, aria-hidden, alt="") : ambiance, pas une promesse. */}
+        <img src="/images/hero-bg.jpg" alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+        <div className="maillage opacity-70" aria-hidden="true" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink/30" />
       </Parallax>
 
@@ -68,6 +71,9 @@ export default function Hero({ locale }: { locale: Locale }) {
             <HeroCard locale={locale} />
           </Reveal>
         </div>
+
+        {/* Bandeau de chiffres : bornes contractuelles lues dans PRODUITS, jamais une stat marketing. */}
+        <StatsBand locale={locale} />
       </div>
     </section>
   );
