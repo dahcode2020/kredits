@@ -11,11 +11,10 @@ import { useSeuilScroll } from "@/lib/motion";
  * Bande du haut — slice 1 (+ habillage Dewi).
  *
  * Règle non négociable: un écran qui ne fait rien est pire qu'un écran absent. Chaque lien doit
- * donc mener quelque part qui EXISTE. Au stade de la page d'accueil seule, la navigation contient:
- * le mot-marque (accueil), deux ancres vers des sections réelles de la page, et le sélecteur de
- * langue — en pilules visibles sur desktop (façon Dewi), en boutons dans le panneau mobile.
- * Pas de lien « Simulateur », « Espace client » ou « Tableau de bord »: ces routes arrivent avec
- * leurs slices, jamais avant.
+ * donc mener quelque part qui EXISTE. La navigation contient, depuis la slice 2: le mot-marque
+ * (accueil), le simulateur (route réelle), deux ancres vers des sections réelles de l'accueil, et
+ * le sélecteur de langue — en pilules visibles sur desktop (façon Dewi), en boutons dans le
+ * panneau mobile. Le portail et le tableau de bord arriveront avec leurs slices, jamais avant.
  */
 export default function Header({ locale }: { locale: Locale }) {
   const [open, setOpen] = useState(false);
@@ -33,8 +32,10 @@ export default function Header({ locale }: { locale: Locale }) {
   };
   const tr = (k: string) => t(locale, k);
 
-  // Les deux ancres réelles de la slice 1 — déclarées une fois, réutilisées par le menu mobile.
+  // Liens réels: le simulateur (slice 2) et les deux ancres de l'accueil — déclarés une fois,
+  // réutilisés par le menu mobile.
   const ancres = [
+    { href: `/${locale}/credit/simulator`, label: tr("nav.simulator") },
     { href: `/${locale}#produits`, label: tr("nav.products") },
     { href: `/${locale}#apropos`, label: tr("nav.about") },
   ];

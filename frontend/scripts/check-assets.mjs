@@ -29,10 +29,10 @@ const arg = (nom, defaut) => {
 const drapeau = (nom) => process.argv.includes(`--${nom}`);
 
 const BASE = (arg("base", "http://localhost:3000")).replace(/\/$/, "");
-// Slice 1 = la page d'accueil, quatre langues: les routes par défaut sont celles qui EXISTENT.
-// (L'ancienne liste promettait /fr/credit/simulator et /fr/admin/dashboard: un défaut par rapport à
-// la règle « un écran qui ne fait rien est pire qu'un écran absent » — les remettre quand elles vivent.)
-const ROUTES = (drapeau("routes") ? process.argv.slice(process.argv.indexOf("--routes") + 1).filter((a) => !a.startsWith("--")) : ["/fr", "/en", "/nl", "/de"]);
+// Les routes par défaut sont celles qui EXISTENT: l'accueil et le simulateur (slice 2), quatre
+// langues. (L'ancienne liste promettait aussi /fr/admin/dashboard: un défaut par rapport à la
+// règle « un écran qui ne fait rien est pire qu'un écran absent » — le remettre quand il vit.)
+const ROUTES = (drapeau("routes") ? process.argv.slice(process.argv.indexOf("--routes") + 1).filter((a) => !a.startsWith("--")) : ["/fr", "/en", "/nl", "/de", "/fr/credit/simulator", "/en/credit/simulator", "/nl/credit/simulator", "/de/credit/simulator"]);
 // `--detail` et pas seulement `--verbose`: npm réserve --verbose (comme --dry-run) comme sa propre
 // config et ne le transmet PAS au script -> `npm run check:assets -- --verbose` passerait en muet.
 const VERBOSITE = drapeau("verbose") || drapeau("detail");

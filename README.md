@@ -6,9 +6,10 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slice 1 — ce qui existe aujourd'hui
+## Slices 1 & 2 — ce qui existe aujourd'hui
 
-**Une page d'accueil, irréprochable, en 4 langues, animée, sans une seule donnée fausse à l'écran.**
+**Une page d'accueil irréprochable et un simulateur complet, en 4 langues, animés, sans une seule
+donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
@@ -23,9 +24,10 @@ inventées, liens morts).
   `app/globals.css` (courbes, durées, apparitions). `prefers-reduced-motion` annule **l'état**,
   pas seulement la durée ; `<noscript>` dans le `<head>` rend la page lisible sans JavaScript ;
   `@media print` et `@media (hover: none)` couvrent l'impression et le tactile.
-- **Aucun CTA vers une route qui n'existe pas.** Le simulateur, le portail et le tableau de bord
-  arriveront avec leurs slices ; la page d'accueil ne promet rien qu'elle ne tienne :
-  ses boutons mènent à ses propres sections (`#produits`, `#taux`, `#apropos`, `#parcours`).
+- **Aucun CTA vers une route qui n'existe pas.** Depuis la slice 2, « Simuler mon crédit » (hero),
+  « Lancer le simulateur » (carte) et « Simulateur » (navigation) mènent à la route réelle ; le
+  portail et le tableau de bord arriveront avec leurs slices. Le simulateur lui-même ne propose
+  pas encore « Déposer ma demande » : la demande pré-remplie est la slice 3 et apparaîtra avec elle.
 - Effet de bord assumé et **affiché** : sur 1 500 € / 12 mois, le TAEG est de 7,50 % (les 75 €
   de frais minimum pèsent 5 % sur un an) — le contre-exemple est calculé par le moteur et rendu
   dans la section taux. Un « dès 2,50 % » sans ce détail serait une promesse fausse.
@@ -40,12 +42,31 @@ inventées, liens morts).
   fixes, pas de CLS, pas de dépendance `sharp` pour le `next start` de la CI) — règle
   `@next/next/no-img-element` désactivée dans `frontend/.eslintrc.json`.
 
-### Ce que la page ne montre volontairement PAS
+### Slice 2 — le simulateur (`/[locale]/credit/simulator`)
+
+- **Rendu serveur d'abord** : le HTML porte la simulation par défaut (15 000 € / 48 mois, l'exemple
+  du dictionnaire) — lisible sans JavaScript, indexable ; l'état initial est déterministe, serveur
+  et client hydratent sans écart.
+- Onglets produit, réglettes montant/durée (bornes et pas lus dans `PRODUITS`), revenus, charges,
+  crédits existants, trois listes dont les options sortent des tableaux exportés du moteur
+  (`INCOME_TYPES`, `EMPLOYMENT_STATUSES`, `LOAN_PURPOSES`) — un code sans clé de dictionnaire
+  casse le type ET le test `credit-engine-copy`.
+- Résultat : mensualité, TAEG, frais de dossier, coût total dont intérêts+frais, taux
+  d'endettement, capacité, recommandation moteur + score détaillé, alertes et documents requis.
+  Les `message` français du moteur (format log backend) ne sont **jamais** rendus : l'UI interpole
+  `credit:simulator.warning.*` et `credit:documents.*` avec des valeurs reformatées par locale.
+- **Échéancier sombre** (amortissement français, 12 premières lignes sur le total) — le panneau
+  encre/maillage repris du hero. Verrous : `tests/unit/simulator-schedule.spec.ts` (mensualité
+  constante, capital sommé au centime, solde final zéro, codes ⊆ tables × 4 langues).
+- SEO par langue : titre, description, canonical et hreflang propres à chaque segment.
+
+### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
 | --- | --- |
 | `stats.*`, `trust.*`, `hero.trust` (« 8 400+ clients », « 4 800 avis »…) | Statistiques marketing sans source réelle : les clés existent, elles resteront non rendues tant qu'aucune donnée réelle ne peut les porter. |
-| `hero.cta1` / `cta.simulate` / `heroCard.cta` (« Simuler mon crédit ») | Le simulateur est la slice 2 ; un bouton sans destination est pire qu'un bouton absent. |
+| `cta.simulate` (« Simuler maintenant ») | Variante du CTA simulateur, déjà rendu au hero, à la carte et à la navigation ; reste non rendue tant qu'aucun emplacement ne la réclame. |
+| `simulator.request` (« Déposer ma demande ») | La demande pré-remplie est la slice 3 ; le bouton apparaîtra avec sa route. |
 | `faq.q1` / `faq.a1` | Sa copie attend un nombre (« TAEG à partir de, … ») que seule la slice simulateur pourra fournir proprement ; l'information équivalente est déjà à l'écran (grille + contre-exemple). |
 | sections `roles` / `auth`, formulaire `contact` | Écrans des slices 3 et suivantes ; un formulaire qui ne répond pas est un écran faux. |
 | `testimonials.verified`, étoiles | Les témoignages rendus sont **explicitement illustratifs** (`testimonials.note` est affiché) ; un badge « client vérifié » sur un avis illustratif serait une donnée fausse. |
@@ -87,12 +108,12 @@ inventées, liens morts).
 ├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions à chaque poussée
 ├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
 └── frontend/
-    ├── app/                   layout racine (noscript), [locale] (accueil, 404, erreur)
-    ├── components/            layout/ motion/ ui/ home/ (sections de l'accueil)
+    ├── app/                   layout racine (noscript), [locale] (accueil, simulateur, 404, erreur)
+    ├── components/            layout/ motion/ ui/ home/ (accueil) simulator/ (slice 2)
     ├── i18n/                  11 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, motion…
     ├── scripts/               les 6 gardes + fresh.mjs + copy.baseline.json ({})
-    └── tests/unit/            parité, clés utilisées, hydratation/Intl, motion, grille
+    └── tests/unit/            parité, clés utilisées, hydratation/Intl, motion, grille, échéancier
 ```
 
 ## Commandes
@@ -101,7 +122,7 @@ inventées, liens morts).
 npm run dev                # serveur de dev (0.0.0.0:3000, compile dans .next-dev)
 npm run build && npm run start
 npm run check              # typecheck + hydration + copy + routes
-npm run check:assets       # serveur lancé: chaque ressource du HTML des 4 locales est servie
+npm run check:assets       # serveur lancé: chaque ressource du HTML (accueil + simulateur × 4 locales) est servie
 npm run check:state        # l'état du poste (pull arrivé, .next cohérent, chunks = disque)
 npm run test:unit          # les verrous jest
 npm run fresh              # remise à zéro du dev (processus + .next-dev), sans taper 5 commandes
@@ -109,9 +130,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 
 ## Feuille de route (une passe = un écran visible)
 
-1. **Accueil** ← vous êtes ici.
-2. Simulateur (réglette logarithmique, verrous `credit-tiers` réactivés côté UI).
-3. Demande pré-remplie.
+1. **Accueil** — fait (slice 1 + habillage Dewi).
+2. **Simulateur** ← vous êtes ici (réglettes, score, échéancier ; verrous échéancier posés).
+3. Demande pré-remplie (le CTA `simulator.request` apparaîtra avec elle).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

@@ -13,10 +13,9 @@ import { Locale, t } from "@/lib/i18n";
  * - Zéro texte en dur: tout vient des dictionnaires (t()).
  * - Zéro donnée fausse: les deux seuls nombres de la section (le TAEG plancher et le plafond
  *   hypothécaire de la carte) sortent de lib/credit-engine.ts, pas du JSX.
- * - Zéro CTA mort: le bouton principal mène à la section produits (#produits), le secondaire à la
- *   grille de taux (#taux) — deux ancres réelles de cette page. Le CTA « Simuler mon crédit » du
- *   dictionnaire n'est PAS rendu: le simulateur arrive à la slice 2, et un bouton sans destination
- *   est pire qu'un bouton absent.
+ * - Zéro CTA mort: depuis la slice 2, le bouton principal « Simuler mon crédit » mène à la route
+ *   réelle du simulateur ; le secondaire reste une ancre de cette page (#produits). Avant
+ *   l'existence de la route, le CTA n'était tout simplement pas rendu.
  * - Le visuel de fond est un maillage CSS (pas une photo stock « équipe souriante » qui serait un
  *   mensonge de plus): dégradés superposés, aucun fetch.
  */
@@ -47,13 +46,14 @@ export default function Hero({ locale }: { locale: Locale }) {
               {tr("hero.subtitle")}
             </Reveal>
 
-            {/* Rafale calculée (i * 80), jamais aléatoire. */}
+            {/* Rafale calculée (i * 80), jamais aléatoire. Depuis la slice 2, le CTA principal a
+                une destination réelle: la route du simulateur. Le secondaire reste une ancre. */}
             <Reveal as="div" retard={250} className="mt-8 flex flex-wrap gap-3">
-              <a href="#produits" className={buttonClasses("primary", "lg", "gap-2")}>
-                {tr("hero.cta2")} <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </a>
-              <a href="#taux" className={buttonClasses("outline", "lg", "gap-2")}>
-                {tr("nav.credit")}
+              <Link href={`/${locale}/credit/simulator`} className={buttonClasses("primary", "lg", "gap-2")}>
+                {tr("hero.cta1")} <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </Link>
+              <a href="#produits" className={buttonClasses("outline", "lg", "gap-2")}>
+                {tr("hero.cta2")}
               </a>
             </Reveal>
 

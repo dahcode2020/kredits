@@ -4,9 +4,10 @@
  * pas la frontière serveur→client. Le composant reste rendu par le serveur (SSR), son code ne lit
  * aucune API navigateur au render: le contrat d'hydratation tient.
  */
-import { Lock, FileCheck, Scale } from "lucide-react";
+import Link from "next/link";
+import { Lock, FileCheck, Scale, ArrowRight } from "lucide-react";
 import CountUp from "@/components/motion/CountUp";
-import { Badge } from "@/components/ui/Button";
+import { Badge, buttonClasses } from "@/components/ui/Button";
 import { formatMontantCompact, formatPercent } from "@/lib/formatters";
 import { formatEUR2 } from "@/lib/utils";
 import { Locale, gdprAcronym, t } from "@/lib/i18n";
@@ -21,8 +22,9 @@ import { PALIERS_TAUX, PRODUITS, simulateCredit } from "@/lib/credit-engine";
  * - Plafond: PRODUITS.MORTGAGE.max, lu dans la table.
  * - L'exemple (15 000 € / 48 mois, repris du libellé `heroCard.example`) passe dans le moteur:
  *   mensualité et TAEG sortent du même objet et ne peuvent donc pas se contredire.
- * - Pas de bouton « Lancer le simulateur »: la route n'existe pas encore (slice 2). Un CTA sans
- *   destination est pire qu'un CTA absent.
+ * - Le bouton « Lancer le simulateur » mène à la route réelle `/[locale]/credit/simulator`
+ *   (slice 2). Avant son existence, il n'était pas rendu: un CTA sans destination est pire qu'un
+ *   CTA absent.
  *
  * Composant serveur: seul CountUp (client) anime, et son contrat `final` garantit le retour exact
  * à la chaîne rendue par le serveur (docs/motion.md).
@@ -77,6 +79,10 @@ export default function HeroCard({ locale }: { locale: Locale }) {
         </div>
         <p className="text-[11px] text-slate-400 pt-1">{tr("heroCard.note")}</p>
       </div>
+
+      <Link href={`/${locale}/credit/simulator`} className={buttonClasses("primary", "md", "w-full gap-2 mt-5")}>
+        {tr("heroCard.cta")} <ArrowRight className="w-4 h-4" aria-hidden="true" />
+      </Link>
 
       <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-4 text-[11px] text-slate-400">
         <span className="flex items-center gap-1"><Lock className="w-3 h-3" aria-hidden="true" /> {gdprAcronym[locale]}</span>

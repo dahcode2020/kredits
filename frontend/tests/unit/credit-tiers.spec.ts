@@ -16,9 +16,9 @@
  * D'où les règles « aucune chaîne chiffrée dans l'UI » et « les descriptions ne portent plus de
  * chiffre », écrites comme des tests et pas comme une convention.
  *
- * Périmètre slice 1 : le simulateur (sa réglette logarithmique) et le miroir backend arrivent avec
- * leurs slices; leurs verrous seront réajoutés ici à ce moment — jamais avant, jamais sur des
- * fichiers qui n'existent pas encore.
+ * Périmètre slice 1 : les verrous propres au simulateur (échéancier, codes d'alertes et de
+ * documents) vivent depuis la slice 2 dans tests/unit/simulator-schedule.spec.ts — ajoutés en même
+ * temps que la route, jamais avant, jamais sur des fichiers qui n'existent pas encore.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
