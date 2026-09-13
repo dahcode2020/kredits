@@ -54,6 +54,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </noscript>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        {/* Auto-réparation (exigée par check-state dès que public/sw.js existe) : si /sw.js
+            disparaît de l'arbre servi (pull pas arrivé, worker hérité d'un ancien déploiement),
+            on désenregistre le worker et on purge les caches kredit-* au lieu de laisser un
+            proxy fantôme répondre à la place du serveur. Ne s'exécute que dans le navigateur. */}
+        <script
+          id="kredit-dev-sw-heal"
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){if(!(\"serviceWorker\" in navigator))return;fetch(\"/sw.js\",{cache:\"no-store\"}).then(function(r){if(r.ok)return;return navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(x){x.unregister();});}).then(function(){if(!(\"caches\" in window))return;return caches.keys().then(function(ks){ks.forEach(function(k){if(k.indexOf(\"kredit-\")===0){caches.delete(k);}});});});}).catch(function(){});})();",
+          }}
+        />
       </head>
       <body className="bg-white text-ink antialiased font-body">
         {/* Pas de skip-link ici: son libellé est de la copie à traduire, et ce layout ne connaît

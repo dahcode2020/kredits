@@ -6,11 +6,11 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 5 — ce qui existe aujourd'hui
+## Slices 1 à 6 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
-d'authentification et un tableau de bord client façon néo-banque, en 4 langues, animés, sans une
-seule donnée fausse à l'écran.**
+d'authentification, un tableau de bord client façon néo-banque et une PWA installable avec
+hors-ligne sécurisé, en 4 langues, animés, sans une seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
@@ -115,6 +115,27 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 - Verrous : `tests/unit/compte.spec.ts` (échéance projetée, moyenne, courbe) ; `lib/compte.ts`
   pur pour le calcul, localStorage seulement côté navigateur.
 
+### Slice 6 — PWA installable, hors-ligne sécurisé
+
+- `public/sw.js` (kredit-v9) : precache = assets immuables **+ les 4 pages `/offline` seulement**
+  (jamais de HTML de page en precache) ; chunks `/_next/` mis en cache **uniquement s'ils portent
+  leur hash de build** (`assetHache`) ; tout `cache.put` gardé par `reponseCacheable`
+  (no-store/no-cache exclus) ; un seul `respondWith`, via le helper qui force une `Response` —
+  une panne réseau ne doit jamais devenir une page blanche.
+- **Hors-ligne sûr** : navigations en réseau-d'abord, repli sur la dernière visite publique ou la
+  page `/offline` de la langue demandée ; `/account` (données personnelles) **jamais** écrit dans
+  le worker ; les données financières ne vivent que dans le localStorage de l'appareil.
+- `components/pwa/SWRegister.tsx` : enregistrement **prod uniquement** (en dev, purge des workers
+  hérités), toast « mise à jour disponible » → SKIP_WAITING, bannière hors-ligne, prompt
+  d'installation — copie `pwa.*` ×4, aucun état navigateur au render.
+- `public/manifest.webmanifest` : `start_url: "/"` — c'est le middleware qui redirige selon la
+  langue (le piège de l'ancien dépôt : un manifeste qui faisait atterrir un utilisateur nl sur /fr).
+- `app/layout.tsx` rend le script d'auto-réparation `kredit-dev-sw-heal` (désenregistrement +
+  purge si `/sw.js` disparaît de l'arbre servi) ; `app/[locale]/offline/page.tsx` : page de
+  secours traduite, sans lien exigeant le réseau.
+- Les quatre gardes dédiées (précaché HTML, chunks non hachés, `respondWith`, enregistrement en
+  dev) tournent dans `check:hydration` ; `check:state` vérifie version ≥ v8 + heal-script.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -162,8 +183,8 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 ├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions à chaque poussée
 ├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
 └── frontend/
-    ├── app/                   layout racine (noscript), [locale] (accueil, simulateur, demande, auth…)
-    ├── components/            layout/ motion/ ui/ home/ simulator/ auth/
+    ├── app/                   layout racine (noscript, manifest, heal-sw), [locale] (accueil, simulateur, demande, auth, offline…)
+    ├── components/            layout/ motion/ ui/ home/ simulator/ auth/ pwa/
     ├── i18n/                  11 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, motion…
     ├── scripts/               les 6 gardes + fresh.mjs + copy.baseline.json ({})
@@ -189,7 +210,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 3. **Demande pré-remplie** — fait (query rendue côté serveur, persistance locale honnête).
 4. **Portail** — fait (auth 3 profils + inscription exhaustive + espace connecté local).
 5. **Tableau de bord client** — fait (aperçu néo-banque, demandes, échéanciers projetés, documents,
-   notifications, profil & sécurité). Prochaine passe : PWA complète + backend-miroir.
+   notifications, profil & sécurité).
+6. **PWA** — fait (worker v9, hors-ligne sécurisé, installation, pages offline ×4). Prochaine
+   passe : miroir backend de la grille (identifiants de règle partagés, historique des grilles).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

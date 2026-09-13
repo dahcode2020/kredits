@@ -1,4 +1,5 @@
 import ScrollProgress from "@/components/motion/ScrollProgress";
+import SWRegister from "@/components/pwa/SWRegister";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import HtmlLang, { HtmlLangScript } from "@/components/layout/HtmlLang";
@@ -74,6 +75,7 @@ export default function LocaleLayout({ children, params }: { children: React.Rea
       {/* Barre de lecture: position:fixed, donc sa place dans l'ordre du DOM n'a pas d'effet
           visuel; elle est posée juste avant l'en-tête pour rester une feuille isolée, hors du main. */}
       <ScrollProgress />
+      <SWRegister locale={locale} />
       <Header locale={locale} />
       <main id="main" className="pt-[72px] min-h-[60vh]">{children}</main>
       <Footer locale={locale} />
