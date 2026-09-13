@@ -11,15 +11,17 @@
  * Pur au render : rien de navigateur — le bouton « copier » n'agit que dans son handler, la sonde
  * d'audit daté part d'un état vide.
  */
-import { useState } from "react";
-import { BadgeCheck, Copy, Check, History, Link2, ShieldCheck, Table2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BadgeCheck, Copy, Check, History, Link2, Server, ServerOff, ShieldCheck, Table2 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
 import { cn, formatEUR2 } from "@/lib/utils";
 import { formatPercent, formatCurrency0 } from "@/lib/formatters";
 import { formatDate } from "@/lib/formatters";
 import { Locale, t } from "@/lib/i18n";
+import { API, apiGet } from "@/lib/api";
 import {
-  GRILLE, HISTORIQUE_GRILLES, chainonValide, grilleValideA, reglesDeEntree, type EntreeGrille,
+  GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, chainonValide, grilleValideA, reglesDeEntree,
+  type EntreeGrille,
 } from "@/lib/credit-engine";
 
 function hashCourt(h: string): string {
@@ -161,10 +163,31 @@ function CarteEntree({ entree, precedente, locale, tr }: {
   );
 }
 
+interface GrilleApi {
+  version: string; regles_effectives: unknown[];
+  historique: Array<{ chainon_valide: boolean }>;
+}
+
 export default function GrilleHistorique({ locale }: { locale: Locale }) {
   const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
   const [dateSonde, setDateSonde] = useState("");
   const [sonde, setSonde] = useState<EntreeGrille | null>(null);
+  const [api, setApi] = useState<"ok" | "down" | "entente" | null>(null);
+  const [apiDetail, setApiDetail] = useState<{ version: string; regles: number } | null>(null);
+
+  useEffect(() => {
+    let actif = true;
+    apiGet<GrilleApi>(API.grille).then((reponse) => {
+      if (!actif) return;
+      if (!reponse.ok || !reponse.corps.version) { setApi("down"); return; }
+      const corps = reponse.corps;
+      const chaineOk = corps.historique.every((h) => h.chainon_valide);
+      const accord = corps.version === GRILLE_VERSION && chaineOk;
+      setApiDetail({ version: corps.version, regles: corps.regles_effectives.length });
+      setApi(accord ? "ok" : "entente");
+    });
+    return () => { actif = false; };
+  }, []);
 
   const entrees = [...HISTORIQUE_GRILLES].reverse();
 
@@ -183,6 +206,20 @@ export default function GrilleHistorique({ locale }: { locale: Locale }) {
             </div>
           ))}
         </dl>
+        {api && (
+          <p
+            role="status"
+            className={cn(
+              "mt-4 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-extrabold uppercase tracking-wider",
+              api === "ok" ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300",
+            )}
+          >
+            {api === "ok" ? <Server className="w-4 h-4" aria-hidden="true" /> : <ServerOff className="w-4 h-4" aria-hidden="true" />}
+            {api === "ok" && apiDetail
+              ? tr("admin.grille.apiOk", { version: apiDetail.version, regles: apiDetail.regles })
+              : tr(api === "down" ? "admin.grille.apiDown" : "admin.grille.apiMismatch")}
+          </p>
+        )}
 
         {/* ——— Sonde d'audit daté ——— */}
         <div className="mt-5 rounded-2xl bg-white/5 border border-white/10 p-4">

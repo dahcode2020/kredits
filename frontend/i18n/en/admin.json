@@ -131,5 +131,8 @@
   "grille.probeApply": "Check",
   "grille.probeResult": "On that date, the applicable version is {version}.",
   "grille.copy": "Copy",
-  "grille.copied": "Copied"
+  "grille.copied": "Copied",
+  "grille.apiOk": "Server API: the backend reads the same table — version {version}, {regles} effective rules, chain links verified",
+  "grille.apiDown": "Server API unreachable — this screen reads the table directly",
+  "grille.apiMismatch": "Server API: the served version differs from the table — investigate"
 }

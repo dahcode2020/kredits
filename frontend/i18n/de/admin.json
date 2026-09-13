@@ -131,5 +131,8 @@
   "grille.probeApply": "Prüfen",
   "grille.probeResult": "An diesem Datum ist die anwendbare Version {version}.",
   "grille.copy": "Kopieren",
-  "grille.copied": "Kopiert"
+  "grille.copied": "Kopiert",
+  "grille.apiOk": "Server-API: Das Backend liest dieselbe Tabelle — Version {version}, {regles} gültige Regeln, Kettenglieder geprüft",
+  "grille.apiDown": "Server-API nicht erreichbar — dieser Bildschirm liest die Tabelle direkt",
+  "grille.apiMismatch": "Server-API: Die ausgelieferte Version weicht von der Tabelle ab — zu prüfen"
 }

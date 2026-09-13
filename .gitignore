@@ -21,3 +21,6 @@ playwright-report/
 .env
 .env.*
 !.env.example
+
+# Magasin de données du serveur de démo (slice 10)
+frontend/.serveur/

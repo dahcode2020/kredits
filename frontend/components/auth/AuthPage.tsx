@@ -21,6 +21,8 @@ import {
   type ProfilInscription, type Role,
 } from "@/lib/auth";
 import { enregistrerBanque, ouvrirBanqueClient } from "@/lib/banque";
+import { API, apiPost, type SessionApi } from "@/lib/api";
+import { COMPTES_PORTE_DEMO } from "@/lib/serveur-demo";
 
 const CLES_ROLE: Record<Role, string> = {
   CUSTOMER: "auth.role.customer",
@@ -67,25 +69,30 @@ export default function AuthPage({ locale }: { locale: Locale }) {
   const maj = (k: keyof ProfilInscription) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF({ ...f, [k]: e.target.value });
 
-  const connecter = async (email: string, mdpSaisi: string, r: Role): Promise<boolean> => {
-    const compte = comptePour(email, r);
-    if (!compte) return false;
-    const h = await hacher(mdpSaisi);
-    if (h !== compte.hash) return false;
-    ouvrirSession({ email: compte.email, role: r, nom: compte.nom, ouverteA: new Date().toISOString() });
-    return true;
+  /** Connexion VÉRIFIÉE PAR LE SERVEUR (scrypt salé, session httpOnly) ; la session locale
+   *  n'est qu'un miroir pour le portail démo. */
+  const connecterServeur = async (email: string, mdpSaisi: string, r: Role): Promise<"ok" | "identifiants" | "reseau"> => {
+    const reponse = await apiPost<SessionApi>(API.connexion, { email, motDePasse: mdpSaisi, role: r });
+    if (reponse.statut === 0) return "reseau";
+    if (!reponse.ok) return "identifiants";
+    ouvrirSession({ email: reponse.corps.email, role: reponse.corps.role, nom: reponse.corps.nom, ouverteA: reponse.corps.ouverteA });
+    return "ok";
   };
 
   const surConnexion = async () => {
-    if (!emailValide(lEmail) || lMdp.length < 8 || !(await connecter(lEmail, lMdp, role))) {
-      setErrLogin("auth.errCredentials");
-      return;
-    }
+    if (!emailValide(lEmail) || lMdp.length < 8) { setErrLogin("auth.errCredentials"); return; }
+    const resultat = await connecterServeur(lEmail, lMdp, role);
+    if (resultat === "reseau") { setErrLogin("auth.errServeur"); return; }
+    if (resultat === "identifiants") { setErrLogin("auth.errCredentials"); return; }
     router.push(`/${locale}/account`);
   };
 
-  const surDemo = (r: Role) => {
-    ouvrirSession({ email: `demo.${r.toLowerCase()}@kredit.be`, role: r, nom: tr(CLES_ROLE[r]), ouverteA: new Date().toISOString() });
+  const surDemo = async (r: Role) => {
+    const porte = COMPTES_PORTE_DEMO.find((c) => c.role === r);
+    if (!porte) return;
+    const resultat = await connecterServeur(porte.email, porte.motDePasse, r);
+    if (resultat === "reseau") { setErrLogin("auth.errServeur"); return; }
+    if (resultat === "identifiants") { setErrLogin("auth.errCredentials"); return; }
     router.push(`/${locale}/account`);
   };
 
@@ -110,15 +117,26 @@ export default function AuthPage({ locale }: { locale: Locale }) {
       setErrs({ email: "auth.errExists" });
       return;
     }
-    const hash = await hacher(mdp);
+    // Le compte est créé PAR LE SERVEUR (scrypt salé, session httpOnly). La copie locale qui
+    // suit est le miroir démo du portail : profil affiché et banque locale ; l'authentification,
+    // elle, fait foi côté serveur.
+    const nomComplet = `${f.prenom.trim()} ${f.nom.trim()}`;
+    const reponse = await apiPost<SessionApi>(API.inscription, {
+      email: lEmail.trim(), motDePasse: mdp, nom: nomComplet, profil: f,
+    });
+    if (reponse.statut === 0) { setErrs({ email: "auth.errServeur" }); return; }
+    if (!reponse.ok) {
+      setErrs({ email: reponse.corps.erreur === "existant" ? "auth.errExists" : "auth.errRequired" });
+      return;
+    }
     const maintenant = new Date().toISOString();
     enregistrerCompte({
-      email: lEmail.trim(), hash, role: "CUSTOMER",
-      nom: `${f.prenom.trim()} ${f.nom.trim()}`, creeA: maintenant, profil: f,
+      email: lEmail.trim(), hash: await hacher(mdp), role: "CUSTOMER",
+      nom: nomComplet, creeA: maintenant, profil: f,
     });
     // Ouverture de la banque locale (slice 8) : IBAN fictif déterministe + dotation démo.
     enregistrerBanque(lEmail.trim(), "CUSTOMER", ouvrirBanqueClient(lEmail.trim(), "CUSTOMER", maintenant));
-    ouvrirSession({ email: lEmail.trim(), role: "CUSTOMER", nom: `${f.prenom.trim()} ${f.nom.trim()}`, ouverteA: maintenant });
+    ouvrirSession({ email: lEmail.trim(), role: "CUSTOMER", nom: nomComplet, ouverteA: maintenant });
     router.push(`/${locale}/account`);
   };
 

@@ -6,14 +6,14 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 9 — ce qui existe aujourd'hui
+## Slices 1 à 10 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
 hors-ligne sécurisé, la grille de taux en table unique partagée avec le futur backend, la banque
-du compte client (solde, IBAN, virements avec pipeline de validation, chat support) — et l'écran
-SUPER_ADMIN de l'historique des grilles — en 4 langues, animés, sans une seule donnée fausse à
-l'écran.**
+du compte client (solde, IBAN, virements avec pipeline de validation, chat support), l'écran
+SUPER_ADMIN de l'historique des grilles — et un vrai serveur d'API avec authentification qui lit
+ces mêmes tables canoniques — en 4 langues, animés, sans une seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
@@ -177,6 +177,35 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 - `lib/banque.ts` est pur et verrouillé (`tests/unit/banque.spec.ts`, 120 tests au total) ;
   `check:regles` valide aussi le référentiel (pct croissants vers 100, codes, coûts, libellés ×4).
 
+### Slice 9 — écran SUPER_ADMIN de l'historique des grilles
+
+- Onglet réservé SUPER_ADMIN : chaque version de `rate_be/grille.json` en carte — période d'effet,
+  note, **sceaux** (hash de l'entrée + hash précédent, copiables) avec badge « Chaînon valide »,
+  paliers, table produits, et les règles `rate_BE_…` dérivées en dépliable.
+- Les règles affichées sortent de `reglesDeEntree` — la MÊME fonction que le simulateur pour la
+  grille effective ; l'écran et le moteur ne peuvent plus diverger (verrou jest).
+- **Sonde d'audit daté** : une date en entrée → la version de grille applicable ce jour-là.
+
+### Slice 10 — backend réel : API + authentification serveur
+
+- **Route Handlers Node** (`frontend/app/api/…`) : `/api/auth/inscription|connexion|deconnexion|
+  session|mdp`, `/api/grille`, `/api/grille/sonde?date=`, `/api/simuler` — toutes `force-dynamic`,
+  JSON strict, validations d'entrée, codes d'erreur honnêtes (400/401/409/422).
+- **Authentification réelle** : mots de passe **scrypt salés** (jamais de clair, jamais de simple
+  SHA-256 côté serveur), jetons de session aléatoires conservés côté serveur avec expiration 7 j,
+  cookie `kredit_session_v1` httpOnly + SameSite=Lax ; comptes du personnel semés à la première
+  ouverture du magasin (identifiants de démonstration, affichés comme tels).
+- **Le miroir devient réel** : `/api/grille` sert la table canonique lue par le serveur (versions,
+  chaînons validés, règles effectives dérivées par le même moteur) ; `/api/simuler` répond avec les
+  mêmes mensualités/règles/version que le frontend ; l'écran SUPER_ADMIN affiche un badge « API
+  serveur : le backend lit la même table » vérifié à chaque ouverture (rouge si l'API diverge ou
+  est injoignable — honnêtement).
+- La page d'authentification se connecte au serveur (boutons démo compris) ; le portail garde son
+  miroir local pour le profil et la banque — l'authentification, elle, fait foi côté serveur.
+- Domaine serveur pur et testable sans HTTP (`lib/serveur.ts`, dossier de stockage injectable) ;
+  `tests/unit/serveur.spec.ts` verrouille scrypt, sessions, semis, et l'égalité du miroir
+  (132 tests au total).
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -226,12 +255,12 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 ├── rate_be/grille.json        LA table de la grille BE : paliers, produits, frais, historique hash-chaîné
 ├── operations/virements.json  LE référentiel des virements : niveaux de validation, défauts, coûts
 └── frontend/
-    ├── app/                   layout racine (noscript, manifest, heal-sw), [locale] (accueil, simulateur, demande, auth, offline…)
+    ├── app/                   layout racine, [locale] (accueil, simulateur, demande, auth, offline…), api/ (auth, grille, simuler)
     ├── components/            layout/ motion/ ui/ home/ simulator/ auth/ pwa/
-    ├── i18n/                  11 namespaces × 4 langues, parité stricte
-    ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque, motion…
+    ├── i18n/                  12 namespaces × 4 langues, parité stricte
+    ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque, serveur, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur (132 verrous)
 ```
 
 ## Commandes
@@ -262,8 +291,11 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
    mouvements, virements sortants avec pipeline de validation par niveaux et blocages pour défaut,
    chat client ⇄ support, opérations admin ; référentiel canonique `operations/virements.json`).
 9. **Écran SUPER_ADMIN de l'historique des grilles** — fait (versions scellées, chaînons validés,
-   paliers/produits/règles dérivées par version, sonde d'audit daté). Prochaine passe : le backend
-   réel (API + auth serveur) qui lit ces mêmes tables.
+   paliers/produits/règles dérivées par version, sonde d'audit daté).
+10. **Backend réel : API + authentification serveur** — fait (Route Handlers Node : inscription,
+    connexion/déconnexion/session, changement de mot de passe, `/api/grille`, sonde datée,
+    `/api/simuler` ; scrypt salé, sessions httpOnly ; le serveur lit les mêmes tables canoniques).
+    Prochaine passe : brancher la banque du compte (virements, chat) sur l'API.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

@@ -31,6 +31,7 @@ import {
 import BankPortal from "@/components/auth/BankPortal";
 import OpsPortal from "@/components/auth/OpsPortal";
 import GrilleHistorique from "@/components/auth/GrilleHistorique";
+import { API, apiPost } from "@/lib/api";
 import { enregistrerBanque, lireBanque, ouvrirBanqueClient, type BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
@@ -243,7 +244,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
           ))}
           <button
             type="button"
-            onClick={() => { fermerSession(); window.location.assign(`/${locale}`); }}
+            onClick={() => { void apiPost(API.deconnexion, {}, { keepalive: true }); fermerSession(); window.location.assign(`/${locale}`); }}
             className="flex items-center gap-3 shrink-0 px-4 h-11 rounded-full text-[13px] font-bold text-red-600 hover:bg-red-50 transition"
           >
             <LogOut className="w-4 h-4" aria-hidden="true" /> {tr("shell.logout")}

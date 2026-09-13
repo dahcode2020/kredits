@@ -131,5 +131,8 @@
   "grille.probeApply": "Controleren",
   "grille.probeResult": "Op die datum is de toepasselijke versie {version}.",
   "grille.copy": "Kopiëren",
-  "grille.copied": "Gekopieerd"
+  "grille.copied": "Gekopieerd",
+  "grille.apiOk": "Server-API: de backend leest dezelfde tabel — versie {version}, {regles} geldige regels, schakels gecontroleerd",
+  "grille.apiDown": "Server-API onbereikbaar — dit scherm leest de tabel rechtstreeks",
+  "grille.apiMismatch": "Server-API: de geserveerde versie verschilt van de tabel — te onderzoeken"
 }

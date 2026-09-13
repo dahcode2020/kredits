@@ -131,5 +131,8 @@
   "grille.probeApply": "Vérifier",
   "grille.probeResult": "À cette date, la version applicable est {version}.",
   "grille.copy": "Copier",
-  "grille.copied": "Copié"
+  "grille.copied": "Copié",
+  "grille.apiOk": "API serveur : le backend lit la même table — version {version}, {regles} règles effectives, chaînons validés",
+  "grille.apiDown": "API serveur injoignable — cet écran lit la table directement",
+  "grille.apiMismatch": "API serveur : la version servie diffère de la table — à investiguer"
 }
