@@ -2,10 +2,10 @@
 #
 # « Ils ne valent que si quelqu'un — ou GitHub Actions — les lance. » (brief de reprise, §5)
 #
-# À poser tel quel dans .github/workflows/ci.yml. La permission `workflows` n'est pas
-# encore effective côté GitHub pour la connexion de cette session (push refusé le
-# 2026-09-13, exactement le mur qui avait produit docs/ci.example.yml dans l'ancien
-# dépôt). Copier le fichier = CI active; rien d'autre à changer.
+# Actif depuis .github/workflows/ci.yml : la permission `workflows` a été accordée
+# au compte connecté le 2026-09-13, le fichier est donc poussé à son emplacement réel.
+# (Dans l'ancien dépôt, la même absence de permission avait produit un ci.example.yml
+# inerte dans docs/ ; ici la CI tourne à chaque poussée sans manipulation.)
 #
 # Quatre jobs en chaîne:
 #   1. gardes  : lint, typecheck, puis les gardes statiques (hydration + dom-nesting, copy, routes);
