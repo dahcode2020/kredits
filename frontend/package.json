@@ -16,7 +16,8 @@
     "check:links": "node scripts/check-routes.mjs",
     "check:assets": "node scripts/check-assets.mjs",
     "check:state": "node scripts/check-state.mjs",
-    "check": "npm run typecheck && npm run check:hydration && npm run check:copy && npm run check:links",
+    "check:regles": "node scripts/check-regles.mjs",
+    "check": "npm run typecheck && npm run check:hydration && npm run check:copy && npm run check:links && npm run check:regles",
     "fresh": "node scripts/fresh.mjs"
   },
   "dependencies": {

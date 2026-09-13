@@ -6,11 +6,12 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 6 — ce qui existe aujourd'hui
+## Slices 1 à 7 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
-d'authentification, un tableau de bord client façon néo-banque et une PWA installable avec
-hors-ligne sécurisé, en 4 langues, animés, sans une seule donnée fausse à l'écran.**
+d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
+hors-ligne sécurisé — et la grille de taux en table unique partagée avec le futur backend —
+en 4 langues, animés, sans une seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
@@ -136,6 +137,25 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 - Les quatre gardes dédiées (précaché HTML, chunks non hachés, `respondWith`, enregistrement en
   dev) tournent dans `check:hydration` ; `check:state` vérifie version ≥ v8 + heal-script.
 
+### Slice 7 — miroir backend de la grille
+
+- **Une table, un endroit** : `rate_be/grille.json` porte tout — paliers de taux, bornes/durées/pas
+  et frais par produit, et l'historique complet. Le moteur (`lib/credit-engine.ts`) l'importe et
+  n'en dérive que des constantes (`PALIERS_TAUX`, `PRODUITS`, `EFFECTIF_DEPUIS`, `GRILLE_VERSION`) ;
+  le futur backend lira le même fichier. Plus jamais « trois copies, un seul endroit corrigé ».
+- **Historique hash-chaîné** : chaque entrée scelle la précédente (sha256 canonique) ; une grille
+  modifiée sans re-scellement est détectée. Une seule entrée ouverte (`effectif_au: null`), la
+  dernière = la grille effective. `grilleValideA(date)` date l'audit d'une simulation.
+- **Identifiants `rate_BE_…` partagés** : dérivés de la table (`rate_BE_MORTGAGE_20000_50000`…),
+  uniques et stables, sortis dans `meta.rateRuleId` et `meta.grilleVersion` — ce sont eux qui
+  alimenteront le journal d'audit côté backend.
+- **Garde `check:regles`** (dans `npm run check`) : invariants de la table (paliers entiers
+  contigus, taux ∈ (0,1), bornes cohérentes, périodes continues), chaîne de hashes, unicité des
+  identifiants, et le miroir — le moteur importe la table (pas de paliers recodés), aucune UI
+  n'écrit d'identifiant `rate_…` en dur. `--stamp` pour sceller une nouvelle grille.
+- **Verrous jest** : `tests/unit/credit-tiers.spec.ts` compare chaque export du moteur à l'entrée
+  ouverte de la table, valide la chaîne de hashes et date les simulations (108 tests verts).
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -182,6 +202,7 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 ├── package.json               relais de scripts (npm run check depuis la racine)
 ├── .github/workflows/ci.yml   les gardes et les tests, lancés par GitHub Actions à chaque poussée
 ├── docs/                      hydration.md, motion.md, i18n.md (les patterns corrects)
+├── rate_be/grille.json        LA table de la grille BE : paliers, produits, frais, historique hash-chaîné
 └── frontend/
     ├── app/                   layout racine (noscript, manifest, heal-sw), [locale] (accueil, simulateur, demande, auth, offline…)
     ├── components/            layout/ motion/ ui/ home/ simulator/ auth/ pwa/
@@ -196,7 +217,7 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 ```bash
 npm run dev                # serveur de dev (0.0.0.0:3000, compile dans .next-dev)
 npm run build && npm run start
-npm run check              # typecheck + hydration + copy + routes
+npm run check              # typecheck + hydration + copy + routes + règles (grille partagée)
 npm run check:assets       # serveur lancé: chaque ressource du HTML (accueil + simulateur + demande × 4 locales) est servie
 npm run check:state        # l'état du poste (pull arrivé, .next cohérent, chunks = disque)
 npm run test:unit          # les verrous jest
@@ -211,8 +232,11 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 4. **Portail** — fait (auth 3 profils + inscription exhaustive + espace connecté local).
 5. **Tableau de bord client** — fait (aperçu néo-banque, demandes, échéanciers projetés, documents,
    notifications, profil & sécurité).
-6. **PWA** — fait (worker v9, hors-ligne sécurisé, installation, pages offline ×4). Prochaine
-   passe : miroir backend de la grille (identifiants de règle partagés, historique des grilles).
+6. **PWA** — fait (worker v9, hors-ligne sécurisé, installation, pages offline ×4).
+7. **Miroir backend de la grille** — fait (`rate_be/grille.json` : paliers, bornes produits, frais
+   et historique hash-chaîné ; le moteur frontend la lit, le futur backend lira le même fichier ;
+   identifiants `rate_BE_…` dérivés de la table ; garde `check:regles`). Prochaine passe :
+   l'écran SUPER_ADMIN qui affiche l'historique des grilles depuis cette table.
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

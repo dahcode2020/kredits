@@ -10,7 +10,8 @@
  * 20 000–3 000 000 € • investissement 200 000–30 000 000 €.
  *
  * Ce que teste vraiment ce fichier, au-delà des chiffres : que ces nombres n'existent **qu'à un
- * seul endroit** (frontend/lib/credit-engine.ts). Dans l'ancien dépôt ils vivaient en six
+ * seul endroit** (`rate_be/grille.json`, que frontend/lib/credit-engine.ts importe). Dans l'ancien
+ * dépôt ils vivaient en six
  * exemplaires (moteur frontend, grille backend, deux `SimulationService`, tuiles de l'accueil,
  * descriptions de dictionnaires) — et chaque changement de grille ratait la moitié des affichages.
  * D'où les règles « aucune chaîne chiffrée dans l'UI » et « les descriptions ne portent plus de
@@ -23,8 +24,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  PALIERS_TAUX, PRODUITS, PRODUCT_TYPES, findRateRule, palierPour, simulateCredit,
-  tauxMiniProduit, tauxPour,
+  EFFECTIF_DEPUIS, GRILLE_VERSION, PALIERS_TAUX, PRODUITS, PRODUCT_TYPES, findRateRule,
+  grilleValideA, palierPour, simulateCredit, tauxMiniProduit, tauxPour,
 } from "@/lib/credit-engine";
 
 const FRONT = join(__dirname, "..", "..");
@@ -186,8 +187,81 @@ describe("une seule source des chiffres (slice 1)", () => {
     }
   });
 
-  // Slice suivante (backend): réajouter ici le verrou « le miroir backend déclare la même grille
-  // que le moteur frontend » (backend/src/credit/rules/grille.commerciale.ts vs PALIERS_TAUX et
-  // PRODUITS). Le backend n'existe pas encore dans ce dépôt — un test qui compare un fichier
-  // absent se mentirait à lui-même.
+});
+
+describe("miroir backend — rate_be/grille.json (slice 7)", () => {
+  // La table partagée : le moteur frontend la lit, le futur backend lira le même fichier.
+  // Un test qui comparerait un backend absent se mentirait — alors on verrouille ce qui existe :
+  // tout ce que le moteur expose sort de cette table, et la table est scellée par une chaîne de hashes.
+  const grille = JSON.parse(lu("rate_be/grille.json")) as {
+    schema: string; pays: string; devise: string;
+    historique: Array<{
+      version: string; effectif_du: string; effectif_au: string | null; note: string;
+      paliers_taux: Array<{ min: number; max: number | null; taux: number }>;
+      produits: Record<string, { min: number; max: number; minTerm: number; maxTerm: number; pas: number; frais: { filePct: number; fileMin: number; fileMax: number } }>;
+      hash_precedent: string | null; hash: string;
+    }>;
+  };
+  const ouverte = grille.historique[grille.historique.length - 1];
+
+  it("PALIERS_TAUX est exactement l'entrée ouverte de la table (Infinity = palier ouvert)", () => {
+    expect(PALIERS_TAUX.map((p) => [p.min, p.max === Infinity ? null : p.max, p.taux]))
+      .toEqual(ouverte.paliers_taux.map((p) => [p.min, p.max, p.taux]));
+  });
+
+  it("PRODUITS est exactement l'entrée ouverte de la table (le code est ajouté, rien d'autre)", () => {
+    for (const code of Object.keys(ouverte.produits)) {
+      const p = PRODUITS[code as keyof typeof PRODUITS];
+      expect({ min: p.min, max: p.max, minTerm: p.minTerm, maxTerm: p.maxTerm, pas: p.pas, frais: p.frais })
+        .toEqual(ouverte.produits[code]);
+      expect(p.code).toBe(code);
+    }
+    expect(Object.keys(PRODUITS).sort()).toEqual(Object.keys(ouverte.produits).sort());
+  });
+
+  it("EFFECTIF_DEPUIS et GRILLE_VERSION sortent de l'entrée ouverte", () => {
+    expect(EFFECTIF_DEPUIS).toBe(ouverte.effectif_du);
+    expect(GRILLE_VERSION).toBe(ouverte.version);
+    expect(ouverte.effectif_au).toBeNull();
+  });
+
+  it("grilleValideA date l'audit : bornes inclusives à gauche, exclusives à droite", () => {
+    expect(grilleValideA("2026-09-11").version).toBe(grille.historique[0].version);
+    expect(grilleValideA(ouverte.effectif_du).version).toBe(ouverte.version);
+    expect(grilleValideA("2100-01-01").version).toBe(ouverte.version);
+  });
+
+  it("la chaîne de hashes est valide : chaque entrée scelle la précédente", async () => {
+    const { createHash } = await import("node:crypto");
+    let precedent: string | null = null;
+    for (const entree of grille.historique) {
+      const { hash, ...reste } = entree;
+      const canon = JSON.stringify({ pays: grille.pays, devise: grille.devise, ...reste });
+      expect(hash).toBe(createHash("sha256").update(canon, "utf8").digest("hex"));
+      expect(entree.hash_precedent).toBe(precedent);
+      precedent = hash;
+    }
+  });
+
+  it("les identifiants rate_BE_… du moteur sont dérivés de la table, pas recodés", () => {
+    for (const code of Object.keys(ouverte.produits)) {
+      const pr = ouverte.produits[code];
+      for (const b of ouverte.paliers_taux) {
+        if (b.min > pr.max) continue;
+        const plafond = b.max === null ? pr.max : Math.min(b.max, pr.max);
+        if (plafond < pr.min) continue;
+        const plancher = Math.max(b.min, pr.min);
+        const milieu = Math.max(plancher, Math.min(plafond, plancher + 1));
+        const regle = findRateRule("BE", code, milieu, pr.minTerm);
+        expect(regle?.id).toBe(`rate_BE_${code}_${plancher}_${plafond}`);
+        expect(regle?.baseRate).toBe(b.taux);
+      }
+    }
+  });
+
+  it("simulateCredit scelle sa simulation avec la règle ET la version de grille", () => {
+    const out = simulateCredit({ amount: 15_000, termMonths: 48, ...base, productType: "PERSONAL" } as any);
+    expect(out.simulation.meta.rateRuleId).toBe("rate_BE_PERSONAL_1500_50000");
+    expect(out.simulation.meta.grilleVersion).toBe(ouverte.version);
+  });
 });

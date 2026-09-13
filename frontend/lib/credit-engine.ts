@@ -1,5 +1,9 @@
-// Frontend mirror of backend CreditEngine — 100% configurable via same rules (BE defaults)
+// Frontend mirror of backend CreditEngine — 100% configurable via the SAME shared table:
+// `rate_be/grille.json` (paliers, bornes produits, frais, historique hash-chaîné). Le moteur la lit,
+// le futur backend lira le même fichier — verrouillé par tests/unit/credit-tiers.spec.ts et
+// scripts/check-regles.mjs.
 import Decimal from "decimal.js";
+import grilleJSON from "../../rate_be/grille.json";
 // Les listes d'options sont exportées (et pas seulement les unions) : le simulateur construit ses
 // <select> à partir de ces tableaux, donc un nouveau motif d'investissement ou un nouveau statut ne peut
 // plus exister dans le moteur sans être réclamé dans les quatre dictionnaires — `tests/unit/
@@ -13,21 +17,42 @@ export type EmploymentStatus = "CDI"|"CDD"|"INDEPENDENT"|"INTERIM"|"RETIRED"|"ST
 export const LOAN_PURPOSES: readonly LoanPurpose[] = ["VEHICLE","WORKS","CONSUMPTION","DEBT_CONSOLIDATION","MEDICAL","OTHER"];
 export type LoanPurpose = "VEHICLE"|"WORKS"|"CONSUMPTION"|"DEBT_CONSOLIDATION"|"MEDICAL"|"OTHER";
 /**
- * Grille de taux unique, par palier de montant — la même pour tous les produits (grille commerciale
- * arrêtée le 12/09/2026). Un palier est un intervalle **entier fermé** : les bornes se suivent à 1
- * unité près (50 000 / 50 001), donc un montant non entier ne tombe dans aucun palier — le simulateur
- * ne peut pas en produire, son curseur débite au pas du produit.
+ * Grille de taux unique, par palier de montant — la même pour tous les produits. Un palier est un
+ * intervalle **entier fermé** : les bornes se suivent à 1 unité près (50 000 / 50 001), donc un
+ * montant non entier ne tombe dans aucun palier — le simulateur ne peut pas en produire, son
+ * curseur débite au pas du produit.
  *
- * Placée ici et non dans le composant : `findRateRule`, l`étiquette d'un onglet, la carte « dès x% »
- * de la page d'accueil et le backend doivent lire le MÊME tableau. C'est précisément ce qui avait
- * dérivé la dernière fois (trois copies, un seul endroit corrigé).
+ * La table vit dans `rate_be/grille.json` (partagée avec le backend) : ce fichier n'en dérive que
+ * des constantes. C'est précisément ce qui avait dérivé la dernière fois (trois copies de la même
+ * grille, un seul endroit corrigé).
  */
-export const PALIERS_TAUX = [
-  { min: 1_500, max: 50_000, taux: 0.025 },
-  { min: 50_001, max: 500_000, taux: 0.019 },
-  { min: 500_001, max: 1_000_000, taux: 0.018 },
-  { min: 1_000_001, max: Infinity, taux: 0.015 },
-] as const;
+type PalierGrille = { min: number; max: number | null; taux: number };
+type FraisGrille = { filePct: number; fileMin: number; fileMax: number };
+type ProduitGrille = { min: number; max: number; minTerm: number; maxTerm: number; pas: number; frais: FraisGrille };
+export type EntreeGrille = {
+  version: string; effectif_du: string; effectif_au: string | null; note: string;
+  paliers_taux: PalierGrille[]; produits: Record<string, ProduitGrille>;
+  hash_precedent: string | null; hash: string;
+};
+export type GrillePartagee = { schema: string; pays: string; devise: string; historique: EntreeGrille[] };
+export const GRILLE: GrillePartagee = grilleJSON;
+export const HISTORIQUE_GRILLES: readonly EntreeGrille[] = GRILLE.historique;
+/** Entrée de l'historique valide à une date donnée (audit : simulations datées). */
+export function grilleValideA(dateISO: string): EntreeGrille {
+  const trouve = [...HISTORIQUE_GRILLES].reverse().find(
+    (e) => dateISO >= e.effectif_du && (e.effectif_au === null || dateISO < e.effectif_au),
+  );
+  return trouve ?? HISTORIQUE_GRILLES[HISTORIQUE_GRILLES.length - 1];
+}
+/** Grille effective : l'entrée ouverte (effectif_au null) — déterministe, pas d'horloge au chargement. */
+const grilleCourante: EntreeGrille = HISTORIQUE_GRILLES.find((e) => e.effectif_au === null) ?? HISTORIQUE_GRILLES[HISTORIQUE_GRILLES.length - 1];
+/** Codes produits dérivés de la table brute (les clés JSON restent des unions, pas des `string`). */
+type ProduitsBruts = (typeof grilleJSON)["historique"][number]["produits"];
+/** Version de la grille effective — sort dans `meta.grilleVersion` et le journal d'audit. */
+export const GRILLE_VERSION = grilleCourante.version;
+
+export const PALIERS_TAUX: readonly { min: number; max: number; taux: number }[] =
+  grilleCourante.paliers_taux.map((p) => ({ min: p.min, max: p.max === null ? Number.POSITIVE_INFINITY : p.max, taux: p.taux }));
 
 /** Palier applicable à un montant, ou `null` hors grille (en dessous de 1 500 €). */
 export function palierPour(montant: number) {
@@ -40,25 +65,23 @@ export function tauxPour(montant: number): number | null {
 }
 
 /**
- * Les quatre produits: bornes de montant, durée, pas du curseur et frais de dossier.
- * `pas` est une donnée d'interface (un curseur linéaire sur 30 M€ est inutilisable), les autres
- * champs sont contractuels: `simulateCredit`, les onglets et la carte d'accueil les lisent directement.
+ * Les quatre produits: bornes de montant, durée, pas du curseur et frais de dossier — dérivés de
+ * `rate_be/grille.json`. `pas` est une donnée d'interface (un curseur linéaire sur 30 M€ est
+ * inutilisable), les autres champs sont contractuels: `simulateCredit`, les onglets et la carte
+ * d'accueil les lisent directement.
  */
-export const PRODUITS = {
-  PERSONAL:   { code: "PERSONAL",   min: 1_500,   max: 200_000,    minTerm: 12, maxTerm: 84,  pas: 250,   frais: { filePct: 0.01,  fileMin: 75,  fileMax: 400 } },
-  MORTGAGE:   { code: "MORTGAGE",   min: 20_000,  max: 1_000_000,  minTerm: 60, maxTerm: 300, pas: 5_000, frais: { filePct: 0.005, fileMin: 200, fileMax: 1000 } },
-  BUSINESS:   { code: "BUSINESS",   min: 20_000,  max: 3_000_000,  minTerm: 12, maxTerm: 120, pas: 10_000, frais: { filePct: 0.015, fileMin: 150, fileMax: 1500 } },
-  INVESTMENT: { code: "INVESTMENT", min: 200_000, max: 30_000_000, minTerm: 24, maxTerm: 240, pas: 50_000, frais: { filePct: 0.01,  fileMin: 300, fileMax: 5000 } },
-} as const;
+export const PRODUITS = Object.fromEntries(
+  Object.entries(grilleCourante.produits).map(([code, p]) => [code, { code, ...p }]),
+) as { [K in keyof ProduitsBruts]: ProduitsBruts[K] & { code: K } };
 
 export type ProductCode = keyof typeof PRODUITS;
 /**
- * Date d'effet de la grille — la même des deux côtés (miroir de `EFFECTIF_DEPUIS` dans
- * `backend/src/credit/rules/grille.commerciale.ts`). Elle n'est pas décorative: la règle précédente
- * doit rester consultable (`effective_to = now - 1s` côté backend), et l'écran SUPER_ADMIN affiche
- * l'historique à partir de cette date. Un test (`credit-tiers.spec.ts`) compare les deux fichiers.
+ * Date d'effet de la grille — dérivée de l'entrée ouverte de `rate_be/grille.json`, la même que
+ * lira le backend. Elle n'est pas décorative : la règle précédente doit rester consultable
+ * (`effective_to = now - 1s` côté backend), et l'écran SUPER_ADMIN affiche l'historique à partir
+ * de cette date. Le verrou `credit-tiers.spec.ts` compare les deux lectures.
  */
-export const EFFECTIF_DEPUIS = "2026-09-12";
+export const EFFECTIF_DEPUIS = grilleCourante.effectif_du;
 
 /** Codes produits, utilisés par les onglets du simulateur (clé i18n = code). */
 export const PRODUCT_TYPES: readonly ProductCode[] = Object.keys(PRODUITS) as ProductCode[];
@@ -176,7 +199,7 @@ export function simulateCredit(input: SimulateInput){
   if(input.amount>20000 && !baseDocs.includes('BANK_STATEMENTS_3M')) requiredDocuments.push({code:'BANK_STATEMENTS_3M', label:'Extraits 3 mois', required:true});
   if(input.incomeType==='SELF_EMPLOYED' && !baseDocs.includes('TAX_RETURN_2Y')) requiredDocuments.push({code:'TAX_RETURN_2Y', label:'Avertissements 2 ans', required:true});
   return {
-    simulation:{ monthlyPayment, annualRate: rule.baseRate, taeg: Number(taeg.toFixed(4)), totalInterest: Number(interest.toFixed(2)), fees:{file:Number(fileFee.toFixed(2)), insurance:0, total:Number(cappedFees.toFixed(2))}, totalCost: Number(totalCost.toFixed(2)), schedule, disclaimer:"Simulation indicative — ne constitue pas une offre ferme. Décision humaine obligatoire.", meta:{country, product, rateRuleId: rule.id, generatedAt: new Date().toISOString()}},
+    simulation:{ monthlyPayment, annualRate: rule.baseRate, taeg: Number(taeg.toFixed(4)), totalInterest: Number(interest.toFixed(2)), fees:{file:Number(fileFee.toFixed(2)), insurance:0, total:Number(cappedFees.toFixed(2))}, totalCost: Number(totalCost.toFixed(2)), schedule, disclaimer:"Simulation indicative — ne constitue pas une offre ferme. Décision humaine obligatoire.", meta:{country, product, rateRuleId: rule.id, grilleVersion: GRILLE_VERSION, generatedAt: new Date().toISOString()}},
     eligibility:{ isEligible, hardFailures: hardExceed?[{rule:'max_amount', message:`>${maxAmount}`}] : hardDebt?[{rule:'max_debt_hard'}]: [], softFailures: isOverDebt?[{rule:'max_debt_ratio'}]:[], debtRatio: Number(debtRatio.toFixed(4)), repaymentCapacity: Number(capacity.toFixed(2)), maxAllowedAmount: isOverDebt? Math.floor((input.monthlyIncome*0.33-input.monthlyCharges-existing)*input.termMonths*0.9): null },
     score:{ value, grade, breakdown:{debtRatio:debtScore, incomeStability, employment, purpose, term:termScore}, explanation:`Score ${value} grade ${grade}, dette ${(debtRatio*100).toFixed(1)}%` },
     recommendation, warnings, requiredDocuments,

@@ -1,0 +1,87 @@
+{
+  "schema": "kredit.grille/1",
+  "pays": "BE",
+  "devise": "EUR",
+  "historique": [
+    {
+      "version": "2026-09-12",
+      "effectif_du": "2026-09-12",
+      "effectif_au": null,
+      "note": "Grille commerciale arrêtée le 12/09/2026 — paliers de montant uniques, tous produits ; bornes et frais par produit.",
+      "paliers_taux": [
+        {
+          "min": 1500,
+          "max": 50000,
+          "taux": 0.025
+        },
+        {
+          "min": 50001,
+          "max": 500000,
+          "taux": 0.019
+        },
+        {
+          "min": 500001,
+          "max": 1000000,
+          "taux": 0.018
+        },
+        {
+          "min": 1000001,
+          "max": null,
+          "taux": 0.015
+        }
+      ],
+      "produits": {
+        "PERSONAL": {
+          "min": 1500,
+          "max": 200000,
+          "minTerm": 12,
+          "maxTerm": 84,
+          "pas": 250,
+          "frais": {
+            "filePct": 0.01,
+            "fileMin": 75,
+            "fileMax": 400
+          }
+        },
+        "MORTGAGE": {
+          "min": 20000,
+          "max": 1000000,
+          "minTerm": 60,
+          "maxTerm": 300,
+          "pas": 5000,
+          "frais": {
+            "filePct": 0.005,
+            "fileMin": 200,
+            "fileMax": 1000
+          }
+        },
+        "BUSINESS": {
+          "min": 20000,
+          "max": 3000000,
+          "minTerm": 12,
+          "maxTerm": 120,
+          "pas": 10000,
+          "frais": {
+            "filePct": 0.015,
+            "fileMin": 150,
+            "fileMax": 1500
+          }
+        },
+        "INVESTMENT": {
+          "min": 200000,
+          "max": 30000000,
+          "minTerm": 24,
+          "maxTerm": 240,
+          "pas": 50000,
+          "frais": {
+            "filePct": 0.01,
+            "fileMin": 300,
+            "fileMax": 5000
+          }
+        }
+      },
+      "hash_precedent": null,
+      "hash": "33aa618d57493652d995fd889a5a66290949b94c0f2aa2caebd2e264a63a0a2a"
+    }
+  ]
+}
