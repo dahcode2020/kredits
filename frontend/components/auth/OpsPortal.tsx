@@ -1,25 +1,25 @@
 "use client";
 /**
- * Slice 8 — opérations (ADMIN / SUPER_ADMIN), démo locale : l'administration confirme les niveaux
- * du pipeline de validation, bloque pour un défaut du référentiel (code + coût), lève le blocage,
- * crédite un compte (virement entrant), vérifie un client et répond au chat.
- *
- * Le référentiel canonique vient d'`operations/virements.json` ; les surcoûts saisis ici ne sont
- * que des surcharges locales à cet appareil (kredit.referentiel.v1) — l'UI le dit.
+ * Opérations (ADMIN / SUPER_ADMIN) — slice 8, slice 11 : **tout passe par l'API serveur**.
+ * L'administration confirme les niveaux du pipeline de validation, bloque pour un défaut du
+ * référentiel (code + coût), lève le blocage, crédite un compte (virement entrant), vérifie un
+ * client et répond au chat. Le référentiel canonique vient d'`operations/virements.json`, lu par
+ * le serveur ; les surcoûts saisis ici sont des surcharges SERVEUR persistées dans le magasin —
+ * visibles par tous les postes, plus de « local à cet appareil ».
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ArrowDownLeft, BadgeCheck, CheckCircle2, Landmark, Lock, MessageCircle, Send, ShieldAlert, ShieldX, UserRound,
+  ArrowDownLeft, BadgeCheck, CheckCircle2, Landmark, Lock, MessageCircle, Send, ServerOff,
+  ShieldAlert, ShieldX, UserRound,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
 import { formatEUR2, cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/formatters";
 import { Locale, t } from "@/lib/i18n";
-import { lireComptes, type Session } from "@/lib/auth";
+import type { Session } from "@/lib/auth";
+import { API, apiGet, apiPost } from "@/lib/api";
 import {
-  ajouterMessageChat, bloquerVirement, confirmerNiveau, denouer, disponibleDe,
-  enregistrerBanque, enregistrerSurchargesReferentiel, leverBlocage, lireBanques, lireChat,
-  lireSurchargesReferentiel, progressionDe, referentielEffectif, refuserVirement, soldeDe,
+  disponibleDe, progressionDe, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel,
 } from "@/lib/banque";
 
@@ -32,10 +32,13 @@ const CLES_DEFAUT: Record<string, string> = {
   ORIGINE_FONDS: "banque:defaut.ORIGINE_FONDS", CAPACITE_INSUFFISANTE: "banque:defaut.CAPACITE_INSUFFISANTE",
 };
 
+interface ClientOps { id: string; email: string; nom: string; compte: BanqueCompte }
+
 export default function OpsPortal({ locale, session }: { locale: Locale; session: Session }) {
   const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
-  const [banques, setBanques] = useState<Record<string, BanqueCompte>>({});
+  const [clients, setClients] = useState<ClientOps[]>([]);
   const [choisi, setChoisi] = useState<string | null>(null);
+  const [ref, setRef] = useState<Referentiel | null>(null);
   const [surcharges, setSurcharges] = useState<SurchargesReferentiel>({});
   const [messages, setMessages] = useState<MessageChat[]>([]);
   const [montantCredit, setMontantCredit] = useState("");
@@ -44,81 +47,88 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [defautChoisi, setDefautChoisi] = useState<Record<string, string>>({});
   const [texteChat, setTexteChat] = useState("");
   const [pret, setPret] = useState(false);
+  const [apiKo, setApiKo] = useState(false);
 
-  const ref = useMemo(() => referentielEffectif(surcharges), [surcharges]);
-
-  useEffect(() => {
-    const carte = lireBanques();
-    setBanques(carte);
-    setSurcharges(lireSurchargesReferentiel());
-    const premier = Object.keys(carte)[0] ?? null;
-    setChoisi(premier);
-    if (premier) setMessages(lireChat(premier));
-    setPret(true);
-  }, []);
-
-  useEffect(() => { setMessages(choisi ? lireChat(choisi) : []); }, [choisi]);
-
-  if (!pret) return null;
-
-  const clients = Object.entries(banques).map(([id, compte]) => {
-    const [email] = id.split("::");
-    const c = lireComptes().find((x) => x.email.toLowerCase() === email && x.role === "CUSTOMER");
-    return { id, email, nom: c?.nom ?? email, compte };
-  });
-  const cible = clients.find((c) => c.id === choisi) ?? null;
-
-  const muter = (id: string, f: (compte: BanqueCompte) => BanqueCompte) => {
-    const actuel = banques[id];
-    if (!actuel) return;
-    const neuf = f(actuel);
-    const [email, role] = id.split("::");
-    enregistrerBanque(email, role, neuf);
-    setBanques((prev) => ({ ...prev, [id]: neuf }));
+  const chargerMessages = async (idCompte: string) => {
+    const r = await apiGet<{ messages: MessageChat[] }>(API.banqueChat(idCompte));
+    setMessages(r.ok ? r.corps.messages : []);
   };
 
-  const confirmerProchainNiveau = (id: string, virementId: string) => {
-    muter(id, (compte) => {
-      const apresConfirmation = confirmerNiveau(compte, virementId, ref);
-      const v = apresConfirmation.virements.find((x) => x.id === virementId);
-      return v?.statut === "EXECUTE" ? denouer(apresConfirmation, virementId, new Date().toISOString()) : apresConfirmation;
+  useEffect(() => {
+    let actif = true;
+    apiGet<{ clients: ClientOps[]; referentiel: Referentiel; surcharges: SurchargesReferentiel }>(API.banqueComptes).then((r) => {
+      if (!actif) return;
+      if (!r.ok) { setApiKo(true); setPret(true); return; }
+      setClients(r.corps.clients);
+      setRef(r.corps.referentiel);
+      setSurcharges(r.corps.surcharges);
+      const premier = r.corps.clients[0]?.id ?? null;
+      setChoisi(premier);
+      if (premier) void chargerMessages(premier);
+      setPret(true);
     });
+    return () => { actif = false; };
+  }, []);
+
+  useEffect(() => { if (choisi) void chargerMessages(choisi); }, [choisi]);
+
+  if (!pret) return null;
+  if (apiKo || !ref) {
+    return (
+      <div className="bg-white rounded-[24px] shadow-card border p-8 text-center">
+        <ServerOff className="w-8 h-8 mx-auto text-red-500" aria-hidden="true" />
+        <p className="mt-3 text-sm font-bold text-ink">{tr("banque:apiDown")}</p>
+      </div>
+    );
+  }
+
+  const majCompte = (id: string, compte: BanqueCompte) => {
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, compte } : c)));
+  };
+
+  const operation = async (corps: Record<string, unknown>): Promise<BanqueCompte | null> => {
+    const r = await apiPost<{ compte?: BanqueCompte }>(API.banqueOperations, corps);
+    if (!r.ok || !r.corps.compte) return null;
+    if (typeof corps.compteId === "string") majCompte(corps.compteId, r.corps.compte);
+    return r.corps.compte;
+  };
+
+  const cible = clients.find((c) => c.id === choisi) ?? null;
+
+  const confirmerProchainNiveau = (id: string, virementId: string) => {
+    void operation({ action: "confirmer", compteId: id, virementId });
   };
 
   const bloquer = (id: string, virementId: string) => {
     const code = defautChoisi[virementId] ?? ref.defauts.find((d) => d.actif)?.code;
     if (!code) return;
-    muter(id, (compte) => bloquerVirement(compte, virementId, code, ref, new Date().toISOString()));
+    void operation({ action: "bloquer", compteId: id, virementId, codeDefaut: code });
   };
 
-  const crediter = () => {
+  const crediter = async () => {
     if (!cible) return;
     const montantNum = Number(montantCredit.replace(",", "."));
     if (!(montantNum > 0)) { setMsgCredit("err"); return; }
-    muter(cible.id, (compte) => ({
-      ...compte,
-      transactions: [...compte.transactions, {
-        id: `TX-OPS-${Date.now()}`, sens: "entrant" as const, montant: montantNum,
-        date: new Date().toISOString(), contrepartie: session.nom,
-        motifLibre: motifCredit.trim() || tr("banque:tx.in"),
-      }],
-    }));
-    setMontantCredit(""); setMotifCredit(""); setMsgCredit("ok");
+    const compte = await operation({ action: "crediter", compteId: cible.id, montant: montantNum, motif: motifCredit.trim() });
+    if (compte) { setMontantCredit(""); setMotifCredit(""); setMsgCredit("ok"); }
+    else setMsgCredit("err");
   };
 
-  const changerSurcharge = (code: string, patch: { cout?: number; actif?: boolean }) => {
-    const neuf: SurchargesReferentiel = { ...surcharges, [code]: { ...surcharges[code], ...patch } };
-    setSurcharges(neuf);
-    enregistrerSurchargesReferentiel(neuf);
+  const changerSurcharge = async (code: string, patch: { cout?: number; actif?: boolean }) => {
+    const r = await apiPost<{ referentiel?: Referentiel; surcharges?: SurchargesReferentiel }>(API.banqueReferentiel, { code, ...patch });
+    if (r.ok && r.corps.referentiel) {
+      setRef(r.corps.referentiel);
+      setSurcharges(r.corps.surcharges ?? {});
+    }
   };
 
-  const envoyerChat = () => {
+  const envoyerChat = async () => {
     if (!cible) return;
     const texte = texteChat.trim();
     if (!texte) return;
-    ajouterMessageChat(cible.id, { id: `MSG-${Date.now()}`, de: "support", auteur: session.nom, texte, ts: new Date().toISOString() });
-    setMessages(lireChat(cible.id));
     setTexteChat("");
+    const r = await apiPost<{ messages?: MessageChat[] }>(API.banqueOperations, { action: "chat", compteId: cible.id, texte });
+    if (r.ok && r.corps.messages) setMessages(r.corps.messages);
   };
 
   const virementsATraiter = (compte: BanqueCompte) => compte.virements.filter((v) => v.statut === "EN_COURS" || v.statut === "BLOQUE");
@@ -162,7 +172,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => muter(cible.id, (c) => ({ ...c, verifie: !c.verifie }))}
+                onClick={() => void operation({ action: "verifier", compteId: cible.id, verifie: !cible.compte.verifie })}
                 className={buttonClasses(cible.compte.verifie ? "outline-light" : "primary", "sm")}
               >
                 {cible.compte.verifie ? <ShieldX className="w-4 h-4" aria-hidden="true" /> : <BadgeCheck className="w-4 h-4" aria-hidden="true" />}
@@ -180,7 +190,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
               <div className="mt-2 flex flex-wrap gap-2">
                 <input value={montantCredit} onChange={(e) => { setMontantCredit(e.target.value); setMsgCredit(null); }} inputMode="decimal" placeholder={tr("banque:ops.creditAmount")} className="h-11 w-36 rounded-xl border border-slate-200 px-4 text-sm tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 <input value={motifCredit} onChange={(e) => setMotifCredit(e.target.value)} placeholder={tr("banque:ops.creditMotif")} className="h-11 flex-1 min-w-[160px] rounded-xl border border-slate-200 px-4 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                <button type="button" onClick={crediter} className={buttonClasses("dark", "md")}>{tr("banque:ops.creditCta")}</button>
+                <button type="button" onClick={() => void crediter()} className={buttonClasses("dark", "md")}>{tr("banque:ops.creditCta")}</button>
               </div>
               {msgCredit === "ok" && <p role="status" className="mt-2 text-[12px] font-bold text-emerald-600">{tr("banque:ops.creditOk")}</p>}
               {msgCredit === "err" && <p role="alert" className="mt-2 text-[12px] font-bold text-red-600">{tr("banque:ops.creditErr")}</p>}
@@ -247,11 +257,11 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                           </>
                         )}
                         {v.statut === "BLOQUE" && (
-                          <button type="button" onClick={() => muter(cible.id, (c) => leverBlocage(c, v.id, new Date().toISOString()))} className={buttonClasses("primary", "sm")}>
+                          <button type="button" onClick={() => void operation({ action: "lever", compteId: cible.id, virementId: v.id })} className={buttonClasses("primary", "sm")}>
                             {tr("banque:ops.lift")}
                           </button>
                         )}
-                        <button type="button" onClick={() => muter(cible.id, (c) => refuserVirement(c, v.id))} className={buttonClasses("outline-light", "sm")}>
+                        <button type="button" onClick={() => void operation({ action: "refuser", compteId: cible.id, virementId: v.id })} className={buttonClasses("outline-light", "sm")}>
                           {tr("banque:ops.refuse")}
                         </button>
                       </div>
@@ -307,13 +317,13 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                       <td className="py-2.5 text-right">
                         <input
                           type="number" min={0} value={d.cout}
-                          onChange={(e) => changerSurcharge(d.code, { cout: Math.max(0, Number(e.target.value) || 0) })}
+                          onChange={(e) => void changerSurcharge(d.code, { cout: Math.max(0, Number(e.target.value) || 0) })}
                           className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
                           aria-label={tr("banque:ops.refCost")}
                         />
                       </td>
                       <td className="py-2.5 text-right">
-                        <input type="checkbox" checked={d.actif} onChange={(e) => changerSurcharge(d.code, { actif: e.target.checked })} className="w-4 h-4 accent-primary" aria-label={tr("banque:ops.refActif")} />
+                        <input type="checkbox" checked={d.actif} onChange={(e) => void changerSurcharge(d.code, { actif: e.target.checked })} className="w-4 h-4 accent-primary" aria-label={tr("banque:ops.refActif")} />
                       </td>
                     </tr>
                   ))}

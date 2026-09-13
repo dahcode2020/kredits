@@ -1,16 +1,17 @@
 "use client";
 /**
- * Slice 8 — banque du compte client (démo locale, sans backend, l'UI le dit) :
- * solde + disponible + réservé, IBAN fictif mais formellement valide, virements sortants avec
+ * Banque du compte client — slice 8 (démo locale), slice 11 : **l'état vit côté serveur**.
+ * Solde + disponible + réservé, IBAN fictif mais formellement valide, virements sortants avec
  * barre de progression par niveaux de validation, mouvements du compte, messagerie support.
  *
- * Contrat d'hydratation : aucun accès navigateur au render — banque et chat sont lus dans un
- * effect ; les comptes ouverts avant la slice 8 reçoivent leur banque à la première visite.
+ * L'UI envoie des INTENTIONS au serveur (/api/banque) qui applique la machine à états et renvoie
+ * le nouvel état : rien n'est calculé ni stocké dans le navigateur. Contrat d'hydratation : tout
+ * est lu dans un effect ; si l'API est injoignable, l'écran le dit au lieu d'inventer un solde.
  */
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownLeft, ArrowUpRight, BadgeCheck, Check, Copy, Landmark, Lock, MessageCircle, Send,
-  ShieldAlert, UserRound,
+  ServerOff, ShieldAlert, UserRound,
 } from "lucide-react";
 import CountUp from "@/components/motion/CountUp";
 import { buttonClasses } from "@/components/ui/Button";
@@ -18,11 +19,10 @@ import { formatEUR2, cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/formatters";
 import { Locale, t } from "@/lib/i18n";
 import type { Session } from "@/lib/auth";
+import { API, apiGet, apiPost } from "@/lib/api";
 import {
-  ajouterMessageChat, annulerVirement, disponibleDe, enregistrerBanque, lireBanque, lireChat,
-  lireSurchargesReferentiel, ouvrirBanqueClient, progressionDe, referentielEffectif, reserveDe,
-  soldeDe, type BanqueCompte, type MessageChat, type Referentiel, type StatutVirement,
-  type SurchargesReferentiel, type Virement, initierVirement,
+  disponibleDe, progressionDe, reserveDe, soldeDe,
+  type BanqueCompte, type MessageChat, type Referentiel, type StatutVirement, type Virement,
 } from "@/lib/banque";
 
 const CLES_STATUT: Record<StatutVirement, string> = {
@@ -94,45 +94,60 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
   const [erreurEnvoi, setErreurEnvoi] = useState<string | null>(null);
   const [okEnvoi, setOkEnvoi] = useState(false);
   const [texteChat, setTexteChat] = useState("");
-  const [surcharges, setSurcharges] = useState<SurchargesReferentiel>({});
+  const [ref, setRef] = useState<Referentiel | null>(null);
+  const [apiKo, setApiKo] = useState(false);
   const finChat = useRef<HTMLDivElement>(null);
 
-  const ref = referentielEffectif(surcharges);
-  const identifiant = `${session.email.toLowerCase()}::${session.role}`;
-
   useEffect(() => {
-    let compte = lireBanque(session.email, session.role);
-    if (!compte) {
-      compte = ouvrirBanqueClient(session.email, session.role, new Date().toISOString());
-      enregistrerBanque(session.email, session.role, compte);
-    }
-    setBanque(compte);
-    setMessages(lireChat(identifiant));
-    setSurcharges(lireSurchargesReferentiel());
-  }, [session.email, session.role, identifiant]);
+    let actif = true;
+    Promise.all([
+      apiGet<{ compte: BanqueCompte; referentiel: Referentiel }>(API.banque),
+      apiGet<{ messages: MessageChat[] }>(API.banqueChat()),
+    ]).then(([b, c]) => {
+      if (!actif) return;
+      if (!b.ok) { setApiKo(true); return; }
+      setBanque(b.corps.compte);
+      setRef(b.corps.referentiel);
+      setMessages(c.ok ? c.corps.messages : []);
+    });
+    return () => { actif = false; };
+  }, []);
 
   useEffect(() => { finChat.current?.scrollIntoView({ block: "nearest" }); }, [messages.length]);
 
-  if (!banque) return null;
+  if (apiKo) {
+    return (
+      <div className="bg-white rounded-[24px] shadow-card border p-8 text-center">
+        <ServerOff className="w-8 h-8 mx-auto text-red-500" aria-hidden="true" />
+        <p className="mt-3 text-sm font-bold text-ink">{tr("banque:apiDown")}</p>
+        <p className="mt-1 text-[12px] text-slate-400">{tr("banque:demoBadge")}</p>
+      </div>
+    );
+  }
+  if (!banque || !ref) return null;
 
-  const muter = (f: (c: BanqueCompte) => BanqueCompte) => {
-    const neuf = f(banque);
-    setBanque(neuf);
-    enregistrerBanque(session.email, session.role, neuf);
-  };
-
-  const envoyerVirement = () => {
+  const envoyerVirement = async () => {
     setErreurEnvoi(null); setOkEnvoi(false);
     const montantNum = Number(montant.replace(",", "."));
     if (!nomBenef.trim()) { setErreurEnvoi("banque:send.err.name"); return; }
     if (!motif.trim()) { setErreurEnvoi("banque:send.err.motif"); return; }
-    const r = initierVirement(banque, nomBenef.trim(), ibanBenef.trim(), montantNum, motif.trim(), new Date().toISOString());
-    if (r.erreur) {
-      setErreurEnvoi(r.erreur === "non_verifie" ? "banque:send.locked" : r.erreur === "iban_invalide" ? "banque:send.err.iban" : "banque:send.err.amount");
+    const r = await apiPost<{ compte?: BanqueCompte }>(API.banque, {
+      action: "virement", beneficiaireNom: nomBenef.trim(), beneficiaireIban: ibanBenef.trim(),
+      montant: montantNum, motif: motif.trim(),
+    });
+    if (!r.ok || !r.corps.compte) {
+      const cle = r.corps.erreur === "non_verifie" ? "banque:send.locked"
+        : r.corps.erreur === "iban_invalide" ? "banque:send.err.iban" : "banque:send.err.amount";
+      setErreurEnvoi(cle);
       return;
     }
-    muter(() => r.compte);
+    setBanque(r.corps.compte);
     setNomBenef(""); setIbanBenef(""); setMontant(""); setMotif(""); setOkEnvoi(true);
+  };
+
+  const annulerSurServeur = async (virementId: string) => {
+    const r = await apiPost<{ compte?: BanqueCompte }>(API.banque, { action: "annuler", virementId });
+    if (r.ok && r.corps.compte) setBanque(r.corps.compte);
   };
 
   const copierIban = () => {
@@ -141,13 +156,12 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
     window.setTimeout(() => setCopie(false), 1600);
   };
 
-  const envoyerChat = () => {
+  const envoyerChat = async () => {
     const texte = texteChat.trim();
     if (!texte) return;
-    const liste = ajouterMessageChat(identifiant, {
-      id: `MSG-${Date.now()}`, de: "client", auteur: session.nom, texte, ts: new Date().toISOString(),
-    });
-    setMessages(liste); setTexteChat("");
+    setTexteChat("");
+    const r = await apiPost<{ messages?: MessageChat[] }>(API.banque, { action: "chat", texte });
+    if (r.ok && r.corps.messages) setMessages(r.corps.messages);
   };
 
   const solde = soldeDe(banque);
@@ -292,7 +306,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                     </div>
                   )}
                   {(v.statut === "EN_COURS" || v.statut === "BLOQUE") && (
-                    <button type="button" onClick={() => muter((c) => annulerVirement(c, v.id))} className={buttonClasses("outline-light", "sm", "mt-4")}>
+                    <button type="button" onClick={() => void annulerSurServeur(v.id)} className={buttonClasses("outline-light", "sm", "mt-4")}>
                       {tr("banque:vir.cancel")}
                     </button>
                   )}

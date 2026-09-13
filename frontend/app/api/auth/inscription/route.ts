@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   NOM_COOKIE, creerCompte, ecrireMagasin, lireMagasin, ouvrirSessionServeur, optionsCookie,
 } from "@/lib/serveur";
+import { ouvrirBanquePour } from "@/lib/serveur-banque";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,6 +21,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ erreur: compte.erreur }, { status: compte.erreur === "existant" ? 409 : 400 });
   }
   const session = ouvrirSessionServeur(magasin, compte);
+  // La banque du client naît côté serveur : IBAN fictif déterministe + dotation de démonstration.
+  ouvrirBanquePour(magasin, compte.email, compte.role, session.ouverteA);
   ecrireMagasin(magasin);
   const res = NextResponse.json({ email: compte.email, role: compte.role, nom: compte.nom, ouverteA: session.ouverteA }, { status: 201 });
   res.cookies.set(NOM_COOKIE, session.jeton, optionsCookie(process.env.NODE_ENV === "production"));

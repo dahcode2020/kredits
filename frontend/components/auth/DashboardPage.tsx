@@ -31,8 +31,8 @@ import {
 import BankPortal from "@/components/auth/BankPortal";
 import OpsPortal from "@/components/auth/OpsPortal";
 import GrilleHistorique from "@/components/auth/GrilleHistorique";
-import { API, apiPost } from "@/lib/api";
-import { enregistrerBanque, lireBanque, ouvrirBanqueClient, type BanqueCompte } from "@/lib/banque";
+import { API, apiGet, apiPost } from "@/lib/api";
+import type { BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
 import {
@@ -107,12 +107,10 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
       setPrefs(lirePrefs());
       setDocsFournis(lireDocsFournis());
       if (s.role === "CUSTOMER") {
-        let banque = lireBanque(s.email, s.role);
-        if (!banque) {
-          banque = ouvrirBanqueClient(s.email, s.role, new Date().toISOString());
-          enregistrerBanque(s.email, s.role, banque);
-        }
-        setBanqueProfil(banque);
+        // La banque vit côté serveur (slice 11) : photo, IBAN et vérification en viennent.
+        apiGet<{ compte: BanqueCompte }>(API.banque).then((r) => {
+          if (r.ok) setBanqueProfil(r.corps.compte);
+        });
       }
     }
     setPret(true);
@@ -183,9 +181,9 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
         const cote = Math.min(image.width, image.height);
         ctx.drawImage(image, (image.width - cote) / 2, (image.height - cote) / 2, cote, cote, 0, 0, taille, taille);
         const donnees = canvas.toDataURL("image/jpeg", 0.85);
-        const neuf = { ...banqueProfil, photo: donnees };
-        setBanqueProfil(neuf);
-        enregistrerBanque(session.email, session.role, neuf);
+        void apiPost<{ compte?: BanqueCompte }>(API.banque, { action: "photo", photo: donnees }).then((r) => {
+          if (r.ok && r.corps.compte) setBanqueProfil(r.corps.compte);
+        });
       };
       image.src = String(lecteur.result);
     };
@@ -194,9 +192,9 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
 
   const retirerPhoto = () => {
     if (!session || !banqueProfil) return;
-    const neuf = { ...banqueProfil, photo: null };
-    setBanqueProfil(neuf);
-    enregistrerBanque(session.email, session.role, neuf);
+    void apiPost<{ compte?: BanqueCompte }>(API.banque, { action: "photo", photo: null }).then((r) => {
+      if (r.ok && r.corps.compte) setBanqueProfil(r.corps.compte);
+    });
   };
 
   const ONGLETS: Array<{ id: Onglet; icone: typeof Wallet; cle: string }> = [

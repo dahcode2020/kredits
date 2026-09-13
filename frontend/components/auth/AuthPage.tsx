@@ -20,7 +20,6 @@ import {
   ROLES, ageEnAnnees, comptePour, emailValide, enregistrerCompte, hacher, ouvrirSession,
   type ProfilInscription, type Role,
 } from "@/lib/auth";
-import { enregistrerBanque, ouvrirBanqueClient } from "@/lib/banque";
 import { API, apiPost, type SessionApi } from "@/lib/api";
 import { COMPTES_PORTE_DEMO } from "@/lib/serveur-demo";
 
@@ -129,13 +128,13 @@ export default function AuthPage({ locale }: { locale: Locale }) {
       setErrs({ email: reponse.corps.erreur === "existant" ? "auth.errExists" : "auth.errRequired" });
       return;
     }
+    // Le serveur a créé le compte ET la banque (IBAN fictif déterministe + dotation démo).
+    // La copie locale qui suit est le miroir démo du portail (profil affiché, mot de passe local).
     const maintenant = new Date().toISOString();
     enregistrerCompte({
       email: lEmail.trim(), hash: await hacher(mdp), role: "CUSTOMER",
       nom: nomComplet, creeA: maintenant, profil: f,
     });
-    // Ouverture de la banque locale (slice 8) : IBAN fictif déterministe + dotation démo.
-    enregistrerBanque(lEmail.trim(), "CUSTOMER", ouvrirBanqueClient(lEmail.trim(), "CUSTOMER", maintenant));
     ouvrirSession({ email: lEmail.trim(), role: "CUSTOMER", nom: nomComplet, ouverteA: maintenant });
     router.push(`/${locale}/account`);
   };

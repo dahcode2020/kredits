@@ -35,4 +35,9 @@ export const API = {
   grille: "/api/grille",
   grilleSonde: (date: string) => `/api/grille/sonde?date=${date}`,
   simuler: "/api/simuler",
+  banque: "/api/banque",
+  banqueComptes: "/api/banque/comptes",
+  banqueOperations: "/api/banque/operations",
+  banqueChat: (compte?: string) => (compte ? `/api/banque/chat?compte=${encodeURIComponent(compte)}` : "/api/banque/chat"),
+  banqueReferentiel: "/api/banque/referentiel",
 } as const;

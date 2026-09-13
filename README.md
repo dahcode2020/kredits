@@ -6,20 +6,21 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 10 — ce qui existe aujourd'hui
+## Slices 1 à 11 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
 hors-ligne sécurisé, la grille de taux en table unique partagée avec le futur backend, la banque
 du compte client (solde, IBAN, virements avec pipeline de validation, chat support), l'écran
-SUPER_ADMIN de l'historique des grilles — et un vrai serveur d'API avec authentification qui lit
-ces mêmes tables canoniques — en 4 langues, animés, sans une seule donnée fausse à l'écran.**
+SUPER_ADMIN de l'historique des grilles, un vrai serveur d'API avec authentification qui lit
+ces mêmes tables canoniques — et maintenant la banque elle-même, dont le serveur est la seule
+autorité — en 4 langues, animés, sans une seule donnée fausse à l'écran.**
 
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
-- Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 11 namespaces,
-  **805 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
-  matériel fourni en alignait 715, les slices 2-5 en ajoutent 90 dans les 4 langues à la fois —
+- Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 12 namespaces,
+  **931 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  matériel fourni en alignait 715, les slices 2-11 en ajoutent dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
 - Tout **nombre** affiché sort d'une seule table : `frontend/lib/credit-engine.ts`
@@ -206,6 +207,41 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
   `tests/unit/serveur.spec.ts` verrouille scrypt, sessions, semis, et l'égalité du miroir
   (132 tests au total).
 
+### Slice 11 — la banque sur l'API (le serveur est la seule autorité)
+
+La banque de la slice 8 vivait en localStorage : chaque appareil calculait l'état. Ça suffisait
+en démo, mais rien n'empêchait un navigateur de forger un solde ou de sauter un niveau de
+validation. La slice 11 retire le localStorage bancaire : **l'UI n'applique plus jamais une
+transition — elle envoie une intention, le serveur applique la machine à états pure et renvoie
+l'état**. Personne ne peut tricher, et tous les postes voient le même compte.
+
+- **Cinq Route Handlers de plus** (`frontend/app/api/banque/…`) : `/api/banque` (GET = son compte
+  + le référentiel effectif ; POST = intentions client : virement, annuler, chat, photo),
+  `/api/banque/comptes` (vue ADMIN : tous les comptes clients), `/api/banque/operations`
+  (POST staff : verifier/crediter/confirmer/bloquer/lever/refuser/chat), `/api/banque/chat`
+  (GET par compte) et `/api/banque/referentiel` (GET ; POST surcharges, staff uniquement).
+  Mêmes exigences que la slice 10 : `force-dynamic`, JSON strict, codes d'erreur honnêtes.
+- **Même machine à états, appliquée côté serveur** : `lib/serveur-banque.ts` appelle les fonctions
+  pures de `lib/banque.ts` (la MÊME que la démo locale) sur le magasin. Le client n'envoie que
+  des intentions ; un compte non vérifié se voit refuser le virement (`non_verifie`), le pipeline
+  confirme niveau par niveau jusqu'à EXECUTION puis dénoue le solde, un défaut du référentiel
+  bloque exactement au niveau atteint et son coût entre dans la réserve. La photo de profil est
+  plafonnée (413 au-delà de 5 Mo).
+- **Autorisations** : CUSTOMER n'agit que sur SON compte (403 sur tout le reste), ADMIN /
+  SUPER_ADMIN agissent sur tous les comptes. Le chat reste isolé par compte. Les surcharges du
+  référentiel (coût/activation des défauts) sont réservées au staff et vivent dans le magasin
+  serveur — la table canonique `operations/virements.json` reste la source.
+- **L'inscription ouvre la banque** côté serveur (IBAN BE fictif mais formellement valide +
+  dotation démo) ; le tableau de bord client et le portail opérations lisent IBAN, photo et état
+  via l'API. `lib/banque.ts` perd toute sa persistance navigateur (il ne reste que la logique pure
+  + `cleBanque` + `MessageChat`).
+- **Si l'API est injoignable, l'UI le dit** (`banque.apiDown` ×4) au lieu d'inventer un état —
+  pas de donnée fausse, pas de faux « tout va bien ».
+- `tests/unit/serveur-banque.spec.ts` verrouille l'autorité serveur : ouverture idempotente,
+  refus `non_verifie`, pipeline ×4 → EXECUTE + débit au dénouement, blocage/réserve/coût,
+  lever/refuser/annuler, autorisations 403, photo 413, surcharges réservées au staff, table
+  canonique intacte (143 tests au total).
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -255,12 +291,12 @@ l'appareil, recalculées dans le moteur, ou de réglages faits par l'utilisateur
 ├── rate_be/grille.json        LA table de la grille BE : paliers, produits, frais, historique hash-chaîné
 ├── operations/virements.json  LE référentiel des virements : niveaux de validation, défauts, coûts
 └── frontend/
-    ├── app/                   layout racine, [locale] (accueil, simulateur, demande, auth, offline…), api/ (auth, grille, simuler)
+    ├── app/                   layout racine, [locale] (accueil, simulateur, demande, auth, offline…), api/ (auth, grille, simuler, banque)
     ├── components/            layout/ motion/ ui/ home/ simulator/ auth/ pwa/
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
-    ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque, serveur, api, motion…
+    ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur (132 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (143 verrous)
 ```
 
 ## Commandes
@@ -295,7 +331,10 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 10. **Backend réel : API + authentification serveur** — fait (Route Handlers Node : inscription,
     connexion/déconnexion/session, changement de mot de passe, `/api/grille`, sonde datée,
     `/api/simuler` ; scrypt salé, sessions httpOnly ; le serveur lit les mêmes tables canoniques).
-    Prochaine passe : brancher la banque du compte (virements, chat) sur l'API.
+11. **Banque sur l'API** — fait (le localStorage bancaire prend sa retraite : l'UI envoie des
+    intentions, le serveur applique la machine à états pure ; virements/pipeline/chat/surcharges
+    côté serveur, autorisations CUSTOMER/staff, photo plafonnée, état honnête si l'API tombe).
+    Prochaine passe : e2e Playwright sur /api, durcissement (rate-limit, rotation de sessions).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`
    retrouveront leur place entière), backend-miroir de la grille, etc.

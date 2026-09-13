@@ -85,10 +85,11 @@
   "ops.referentiel": "Référentiel des défauts — défini par l'administration",
   "ops.refCost": "Coût (€)",
   "ops.refActif": "Actif",
-  "ops.refNote": "Les valeurs saisies ici ne changent que cet appareil (démo locale) ; la table canonique vit dans operations/virements.json.",
+  "ops.refNote": "Les ajustements sont enregistrés dans le magasin serveur — ils s'appliquent sur tous les postes. La table canonique reste operations/virements.json.",
   "ops.chat": "Répondre au client",
   "ops.levels": "Pipeline de validation (table canonique)",
   "profile.title": "Informations du client",
   "profile.memberSince": "Client depuis le {date}",
-  "profile.none": "Profil non renseigné."
+  "profile.none": "Profil non renseigné.",
+  "apiDown": "La banque nécessite l'API serveur, actuellement injoignable. Rien n'est inventé — réessayez plus tard."
 }

@@ -21,6 +21,7 @@ import {
 } from "@/lib/credit-engine";
 
 import { COMPTES_PORTE_DEMO, type RoleServeur } from "@/lib/serveur-demo";
+import type { BanqueCompte, MessageChat, SurchargesReferentiel } from "@/lib/banque";
 export type { RoleServeur };
 export { COMPTES_PORTE_DEMO };
 
@@ -31,7 +32,12 @@ export interface CompteServeur {
 export interface SessionServeur {
   jeton: string; email: string; role: RoleServeur; nom: string; ouverteA: string; expireA: string;
 }
-interface Magasin { comptes: CompteServeur[]; sessions: SessionServeur[] }
+export interface Magasin {
+  comptes: CompteServeur[]; sessions: SessionServeur[];
+  banques?: Record<string, BanqueCompte>;
+  chats?: Record<string, MessageChat[]>;
+  surcharges?: SurchargesReferentiel;
+}
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";

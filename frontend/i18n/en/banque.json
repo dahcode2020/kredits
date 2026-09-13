@@ -85,10 +85,11 @@
   "ops.referentiel": "Defaults referential — defined by the administration",
   "ops.refCost": "Cost (€)",
   "ops.refActif": "Active",
-  "ops.refNote": "Values entered here only change this device (local demo); the canonical table lives in operations/virements.json.",
+  "ops.refNote": "Adjustments are stored server-side — they apply on every device. The canonical table remains operations/virements.json.",
   "ops.chat": "Reply to the client",
   "ops.levels": "Validation pipeline (canonical table)",
   "profile.title": "Client information",
   "profile.memberSince": "Client since {date}",
-  "profile.none": "No profile provided."
+  "profile.none": "No profile provided.",
+  "apiDown": "Banking requires the server API, currently unreachable. Nothing is invented — please try again later."
 }

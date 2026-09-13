@@ -1,19 +1,16 @@
 /**
- * Slice 8 — banque locale de démonstration (SANS backend, l'UI le dit).
+ * Banque — machine à états PURE (tranches 8 et 11).
  *
- * Pur autant que possible : IBAN, soldes et machine à états du pipeline sont testés en Node
- * (tests/unit/banque.spec.ts). Le localStorage n'est touché que dans les fonctions de lecture et
- * d'écriture de la persistance (jamais au render — contrat d'hydratation).
+ * IBAN, soldes, réserves et transitions du pipeline de validation sont purs et testés en Node
+ * (tests/unit/banque.spec.ts). La persistance a pris sa retraite navigateur à la tranche 11 :
+ * l'état vit dans le magasin du serveur (lib/serveur-banque.ts + Route Handlers /api/banque),
+ * qui applique CES fonctions sur intentions — l'UI ne calcule jamais l'état.
  *
  * Le pipeline de validation et les défauts bloquants (codes, coûts) viennent du référentiel
- * canonique `operations/virements.json` — « définis par l'administration » : en démo, des
- * surcoûts locaux (kredit.referentiel.v1) peuvent les ajuster ; le fichier reste la source.
+ * canonique `operations/virements.json` — « définis par l'administration » : les surcharges
+ * vivent dans le magasin serveur ; le fichier reste la source.
  */
 import referentielJSON from "../../operations/virements.json";
-
-export const CLE_BANQUE = "kredit.banque.v1";
-export const CLE_CHAT = "kredit.chat.v1";
-export const CLE_REFERENTIEL_LOCAL = "kredit.referentiel.v1";
 
 /** Dotation de démonstration versée à l'ouverture d'un compte client (étiquetée démo partout). */
 export const MONTANT_DEMO = 2_500;
@@ -205,44 +202,7 @@ export function ouvrirBanqueClient(email: string, role: string, maintenant: stri
   return { iban: genererIbanBE(`${email.toLowerCase()}::${role}`), verifie: false, photo: null, transactions: [tx], virements: [] };
 }
 
-/* ——— Persistance locale (navigateur uniquement) ——— */
-type Carte<T> = Record<string, T>;
-function lireCarte<T>(cle: string): Carte<T> {
-  try {
-    const brut = window.localStorage.getItem(cle);
-    const obj = brut ? JSON.parse(brut) : {};
-    return obj && typeof obj === "object" && !Array.isArray(obj) ? (obj as Carte<T>) : {};
-  } catch { return {}; }
-}
-function ecrireCarte<T>(cle: string, carte: Carte<T>): void {
-  try { window.localStorage.setItem(cle, JSON.stringify(carte)); } catch { /* navigation privée */ }
-}
-
+/* ——— Identifiants & messages ——— */
 export const cleBanque = (email: string, role: string) => `${email.trim().toLowerCase()}::${role}`;
 
-export function lireBanque(email: string, role: string): BanqueCompte | null {
-  return lireCarte<BanqueCompte>(CLE_BANQUE)[cleBanque(email, role)] ?? null;
-}
-export function lireBanques(): Carte<BanqueCompte> {
-  return lireCarte<BanqueCompte>(CLE_BANQUE);
-}
-export function enregistrerBanque(email: string, role: string, compte: BanqueCompte): void {
-  ecrireCarte(CLE_BANQUE, { ...lireCarte<BanqueCompte>(CLE_BANQUE), [cleBanque(email, role)]: compte });
-}
-
 export interface MessageChat { id: string; de: "client" | "support"; auteur: string; texte: string; ts: string }
-export function lireChat(idCompte: string): MessageChat[] {
-  return lireCarte<MessageChat[]>(CLE_CHAT)[idCompte] ?? [];
-}
-export function ajouterMessageChat(idCompte: string, message: MessageChat): MessageChat[] {
-  const liste = [...lireChat(idCompte), message];
-  ecrireCarte(CLE_CHAT, { ...lireCarte<MessageChat[]>(CLE_CHAT), [idCompte]: liste });
-  return liste;
-}
-
-export function lireSurchargesReferentiel(): SurchargesReferentiel {
-  return lireCarte<SurchargesReferentiel>(CLE_REFERENTIEL_LOCAL)["defauts"] ?? {};
-}
-export function enregistrerSurchargesReferentiel(surcharges: SurchargesReferentiel): void {
-  ecrireCarte(CLE_REFERENTIEL_LOCAL, { defauts: surcharges });
-}

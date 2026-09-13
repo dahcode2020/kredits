@@ -85,10 +85,11 @@
   "ops.referentiel": "Referentie van gebreken — gedefinieerd door de administratie",
   "ops.refCost": "Kosten (€)",
   "ops.refActif": "Actief",
-  "ops.refNote": "Waarden hier ingevoerd wijzigen alleen dit apparaat (lokale demo); de canonieke tabel staat in operations/virements.json.",
+  "ops.refNote": "Aanpassingen worden server-side bewaard — ze gelden op elk apparaat. De canonieke tabel blijft operations/virements.json.",
   "ops.chat": "De klant antwoorden",
   "ops.levels": "Validatiepijplijn (canonieke tabel)",
   "profile.title": "Klantgegevens",
   "profile.memberSince": "Klant sinds {date}",
-  "profile.none": "Geen profiel ingevuld."
+  "profile.none": "Geen profiel ingevuld.",
+  "apiDown": "Bankieren vereist de server-API, die momenteel onbereikbaar is. Er wordt niets verzonnen — probeer het later opnieuw."
 }
