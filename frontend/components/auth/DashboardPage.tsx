@@ -97,6 +97,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const [mdpNeuf, setMdpNeuf] = useState("");
   const [msgMdp, setMsgMdp] = useState<"ok" | "err" | null>(null);
   const [banqueProfil, setBanqueProfil] = useState<BanqueCompte | null>(null);
+  const [profilServeur, setProfilServeur] = useState<Record<string, string> | null>(null);
+  const [creeAServeur, setCreeAServeur] = useState<string | null>(null);
   const [erreurPhoto, setErreurPhoto] = useState(false);
 
   useEffect(() => {
@@ -112,6 +114,13 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
           if (r.ok) setBanqueProfil(r.corps.compte);
         });
       }
+      // Profil et date de création : le serveur fait foi (comptes démo semés inclus).
+      apiGet<{ session: { profil?: Record<string, string> | null; creeA?: string } | null }>(API.session).then((r) => {
+        if (r.ok && r.corps.session) {
+          setProfilServeur(r.corps.session.profil ?? null);
+          setCreeAServeur(r.corps.session.creeA ?? null);
+        }
+      });
     }
     setPret(true);
   }, []);
@@ -274,7 +283,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                     <div className="mt-1 font-extrabold text-[17px] tracking-wide uppercase">{session.nom}</div>
                     <div className="mt-4 flex items-center justify-between text-[11px] text-white/60 tabular-nums">
                       <span>{session.email}</span>
-                      <span>{tr("dashboard.card.since")} {formatDate(comptePour(session.email, session.role)?.creeA ?? session.ouverteA, locale)}</span>
+                      <span>{tr("dashboard.card.since")} {formatDate(creeAServeur ?? comptePour(session.email, session.role)?.creeA ?? session.ouverteA, locale)}</span>
                     </div>
                   </div>
                 </div>
@@ -504,7 +513,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                 <h2 className="font-extrabold text-ink text-lg">{tr("banque:profile.title")}</h2>
                 {(() => {
                   const compte = comptePour(session.email, session.role);
-                  const profil = compte?.profil;
+                  const profil = profilServeur ?? compte?.profil;
                   if (!profil) return <p className="mt-3 text-sm text-slate-500">{tr("banque:profile.none")}</p>;
                   const champs: Array<[string, string]> = [
                     ["auth.lastName", profil.nom], ["auth.firstName", profil.prenom],

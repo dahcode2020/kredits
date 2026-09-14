@@ -10,7 +10,11 @@ export async function GET(req: Request) {
   const jeton = req.headers.get("cookie")?.split("; ").find((c) => c.startsWith(`${NOM_COOKIE}=`))?.split("=")[1];
   const session = verifierSession(magasin, jeton);
   if (!session) return NextResponse.json({ session: null });
+  const compte = magasin.comptes.find((c) => c.email === session.email && c.role === session.role);
   return NextResponse.json({
-    session: { email: session.email, role: session.role, nom: session.nom, ouverteA: session.ouverteA },
+    session: {
+      email: session.email, role: session.role, nom: session.nom, ouverteA: session.ouverteA,
+      creeA: compte?.creeA, profil: compte?.profil ?? null,
+    },
   });
 }

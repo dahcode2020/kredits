@@ -1,5 +1,5 @@
 // KREDIT i18n — hiérarchie 1) préférence utilisateur 2) navigateur 3) défaut + persistance + ICU.
-// Structure: frontend/i18n/{fr,en,nl,de}/*.json — 11 namespaces × 4 langues, 715 clés alignées.
+// Structure: frontend/i18n/{fr,en,nl,de}/*.json — 12 namespaces × 4 langues, parité verrouillée.
 //
 // Reprendre sans héritage: l'ancien dépôt portait un override `fr/fr-BE.json` de 4 clés présentes
 // en français uniquement (address.format, common.nav.home, credit.simulator.legal,
@@ -50,6 +50,10 @@ import frLegal from "@/i18n/fr/legal.json";
 import enLegal from "@/i18n/en/legal.json";
 import nlLegal from "@/i18n/nl/legal.json";
 import deLegal from "@/i18n/de/legal.json";
+import frBanque from "@/i18n/fr/banque.json";
+import enBanque from "@/i18n/en/banque.json";
+import nlBanque from "@/i18n/nl/banque.json";
+import deBanque from "@/i18n/de/banque.json";
 
 // Sources uniques: locales / défaut / cookie / storage viennent de lib/locale-detection,
 // utilisé aussi par middleware.ts et les hooks. Deux listes qui divergent = deux locales
@@ -79,7 +83,7 @@ export const defaultLocale: Locale = sharedDefaultLocale;
  */
 export const isSupportedLocale = (value: unknown): value is Locale => sharedIsSupportedLocale(value as string);
 
-export const namespaces = ["common", "auth", "dashboard", "credit", "investment", "payments", "documents", "notifications", "admin", "errors", "legal"] as const;
+export const namespaces = ["common", "auth", "dashboard", "credit", "investment", "payments", "documents", "notifications", "admin", "errors", "legal", "banque"] as const;
 export type Namespace = typeof namespaces[number];
 
 type Dict = Record<string, string>;
@@ -90,25 +94,25 @@ const raw: Record<Locale, Record<Namespace, Dict>> = {
     common: frCommon as Dict, auth: frAuth as Dict, dashboard: frDashboard as Dict,
     credit: frCredit as Dict, investment: frInvestment as Dict, payments: frPayments as Dict,
     documents: frDocuments as Dict, notifications: frNotifications as Dict, admin: frAdmin as Dict,
-    errors: frErrors as Dict, legal: frLegal as Dict,
+    errors: frErrors as Dict, legal: frLegal as Dict, banque: frBanque as Dict,
   },
   en: {
     common: enCommon as Dict, auth: enAuth as Dict, dashboard: enDashboard as Dict,
     credit: enCredit as Dict, investment: enInvestment as Dict, payments: enPayments as Dict,
     documents: enDocuments as Dict, notifications: enNotifications as Dict, admin: enAdmin as Dict,
-    errors: enErrors as Dict, legal: enLegal as Dict,
+    errors: enErrors as Dict, legal: enLegal as Dict, banque: enBanque as Dict,
   },
   nl: {
     common: nlCommon as Dict, auth: nlAuth as Dict, dashboard: nlDashboard as Dict,
     credit: nlCredit as Dict, investment: nlInvestment as Dict, payments: nlPayments as Dict,
     documents: nlDocuments as Dict, notifications: nlNotifications as Dict, admin: nlAdmin as Dict,
-    errors: nlErrors as Dict, legal: nlLegal as Dict,
+    errors: nlErrors as Dict, legal: nlLegal as Dict, banque: nlBanque as Dict,
   },
   de: {
     common: deCommon as Dict, auth: deAuth as Dict, dashboard: deDashboard as Dict,
     credit: deCredit as Dict, investment: deInvestment as Dict, payments: dePayments as Dict,
     documents: deDocuments as Dict, notifications: deNotifications as Dict, admin: deAdmin as Dict,
-    errors: deErrors as Dict, legal: deLegal as Dict,
+    errors: deErrors as Dict, legal: deLegal as Dict, banque: deBanque as Dict,
   },
 };
 
@@ -204,6 +208,15 @@ export function t(locale: Locale, key: string, vars?: Record<string, any>): stri
         if (cand) { template = cand; break; }
       }
     }
+    // Tolérance « ns.cle » (point après le namespace) : forme historique de certains appels
+    // (`dashboard.applications.title`) qui sinon rendait la clé telle quelle à l'écran.
+    if (!template && key.includes(".")) {
+      const [ns, ...reste] = key.split(".");
+      if ((namespaces as readonly string[]).includes(ns)) {
+        const forme = `${ns}:${reste.join(".")}`;
+        template = translations[locale]?.[forme] ?? translations[defaultLocale]?.[forme];
+      }
+    }
   }
   if (!template) {
     if (typeof window !== "undefined") console.warn(`[i18n] missing key "${key}" for locale "${locale}"`);
@@ -215,6 +228,17 @@ export function t(locale: Locale, key: string, vars?: Record<string, any>): stri
 // Variante namespace explicite: tNs(locale, 'credit', 'simulator.title', {amount})
 export function tNs(locale: Locale, ns: Namespace, key: string, vars?: Record<string, any>) {
   return t(locale, `${ns}:${key}`, vars);
+}
+
+/**
+ * Rend une chaîne qui EST PEUT-ÊTRE une clé i18n (données de démonstration semées côté serveur :
+ * motif de virement, message de chat) : résolue si c'est une clé connue, rendue telle quelle
+ * sinon (contenu libre saisi par l'utilisateur). Jamais de texte français codé dans `lib/`.
+ */
+export function tSiCle(locale: Locale, texte: string | undefined | null): string {
+  if (!texte) return "";
+  const forme = translations[locale]?.[texte] ?? translations[defaultLocale]?.[texte];
+  return forme ?? texte;
 }
 
 // --- Détection (implémentation partagée avec middleware.ts) ---

@@ -6,7 +6,7 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 11 — ce qui existe aujourd'hui
+## Slices 1 à 12 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
@@ -19,8 +19,8 @@ autorité — en 4 langues, animés, sans une seule donnée fausse à l'écran.*
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 12 namespaces,
-  **931 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
-  matériel fourni en alignait 715, les slices 2-11 en ajoutent dans les 4 langues à la fois —
+  **955 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  matériel fourni en alignait 715, les slices 2-12 en ajoutent dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
 - Tout **nombre** affiché sort d'une seule table : `frontend/lib/credit-engine.ts`
@@ -242,6 +242,33 @@ l'état**. Personne ne peut tricher, et tous les postes voient le même compte.
   lever/refuser/annuler, autorisations 403, photo 413, surcharges réservées au staff, table
   canonique intacte (143 tests au total).
 
+### Slice 12 — espaces Admin / Super Admin activés : KYC, dossiers, journal ; démo « vitrine »
+
+Deux constats des captures utilisateurs corrigés d'un coup : le namespace `banque` n'était pas
+monté dans le bundle i18n (des clés s'affichaient telles quelles) et des appels historiques
+`tr("ns.cle")` (point au lieu de deux-points) ne résolvaient jamais. `lib/i18n.ts` monte
+`banque` ×4 et `t()` tolère désormais la forme pointée ; plus une clé ne peut s'afficher crue
+sans que la parité/usage ne casse en CI.
+
+- **Espace opérations restructuré en quatre sections** : « Clients & KYC » (table de tous les
+  comptes : état KYC, solde, virements à traiter, **validation/révocation KYC** en un bouton,
+  ouverture du dossier), « Dossier client » (profil complet servi par le serveur — identité,
+  adresse, activité, revenus —, banque : IBAN/solde/disponible/réservé, crédit, **tous les
+  virements** avec pipeline et blocages, chat), « Transactions » (**journal de toutes les
+  transactions, tous clients**, daté, signé, motifs résolus) et « Référentiel » (surcharges).
+- **Le serveur fait foi pour le profil** : `/api/auth/session` renvoie `profil` et `creeA` du
+  compte serveur ; l'onglet Profil client les affiche (plus de « profil vide » pour les comptes
+  démo ou inscrits).
+- **Compte démo « vitrine »** : `client@kredit.be` arrive **vérifié** (le virement sortant est
+  possible immédiatement) avec un salaire fictif, un virement EXÉCUTÉ, un EN COURS (niveau 2/4),
+  un BLOQUÉ (défaut CERT_ASSURANCE) et un échange de chat — chaque état du pipeline est illustré.
+  Construit en appliquant la machine pure (soldes/réserves cohérents, verrou jest) ; les motifs
+  et le chat portent des **clés i18n** résolues à l'affichage par `tSiCle` (le contenu libre saisi
+  par un vrai utilisateur passe tel quel). Un nouvel inscrit repart vierge.
+- Bannière de sécurité honnête : « Compte de démonstration — authentification et banque servies
+  par l'API (session httpOnly) » ×4 (l'ancienne disait « rien n'est envoyé », faux depuis la
+  slice 10).
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -296,7 +323,7 @@ l'état**. Personne ne peut tricher, et tous les postes voient le même compte.
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (143 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (145 verrous)
 ```
 
 ## Commandes
@@ -334,6 +361,10 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 11. **Banque sur l'API** — fait (le localStorage bancaire prend sa retraite : l'UI envoie des
     intentions, le serveur applique la machine à états pure ; virements/pipeline/chat/surcharges
     côté serveur, autorisations CUSTOMER/staff, photo plafonnée, état honnête si l'API tombe).
+12. **Espaces Admin/Super Admin activés + démo vitrine** — fait (sections Clients & KYC avec
+    validation/révocation et dossier complet par client, journal des transactions tous clients,
+    profil servi par le serveur, compte démo vérifié avec historique illustratif ; namespace
+    `banque` monté ×4 et tolérance `ns.cle` dans `t()`).
     Prochaine passe : e2e Playwright sur /api, durcissement (rate-limit, rotation de sessions).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`

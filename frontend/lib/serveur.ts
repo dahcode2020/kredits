@@ -81,7 +81,7 @@ function semerPersonnel(magasin: Magasin): void {
     const sel = nouveauSel();
     magasin.comptes.push({
       email: porte.email, role: porte.role, nom: porte.nom, creeA: new Date().toISOString(),
-      sel, hash: hacherMotDePasse(porte.motDePasse, sel),
+      sel, hash: hacherMotDePasse(porte.motDePasse, sel), profil: porte.profil,
     });
   }
 }

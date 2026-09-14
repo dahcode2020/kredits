@@ -22,6 +22,8 @@ import {
 import {
   creerCompte, lireMagasin, ouvrirSessionServeur, type Magasin, type SessionServeur,
 } from "@/lib/serveur";
+
+const cleDemo = "client@kredit.be::CUSTOMER";
 import {
   PHOTO_MAX_OCTETS, actionAdmin, actionClient, banqueDeSession, chatPour, listeComptesClients,
   ouvrirBanquePour, referentielPourApi, surchargerReferentiel,
@@ -191,6 +193,39 @@ describe("autorisations", () => {
     expect(rc.statut).toBe(200);
     expect(soldeDe(rc.corps.compte as BanqueCompte)).toBe(MONTANT_DEMO + 250);
     expect(actionAdmin(magasin, admin, { action: "crediter", compteId: "inconnu::CUSTOMER", montant: 1 }).statut).toBe(404);
+  });
+});
+
+describe("compte de démonstration « vitrine »", () => {
+  it("le client démo arrive vérifié, avec un virement à chaque état du pipeline et le chat semé", () => {
+    const magasin = lireMagasin(dossier); // sème client@kredit.be (CUSTOMER)
+    const compteDemo = magasin.comptes.find((c) => c.email === "client@kredit.be")!;
+    const session = ouvrirSessionServeur(magasin, compteDemo);
+    const r = banqueDeSession(magasin, session);
+    expect("compte" in r).toBe(true);
+    const compte = (r as { compte: BanqueCompte }).compte;
+    expect(compte.verifie).toBe(true); // le virement sortant est possible tout de suite
+    const statuts = compte.virements.map((v) => v.statut).sort();
+    expect(statuts).toEqual(["BLOQUE", "EN_COURS", "EXECUTE"]);
+    const enCours = compte.virements.find((v) => v.statut === "EN_COURS")!;
+    expect(enCours.niveau).toBe(2);
+    // Cohérence machine : 2500 (dotation) + 1850 (salaire) − 450 (loyer exécuté)
+    expect(soldeDe(compte)).toBe(2_500 + 1_850 - 450);
+    // Réserves : 300 (en cours) + 750 + 150 (bloqué, coût CERT_ASSURANCE)
+    expect(disponibleDe(compte)).toBe(2_500 + 1_850 - 450 - 300 - 750 - 150);
+    // Chat semé, lisible par le client comme par le staff.
+    const chat = chatPour(magasin, session) as { messages: Array<{ de: string }> };
+    expect(chat.messages).toHaveLength(3);
+    expect(chatPour(magasin, sessionAdmin(magasin), cleDemo)).toEqual(chat);
+  });
+
+  it("un nouvel inscrit repart vierge (non vérifié, sans historique) — la vitrine est réservée au démo", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin);
+    const compte = (banqueDeSession(magasin, session) as { compte: BanqueCompte }).compte;
+    expect(compte.verifie).toBe(false);
+    expect(compte.virements).toHaveLength(0);
+    expect(compte.transactions).toHaveLength(1);
   });
 });
 

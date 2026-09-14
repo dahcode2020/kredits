@@ -10,6 +10,7 @@
  * chat support). Tout passe par la session httpOnly (voir lib/serveur.ts).
  */
 import { NOM_COOKIE, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
+import { COMPTES_PORTE_DEMO, banqueDemoIllustrative } from "@/lib/serveur-demo";
 import {
   annulerVirement, bloquerVirement, cleBanque, confirmerNiveau, denouer, initierVirement,
   leverBlocage, ouvrirBanqueClient, referentielEffectif, refuserVirement,
@@ -27,7 +28,18 @@ export function sessionDeRequete(req: Request, magasin: Magasin): SessionServeur
 export function ouvrirBanquePour(magasin: Magasin, email: string, role: string, maintenant: string): BanqueCompte {
   magasin.banques = magasin.banques ?? {};
   const cle = cleBanque(email, role);
-  if (!magasin.banques[cle]) magasin.banques[cle] = ouvrirBanqueClient(email, role, maintenant);
+  if (!magasin.banques[cle]) {
+    // Le compte de démonstration arrive « vitrine » : vérifié, avec historique et chat, pour que
+    // chaque état du pipeline soit illustré d'un coup d'œil (données fictives étiquetées démo).
+    if (role === "CUSTOMER" && email.trim().toLowerCase() === COMPTES_PORTE_DEMO[0].email) {
+      const vitrine = banqueDemoIllustrative();
+      magasin.banques[cle] = vitrine.compte;
+      magasin.chats = magasin.chats ?? {};
+      if (!magasin.chats[cle] || magasin.chats[cle].length === 0) magasin.chats[cle] = vitrine.chat;
+    } else {
+      magasin.banques[cle] = ouvrirBanqueClient(email, role, maintenant);
+    }
+  }
   return magasin.banques[cle];
 }
 export function referentielDuMagasin(magasin: Magasin): Referentiel {
@@ -82,13 +94,16 @@ export function actionClient(
   return { statut: 400, corps: { erreur: "action_inconnue" }, modifie: false };
 }
 
-/* ——— Vue de l'administration : tous les comptes clients ——— */
-export function listeComptesClients(magasin: Magasin): Array<{ id: string; email: string; nom: string; compte: BanqueCompte }> {
+/* ——— Vue de l'administration : tous les comptes clients (dossier complet : profil + KYC) ——— */
+export function listeComptesClients(magasin: Magasin): Array<{
+  id: string; email: string; nom: string; creeA: string; profil: Record<string, string> | null; compte: BanqueCompte;
+}> {
   ouvrirToutesLesBanques(magasin);
   return magasin.comptes
     .filter((c) => c.role === "CUSTOMER")
     .map((c) => ({
-      id: cleBanque(c.email, c.role), email: c.email, nom: c.nom,
+      id: cleBanque(c.email, c.role), email: c.email, nom: c.nom, creeA: c.creeA,
+      profil: c.profil ?? null,
       compte: magasin.banques![cleBanque(c.email, c.role)],
     }))
     .filter((x) => x.compte);

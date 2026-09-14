@@ -17,7 +17,7 @@ import CountUp from "@/components/motion/CountUp";
 import { buttonClasses } from "@/components/ui/Button";
 import { formatEUR2, cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/formatters";
-import { Locale, t } from "@/lib/i18n";
+import { Locale, t, tSiCle } from "@/lib/i18n";
 import type { Session } from "@/lib/auth";
 import { API, apiGet, apiPost } from "@/lib/api";
 import {
@@ -264,7 +264,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                     {tx.sens === "entrant" ? <ArrowDownLeft className="w-4 h-4" aria-hidden="true" /> : <ArrowUpRight className="w-4 h-4" aria-hidden="true" />}
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-ink truncate">{tx.motifCle ? tr(tx.motifCle) : tx.motifLibre}</div>
+                    <div className="text-[13px] font-bold text-ink truncate">{tx.motifCle ? tr(tx.motifCle) : tSiCle(locale, tx.motifLibre)}</div>
                     <div className="text-[11px] text-slate-400">
                       {tr(tx.sens === "entrant" ? "banque:tx.from" : "banque:tx.to", { nom: tx.contrepartie })} · {formatDateTime(tx.date, locale)}
                     </div>
@@ -324,7 +324,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
           {messages.length === 0 && <p className="text-[13px] text-slate-400">{tr("banque:chat.empty")}</p>}
           {messages.map((m) => (
             <div key={m.id} className={cn("max-w-[80%]", m.de === "client" ? "ml-auto" : "")}>
-              <div className={cn("rounded-2xl px-4 py-2.5 text-[13px] leading-5", m.de === "client" ? "bg-primary text-white rounded-br-md" : "bg-white border rounded-bl-md text-ink")}>{m.texte}</div>
+              <div className={cn("rounded-2xl px-4 py-2.5 text-[13px] leading-5", m.de === "client" ? "bg-primary text-white rounded-br-md" : "bg-white border rounded-bl-md text-ink")}>{tSiCle(locale, m.texte)}</div>
               <div className={cn("mt-1 text-[10px] text-slate-400", m.de === "client" ? "text-right" : "")}>
                 {m.de === "client" ? tr("banque:chat.you") : tr("banque:chat.support")} · {formatDateTime(m.ts, locale)}
               </div>
