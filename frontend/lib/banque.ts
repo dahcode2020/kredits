@@ -82,7 +82,9 @@ export interface Transaction {
 export type StatutVirement = "EN_COURS" | "BLOQUE" | "EXECUTE" | "REFUSE" | "ANNULE";
 export interface Blocage { code: string; cout: number; depuis: string; leveA?: string }
 export interface Virement {
-  id: string; beneficiaireNom: string; beneficiaireIban: string; montant: number; motif: string;
+  id: string; beneficiaireNom: string; beneficiaireIban: string;
+  beneficiaireAdresse?: string; beneficiaireBic?: string;
+  montant: number; motif: string;
   creeA: string; statut: StatutVirement; niveau: number; // dernier niveau confirmé (0 = aucun)
   blocages: Blocage[];
 }
@@ -124,15 +126,23 @@ export function idVirement(maintenant: string): string {
 
 export function initierVirement(
   compte: BanqueCompte, beneficiaireNom: string, beneficiaireIban: string, montant: number, motif: string, maintenant: string,
+  coordonnees?: { adresse?: string; bic?: string },
 ): { compte: BanqueCompte; erreur?: "non_verifie" | "iban_invalide" | "montant_invalide" } {
   if (!compte.verifie) return { compte, erreur: "non_verifie" };
   if (!ibanBEValide(beneficiaireIban)) return { compte, erreur: "iban_invalide" };
   if (!(montant > 0) || montant > disponibleDe(compte)) return { compte, erreur: "montant_invalide" };
   const v: Virement = {
     id: idVirement(maintenant), beneficiaireNom, beneficiaireIban: beneficiaireIban.replace(/\s+/g, "").toUpperCase(),
+    beneficiaireAdresse: coordonnees?.adresse?.trim() || undefined,
+    beneficiaireBic: coordonnees?.bic?.replace(/\s+/g, "").toUpperCase() || undefined,
     montant, motif, creeA: maintenant, statut: "EN_COURS", niveau: 0, blocages: [],
   };
   return { compte: { ...compte, virements: [...compte.virements, v] } };
+}
+
+/** Format BIC/SWIFT ISO 9362 : 4 lettres pays-banque + 2 lettres pays + 2 alphanum (+ 3 optionnels). */
+export function bicValide(bic: string): boolean {
+  return /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic.replace(/\s+/g, "").toUpperCase());
 }
 
 /** L'administration confirme le niveau suivant ; au dernier niveau le virement est exécuté. */

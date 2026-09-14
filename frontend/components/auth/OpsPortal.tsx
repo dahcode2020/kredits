@@ -405,7 +405,8 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                           <div className="flex flex-wrap items-center gap-3">
                             <div className="min-w-0">
                               <div className="text-sm font-extrabold text-ink">{v.beneficiaireNom} · <span className="tabular-nums">{formatEUR2(v.montant, locale)}</span></div>
-                              <div className="text-[11px] text-slate-400">{tSiCle(locale, v.motif)} · <span className="font-mono">{v.id} · {v.beneficiaireIban}</span> · {formatDateTime(v.creeA, locale)}</div>
+                              <div className="text-[11px] text-slate-400">{tSiCle(locale, v.motif)} · <span className="font-mono">{v.id} · {v.beneficiaireIban}{v.beneficiaireBic ? ` · ${v.beneficiaireBic}` : ""}</span> · {formatDateTime(v.creeA, locale)}</div>
+                              {v.beneficiaireAdresse && <div className="text-[11px] text-slate-400">{tr("banque:send.benefAddress")} : {v.beneficiaireAdresse}</div>}
                             </div>
                             <span className={cn("ml-auto text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full",
                               v.statut === "BLOQUE" ? "bg-red-50 text-red-600" : v.statut === "EXECUTE" ? "bg-emerald-50 text-emerald-600" : v.statut === "EN_COURS" ? "bg-primary-light text-primary" : "bg-slate-100 text-slate-500")}>

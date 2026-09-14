@@ -21,9 +21,12 @@ import { Locale, t, tSiCle } from "@/lib/i18n";
 import type { Session } from "@/lib/auth";
 import { API, apiGet, apiPost } from "@/lib/api";
 import {
-  disponibleDe, progressionDe, reserveDe, soldeDe,
+  bicValide, disponibleDe, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type StatutVirement, type Virement,
 } from "@/lib/banque";
+
+/** Ordre de virement saisi, proposé en aperçu avant confirmation (jamais envoyé tel quel). */
+interface ApercuOrdre { nom: string; adresse: string; iban: string; bic: string; montant: number; motif: string }
 
 const CLES_STATUT: Record<StatutVirement, string> = {
   EN_COURS: "banque:vir.EN_COURS", BLOQUE: "banque:vir.BLOQUE", EXECUTE: "banque:vir.EXECUTE",
@@ -89,8 +92,11 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
   const [copie, setCopie] = useState(false);
   const [nomBenef, setNomBenef] = useState("");
   const [ibanBenef, setIbanBenef] = useState("");
+  const [adresseBenef, setAdresseBenef] = useState("");
+  const [bicBenef, setBicBenef] = useState("");
   const [montant, setMontant] = useState("");
   const [motif, setMotif] = useState("");
+  const [apercu, setApercu] = useState<ApercuOrdre | null>(null);
   const [erreurEnvoi, setErreurEnvoi] = useState<string | null>(null);
   const [okEnvoi, setOkEnvoi] = useState(false);
   const [texteChat, setTexteChat] = useState("");
@@ -126,23 +132,40 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
   }
   if (!banque || !ref) return null;
 
-  const envoyerVirement = async () => {
+  /** Étape 1 : valide la saisie et propose l'APERÇU de l'ordre (rien n'est envoyé). */
+  const preparerApercu = () => {
     setErreurEnvoi(null); setOkEnvoi(false);
     const montantNum = Number(montant.replace(",", "."));
     if (!nomBenef.trim()) { setErreurEnvoi("banque:send.err.name"); return; }
+    if (!adresseBenef.trim()) { setErreurEnvoi("banque:send.err.address"); return; }
+    if (!ibanBenef.trim()) { setErreurEnvoi("banque:send.err.iban"); return; }
+    if (!bicValide(bicBenef)) { setErreurEnvoi("banque:send.err.bic"); return; }
+    if (!(montantNum > 0)) { setErreurEnvoi("banque:send.err.amount"); return; }
     if (!motif.trim()) { setErreurEnvoi("banque:send.err.motif"); return; }
+    setApercu({ nom: nomBenef.trim(), adresse: adresseBenef.trim(), iban: ibanBenef.trim(), bic: bicBenef.trim(), montant: montantNum, motif: motif.trim() });
+  };
+
+  /** Étape 2 : l'ordre confirmé part en intention vers le serveur, qui seul l'initie. */
+  const confirmerVirement = async () => {
+    if (!apercu) return;
+    setErreurEnvoi(null); setOkEnvoi(false);
     const r = await apiPost<{ compte?: BanqueCompte }>(API.banque, {
-      action: "virement", beneficiaireNom: nomBenef.trim(), beneficiaireIban: ibanBenef.trim(),
-      montant: montantNum, motif: motif.trim(),
+      action: "virement", beneficiaireNom: apercu.nom, beneficiaireIban: apercu.iban,
+      beneficiaireAdresse: apercu.adresse, beneficiaireBic: apercu.bic,
+      montant: apercu.montant, motif: apercu.motif,
     });
     if (!r.ok || !r.corps.compte) {
       const cle = r.corps.erreur === "non_verifie" ? "banque:send.locked"
-        : r.corps.erreur === "iban_invalide" ? "banque:send.err.iban" : "banque:send.err.amount";
-      setErreurEnvoi(cle);
+        : r.corps.erreur === "iban_invalide" ? "banque:send.err.iban"
+        : r.corps.erreur === "bic_invalide" ? "banque:send.err.bic"
+        : r.corps.erreur === "adresse_manquante" ? "banque:send.err.address"
+        : "banque:send.err.amount";
+      setApercu(null); setErreurEnvoi(cle);
       return;
     }
     setBanque(r.corps.compte);
-    setNomBenef(""); setIbanBenef(""); setMontant(""); setMotif(""); setOkEnvoi(true);
+    setApercu(null);
+    setNomBenef(""); setIbanBenef(""); setAdresseBenef(""); setBicBenef(""); setMontant(""); setMotif(""); setOkEnvoi(true);
   };
 
   const annulerSurServeur = async (virementId: string) => {
@@ -177,12 +200,13 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
         <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-primary/20 blur-3xl" aria-hidden="true" />
         <div className="flex flex-wrap items-start gap-6 justify-between relative">
           <div>
+            {/* Solde affiché = total des fonds − virements en cours ou bloqués (définition métier). */}
             <div className="text-[11px] font-bold tracking-widest uppercase text-white/50">{tr("banque:balance")}</div>
             <div className="mt-1 font-display font-extrabold text-[40px] leading-none tabular-nums">
-              <CountUp a={0} final={formatEUR2(solde, locale)} format={(n) => formatEUR2(n, locale)} declencheur="montage" />
+              <CountUp a={0} final={formatEUR2(disponible, locale)} format={(n) => formatEUR2(n, locale)} declencheur="montage" />
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[12px] text-white/70">
-              <span>{tr("banque:available")} : <strong className="text-white tabular-nums">{formatEUR2(disponible, locale)}</strong></span>
+              <span>{tr("banque:funds")} : <strong className="text-white tabular-nums">{formatEUR2(solde, locale)}</strong></span>
               <span>{tr("banque:reserved")} : <strong className="text-white tabular-nums">{formatEUR2(reserve, locale)}</strong> <span className="text-white/40">({tr("banque:reservedHint")})</span></span>
             </div>
           </div>
@@ -222,6 +246,28 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
             <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-[13px] leading-6 text-amber-800">
               <Lock className="w-4 h-4 inline mr-2 -mt-0.5" aria-hidden="true" />{tr("banque:send.locked")}
             </div>
+          ) : apercu ? (
+            /* ——— Aperçu de l'ordre : relire avant de confirmer ——— */
+            <div className="mt-4 rounded-2xl border-2 border-primary/30 bg-primary-light/40 p-5">
+              <div className="font-extrabold text-ink flex items-center gap-2"><Check className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:send.previewTitle")}</div>
+              <dl className="mt-3 space-y-1.5 text-[13px]">
+                <div className="flex justify-between gap-3"><dt className="text-slate-500 font-bold">{tr("banque:send.benefName")}</dt><dd className="font-extrabold text-ink text-right">{apercu.nom}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500 font-bold">{tr("banque:send.benefAddress")}</dt><dd className="font-semibold text-ink text-right">{apercu.adresse}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500 font-bold">IBAN</dt><dd className="font-mono text-[12px] text-ink text-right break-all">{apercu.iban}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500 font-bold">{tr("banque:send.benefBic")}</dt><dd className="font-mono text-[12px] text-ink text-right">{apercu.bic.toUpperCase()}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500 font-bold">{tr("banque:send.motif")}</dt><dd className="font-semibold text-ink text-right">{apercu.motif}</dd></div>
+                <div className="flex justify-between gap-3 border-t border-primary/20 pt-2"><dt className="text-slate-500 font-bold">{tr("banque:send.amount")}</dt><dd className="font-extrabold text-ink text-right tabular-nums text-[15px]">{formatEUR2(apercu.montant, locale)}</dd></div>
+              </dl>
+              <p className="mt-3 text-[11px] text-slate-500">{tr("banque:send.previewNote")}</p>
+              <div className="mt-4 flex gap-2">
+                <button type="button" onClick={() => void confirmerVirement()} className={buttonClasses("primary", "md", "flex-1")}>
+                  <Send className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("banque:send.previewConfirm")}</span>
+                </button>
+                <button type="button" onClick={() => setApercu(null)} className={buttonClasses("outline-light", "md")}>
+                  {tr("banque:send.previewCancel")}
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="mt-4 space-y-3">
               <label className="block">
@@ -229,9 +275,19 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                 <input value={nomBenef} onChange={(e) => setNomBenef(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </label>
               <label className="block">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefIban")}</span>
-                <input value={ibanBenef} onChange={(e) => setIbanBenef(e.target.value)} placeholder="BE…" className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefAddress")}</span>
+                <input value={adresseBenef} onChange={(e) => setAdresseBenef(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </label>
+              <div className="grid grid-cols-[1fr_auto] gap-3">
+                <label className="block">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefIban")}</span>
+                  <input value={ibanBenef} onChange={(e) => setIbanBenef(e.target.value)} placeholder="BE…" className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </label>
+                <label className="block w-36">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefBic")}</span>
+                  <input value={bicBenef} onChange={(e) => setBicBenef(e.target.value)} placeholder="GEBABEBB" maxLength={11} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </label>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.amount")}</span>
@@ -244,7 +300,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
               </div>
               {erreurEnvoi && <p role="alert" className="text-[13px] font-bold text-red-600">{tr(erreurEnvoi)}</p>}
               {okEnvoi && !erreurEnvoi && <p role="status" className="text-[13px] font-bold text-emerald-600">{tr("banque:send.ok")}</p>}
-              <button type="button" onClick={envoyerVirement} className={buttonClasses("primary", "md", "w-full")}>
+              <button type="button" onClick={preparerApercu} className={buttonClasses("primary", "md", "w-full")}>
                 <Send className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("banque:send.cta")}</span>
               </button>
             </div>
@@ -293,7 +349,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="min-w-0">
                       <div className="text-sm font-extrabold text-ink">{v.beneficiaireNom} · <span className="tabular-nums">{formatEUR2(v.montant, locale)}</span></div>
-                      <div className="text-[11px] text-slate-400 font-mono">{v.id} · {v.beneficiaireIban} · {formatDateTime(v.creeA, locale)}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">{v.id} · {v.beneficiaireIban}{v.beneficiaireBic ? ` · ${v.beneficiaireBic}` : ""} · {formatDateTime(v.creeA, locale)}</div>
                     </div>
                     <span className={cn("ml-auto text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", COULEUR_STATUT[v.statut])}>{tr(CLES_STATUT[v.statut])}</span>
                   </div>

@@ -27,5 +27,6 @@
   "dashboard.errCurrent": "Current password incorrect.",
   "dashboard.docsMarked": "Marked as provided — local demo, no file sent.",
   "dashboard.noApproved": "Payments will appear once an application is approved by an advisor.",
-  "dashboard.kycHow": "Identity verification (KYC) is checked while your application is processed."
+  "dashboard.kycHow": "Identity verification (KYC) is checked while your application is processed.",
+  "kycHowVerified": "Your identity has been checked by our team: the banking space is fully active."
 }

@@ -12,7 +12,7 @@
 import { NOM_COOKIE, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO, banqueDemoIllustrative } from "@/lib/serveur-demo";
 import {
-  annulerVirement, bloquerVirement, cleBanque, confirmerNiveau, denouer, initierVirement,
+  annulerVirement, bicValide, bloquerVirement, cleBanque, confirmerNiveau, denouer, initierVirement,
   leverBlocage, ouvrirBanqueClient, referentielEffectif, refuserVirement,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel,
 } from "@/lib/banque";
@@ -54,14 +54,20 @@ export function banqueDeSession(magasin: Magasin, session: SessionServeur): { co
 /* ——— Actions du client sur SON compte ——— */
 export function actionClient(
   magasin: Magasin, session: SessionServeur,
-  corps: { action?: string; beneficiaireNom?: string; beneficiaireIban?: string; montant?: number; motif?: string; virementId?: string; texte?: string; photo?: string | null },
+  corps: { action?: string; beneficiaireNom?: string; beneficiaireIban?: string; beneficiaireAdresse?: string; beneficiaireBic?: string; montant?: number; motif?: string; virementId?: string; texte?: string; photo?: string | null },
 ): { statut: number; corps: Record<string, unknown>; modifie: boolean } {
   if (session.role !== "CUSTOMER") return { statut: 403, corps: { erreur: "reserve_client" }, modifie: false };
   const compte = ouvrirBanquePour(magasin, session.email, session.role, new Date().toISOString());
   const maintenant = new Date().toISOString();
 
   if (corps.action === "virement") {
-    const r = initierVirement(compte, String(corps.beneficiaireNom ?? ""), String(corps.beneficiaireIban ?? ""), Number(corps.montant), String(corps.motif ?? ""), maintenant);
+    // L'ordre de virement complet exige l'adresse du bénéficiaire et un BIC/SWIFT valide.
+    if (!String(corps.beneficiaireAdresse ?? "").trim()) return { statut: 400, corps: { erreur: "adresse_manquante" }, modifie: false };
+    if (!bicValide(String(corps.beneficiaireBic ?? ""))) return { statut: 400, corps: { erreur: "bic_invalide" }, modifie: false };
+    const r = initierVirement(
+      compte, String(corps.beneficiaireNom ?? ""), String(corps.beneficiaireIban ?? ""), Number(corps.montant), String(corps.motif ?? ""), maintenant,
+      { adresse: String(corps.beneficiaireAdresse ?? ""), bic: String(corps.beneficiaireBic ?? "") },
+    );
     if (r.erreur) return { statut: 400, corps: { erreur: r.erreur }, modifie: false };
     magasin.banques![cleBanque(session.email, session.role)] = r.compte;
     return { statut: 200, corps: { compte: r.compte }, modifie: true };

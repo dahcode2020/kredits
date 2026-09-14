@@ -115,5 +115,14 @@
   "ops.txClient": "Kunde",
   "ops.txNone": "Noch keine Transaktionen.",
   "ops.pending": "offen",
-  "ops.txDate": "Datum"
+  "ops.txDate": "Datum",
+  "send.benefAddress": "Adresse des Empfängers",
+  "send.benefBic": "BIC / SWIFT",
+  "send.err.address": "Die Empfängeradresse ist erforderlich.",
+  "send.err.bic": "Ungültige BIC/SWIFT (8 oder 11 Zeichen, z. B. GEBABEBB).",
+  "send.previewTitle": "Vorschau des Überweisungsauftrags",
+  "send.previewNote": "Prüfen Sie den Auftrag vor der Bestätigung: danach geht er in die Prüfungsschleife.",
+  "send.previewConfirm": "Auftrag bestätigen",
+  "send.previewCancel": "Bearbeiten",
+  "funds": "Gesamtes Guthaben"
 }

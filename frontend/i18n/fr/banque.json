@@ -115,5 +115,14 @@
   "ops.txClient": "Client",
   "ops.txNone": "Aucune transaction pour l'instant.",
   "ops.pending": "à traiter",
-  "ops.txDate": "Date"
+  "ops.txDate": "Date",
+  "send.benefAddress": "Adresse du bénéficiaire",
+  "send.benefBic": "BIC / SWIFT",
+  "send.err.address": "L'adresse du bénéficiaire est requise.",
+  "send.err.bic": "BIC/SWIFT invalide (8 ou 11 caractères, ex. GEBABEBB).",
+  "send.previewTitle": "Aperçu de l'ordre de virement",
+  "send.previewNote": "Vérifiez l'ordre avant confirmation : il partira ensuite dans le circuit de validation.",
+  "send.previewConfirm": "Confirmer l'ordre",
+  "send.previewCancel": "Modifier",
+  "funds": "Total des fonds"
 }

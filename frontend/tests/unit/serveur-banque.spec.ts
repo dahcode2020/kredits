@@ -16,7 +16,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  MONTANT_DEMO, REFERENTIEL_CANONIQUE, disponibleDe, ibanBEValide, soldeDe,
+  MONTANT_DEMO, REFERENTIEL_CANONIQUE, bicValide, disponibleDe, ibanBEValide, soldeDe,
   type BanqueCompte,
 } from "@/lib/banque";
 import {
@@ -34,7 +34,11 @@ beforeEach(() => { dossier = mkdtempSync(join(tmpdir(), "kredit-banque-srv-")); 
 afterEach(() => { rmSync(dossier, { recursive: true, force: true }); });
 
 const MAINTENANT = "2026-09-14T10:00:00.000Z";
-const BENEF = { nom: "Garage Central", iban: "BE68539007547034" }; // exemple publié par Febelfin
+const BENEF = { nom: "Garage Central", iban: "BE68539007547034", adresse: "Chaussée de Wavre 123, 1050 Ixelles", bic: "GEBABEBB" }; // IBAN exemple publié par Febelfin
+const ordre = (montant: number, motif: string) => ({
+  action: "virement", beneficiaireNom: BENEF.nom, beneficiaireIban: BENEF.iban,
+  beneficiaireAdresse: BENEF.adresse, beneficiaireBic: BENEF.bic, montant, motif,
+});
 
 function sessionClient(magasin: Magasin): SessionServeur {
   const c = creerCompte(magasin, { email: "nina@exemple.be", motDePasse: "assez-long-1", role: "CUSTOMER", nom: "Nina Client" });
@@ -78,7 +82,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
   it("refuse le virement tant que le compte n'est pas vérifié", () => {
     const magasin = lireMagasin(dossier);
     const session = sessionClient(magasin);
-    const r = actionClient(magasin, session, { action: "virement", beneficiaireNom: BENEF.nom, beneficiaireIban: BENEF.iban, montant: 500, motif: "acompte" });
+    const r = actionClient(magasin, session, ordre(500, "acompte"));
     expect(r.statut).toBe(400);
     expect(r.corps.erreur).toBe("non_verifie");
     expect(r.modifie).toBe(false);
@@ -91,7 +95,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     banqueDeSession(magasin, session); // le portail ouvre la banque à l'affichage (comme le GET réel)
     expect(actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true }).statut).toBe(200);
 
-    const r = actionClient(magasin, session, { action: "virement", beneficiaireNom: BENEF.nom, beneficiaireIban: BENEF.iban, montant: 500, motif: "acompte" });
+    const r = actionClient(magasin, session, ordre(500, "acompte"));
     expect(r.statut).toBe(200);
     expect(r.modifie).toBe(true);
     const compte = r.corps.compte as BanqueCompte;
@@ -117,13 +121,33 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(actionAdmin(magasin, admin, { action: "confirmer", compteId: cle, virementId: v.id }).statut).toBe(400);
   });
 
+  it("l'ordre de virement exige adresse du bénéficiaire et BIC/SWIFT valide, et les conserve", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin);
+    const admin = sessionAdmin(magasin);
+    banqueDeSession(magasin, session);
+    actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true });
+    expect(actionClient(magasin, session, { ...ordre(100, "x"), beneficiaireAdresse: "  " }))
+      .toMatchObject({ statut: 400, corps: { erreur: "adresse_manquante" }, modifie: false });
+    expect(actionClient(magasin, session, { ...ordre(100, "x"), beneficiaireBic: "1234" }))
+      .toMatchObject({ statut: 400, corps: { erreur: "bic_invalide" }, modifie: false });
+    const ok = actionClient(magasin, session, ordre(100, "x"));
+    expect(ok.statut).toBe(200);
+    const v = (ok.corps.compte as BanqueCompte).virements.at(-1)!;
+    expect(v.beneficiaireBic).toBe("GEBABEBB");
+    expect(v.beneficiaireAdresse).toBe(BENEF.adresse);
+    expect(bicValide("gebabebb")).toBe(true); // insensible à la casse
+    expect(bicValide("GEBABEBBXXX")).toBe(true); // forme longue (11)
+    expect(bicValide("GEBABEB")).toBe(false);
+  });
+
   it("bloquer par CERT_ASSURANCE réserve montant + coût ; lever récupère le coût", () => {
     const magasin = lireMagasin(dossier);
     const session = sessionClient(magasin);
     const admin = sessionAdmin(magasin);
     banqueDeSession(magasin, session);
     actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true });
-    const r = actionClient(magasin, session, { action: "virement", beneficiaireNom: BENEF.nom, beneficiaireIban: BENEF.iban, montant: 300, motif: "frais" });
+    const r = actionClient(magasin, session, ordre(300, "frais"));
     const v = (r.corps.compte as BanqueCompte).virements[0];
 
     const rb = actionAdmin(magasin, admin, { action: "bloquer", compteId: cle, virementId: v.id, codeDefaut: "CERT_ASSURANCE" });
@@ -147,7 +171,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     const admin = sessionAdmin(magasin);
     banqueDeSession(magasin, session);
     actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true });
-    const r = actionClient(magasin, session, { action: "virement", beneficiaireNom: BENEF.nom, beneficiaireIban: BENEF.iban, montant: 200, motif: "test" });
+    const r = actionClient(magasin, session, ordre(200, "test"));
     const v = (r.corps.compte as BanqueCompte).virements[0];
 
     const rf = actionAdmin(magasin, admin, { action: "refuser", compteId: cle, virementId: v.id });
@@ -157,7 +181,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(disponibleDe(refuse)).toBe(MONTANT_DEMO);
 
     // Annulation par le client sur un second virement encore EN_COURS.
-    const r2 = actionClient(magasin, session, { action: "virement", beneficiaireNom: BENEF.nom, beneficiaireIban: BENEF.iban, montant: 100, motif: "x" });
+    const r2 = actionClient(magasin, session, ordre(100, "x"));
     const v2 = (r2.corps.compte as BanqueCompte).virements.find((x) => x.statut === "EN_COURS")!;
     const ra = actionClient(magasin, session, { action: "annuler", virementId: v2.id });
     expect(ra.statut).toBe(200);

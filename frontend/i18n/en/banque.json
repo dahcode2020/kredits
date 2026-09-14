@@ -115,5 +115,14 @@
   "ops.txClient": "Client",
   "ops.txNone": "No transactions yet.",
   "ops.pending": "pending",
-  "ops.txDate": "Date"
+  "ops.txDate": "Date",
+  "send.benefAddress": "Beneficiary address",
+  "send.benefBic": "BIC / SWIFT",
+  "send.err.address": "The beneficiary address is required.",
+  "send.err.bic": "Invalid BIC/SWIFT (8 or 11 characters, e.g. GEBABEBB).",
+  "send.previewTitle": "Transfer order preview",
+  "send.previewNote": "Check the order before confirming: it will then enter the validation pipeline.",
+  "send.previewConfirm": "Confirm order",
+  "send.previewCancel": "Edit",
+  "funds": "Total funds"
 }

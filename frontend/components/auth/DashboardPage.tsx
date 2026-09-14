@@ -115,7 +115,10 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
         });
       }
       // Profil et date de création : le serveur fait foi (comptes démo semés inclus).
+      // Réconciliation : un miroir local périmé (store remis à zéro, cookie orphelin) renvoie
+      // vers l'authentification au lieu d'afficher un compte vide à €0.00.
       apiGet<{ session: { profil?: Record<string, string> | null; creeA?: string } | null }>(API.session).then((r) => {
+        if (r.ok && !r.corps.session) { fermerSession(); setSession(null); return; }
         if (r.ok && r.corps.session) {
           setProfilServeur(r.corps.session.profil ?? null);
           setCreeAServeur(r.corps.session.creeA ?? null);
@@ -268,10 +271,18 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                   <div>
                     <div className="text-[13px] tracking-[0.18em] font-bold uppercase text-primary">{tr("dashboard.greeting", { name: session.nom.split(" ")[0] })}</div>
                     <h1 className="mt-1 font-display font-extrabold text-[28px] md:text-[34px] tracking-tight">{tr("dashboard.subtitle")}</h1>
-                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/15 border border-amber-300/30 text-[11px] font-bold tracking-widest uppercase text-amber-300">
-                      <Fingerprint className="w-3.5 h-3.5" aria-hidden="true" /> {tr("dashboard.kyc.pending")}
-                    </div>
-                    <p className="mt-2 text-[11px] text-white/50 max-w-[420px]">{tr("dashboard.kycHow")}</p>
+                    {/* Le statut KYC reflète la vérification faite par l'administration (serveur fait foi). */}
+                    {session.role === "CUSTOMER" && (
+                      <div className={cn(
+                        "mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-bold tracking-widest uppercase",
+                        banqueProfil?.verifie
+                          ? "bg-emerald-400/15 border-emerald-300/30 text-emerald-300"
+                          : "bg-amber-400/15 border-amber-300/30 text-amber-300",
+                      )}>
+                        <Fingerprint className="w-3.5 h-3.5" aria-hidden="true" /> {tr(banqueProfil?.verifie ? "dashboard.kyc.verified" : "dashboard.kyc.pending")}
+                      </div>
+                    )}
+                    <p className="mt-2 text-[11px] text-white/50 max-w-[420px]">{tr(banqueProfil?.verifie ? "dashboard.kycHowVerified" : "dashboard.kycHow")}</p>
                   </div>
                   {/* Carte membre : les vraies données du compte, habillées néo-banque. */}
                   <div className="w-full max-w-[340px] rounded-[20px] p-5 bg-gradient-to-br from-primary/90 via-ink to-ink border border-white/15 shadow-card rotate-[-1.5deg] hover:rotate-0 transition-transform">

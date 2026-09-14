@@ -115,5 +115,14 @@
   "ops.txClient": "Klant",
   "ops.txNone": "Nog geen transacties.",
   "ops.pending": "te behandelen",
-  "ops.txDate": "Datum"
+  "ops.txDate": "Datum",
+  "send.benefAddress": "Adres van de begunstigde",
+  "send.benefBic": "BIC / SWIFT",
+  "send.err.address": "Het adres van de begunstigde is verplicht.",
+  "send.err.bic": "Ongeldige BIC/SWIFT (8 of 11 tekens, bv. GEBABEBB).",
+  "send.previewTitle": "Voorbeeld van de overschrijvingsopdracht",
+  "send.previewNote": "Controleer de opdracht voor bevestiging: daarna gaat hij het validatiecircuit in.",
+  "send.previewConfirm": "Opdracht bevestigen",
+  "send.previewCancel": "Wijzigen",
+  "funds": "Totaal geld"
 }

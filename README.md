@@ -6,7 +6,7 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 12 — ce qui existe aujourd'hui
+## Slices 1 à 13 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
@@ -269,6 +269,27 @@ sans que la parité/usage ne casse en CI.
   par l'API (session httpOnly) » ×4 (l'ancienne disait « rien n'est envoyé », faux depuis la
   slice 10).
 
+### Slice 13 — ordre de virement complet : adresse, BIC/SWIFT, aperçu avant envoi ; solde métier ; KYC vivant
+
+Corrections et compléments demandés sur captures, appliqués UI + serveur + verrous :
+
+- **Solde affiché = total des fonds − virements en cours ou bloqués** : le grand chiffre du
+  portail client est désormais le disponible (définition métier posée par l'utilisateur) ; le
+  détail « total des fonds / réservé » reste affiché dessous (`banque:funds` ×4).
+- **KYC vivant côté client** : la pastille de l'aperçu passe de « en attente » (ambre) à
+  « KYC vérifié » (émeraude) dès que l'administration valide — l'état vient du serveur
+  (`dashboard.kyc.verified` / `kycHowVerified` ×4). Un miroir local périmé (cookie orphelin après
+  reset du store) renvoie désormais vers l'authentification au lieu d'afficher un compte à 0 €.
+- **Ordre de virement complet** : champs « Adresse du bénéficiaire » et « BIC / SWIFT » au
+  formulaire ; le serveur **exige** l'adresse et un BIC ISO 9362 valide (`bicValide`, 8 ou 11
+  caractères, insensible à la casse) — 400 `adresse_manquante` / `bic_invalide` sinon ; l'ordre
+  stocke adresse + BIC et les écrans client/ops les montrent.
+- **Aperçu avant initiation** : « Confirmer » passe d'abord par un panneau récapitulatif
+  (bénéficiaire, adresse, IBAN, BIC, motif, montant) avec « Confirmer l'ordre » / « Modifier » ;
+  rien n'est envoyé avant la confirmation explicite.
+- Verrous : `tests/unit/serveur-banque.spec.ts` (ordre incomplet refusé, BIC/adresse conservés,
+  formes BIC valides/invalides) — 146 tests au total.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -323,7 +344,7 @@ sans que la parité/usage ne casse en CI.
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (145 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (146 verrous)
 ```
 
 ## Commandes
@@ -365,6 +386,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
     validation/révocation et dossier complet par client, journal des transactions tous clients,
     profil servi par le serveur, compte démo vérifié avec historique illustratif ; namespace
     `banque` monté ×4 et tolérance `ns.cle` dans `t()`).
+13. **Ordre de virement complet** — fait (adresse bénéficiaire + BIC/SWIFT exigés et validés côté
+    serveur, aperçu de l'ordre avant initiation, solde affiché = fonds − encours/bloqués, pastille
+    KYC client pilotée par la validation admin, miroir local périmé renvoyé vers l'auth).
     Prochaine passe : e2e Playwright sur /api, durcissement (rate-limit, rotation de sessions).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`

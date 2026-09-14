@@ -1,7 +1,7 @@
 {
   "greeting": "Hallo {name},",
   "subtitle": "Ihr Kredit- & Investmentbereich — Belgien • EUR",
-  "kyc.verified": "KYC verifiziert",
+  "kyc.verified": "KYC geprüft",
   "kyc.pending": "KYC ausstehend",
   "kyc.expired": "KYC abgelaufen",
   "stats.dossiers": "Anträge",
@@ -27,5 +27,6 @@
   "dashboard.errCurrent": "Aktuelles Passwort falsch.",
   "dashboard.docsMarked": "Als bereit markiert — lokale Demo, keine Datei gesendet.",
   "dashboard.noApproved": "Zahlungen erscheinen, sobald ein Antrag von einem Berater genehmigt wurde.",
-  "dashboard.kycHow": "Die Identitätsprüfung (KYC) wird während der Bearbeitung Ihres Antrags kontrolliert."
+  "dashboard.kycHow": "Die Identitätsprüfung (KYC) wird während der Bearbeitung Ihres Antrags kontrolliert.",
+  "kycHowVerified": "Ihre Identität wurde von unserem Team geprüft: der Banking-Bereich ist voll aktiv."
 }

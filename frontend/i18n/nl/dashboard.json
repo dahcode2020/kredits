@@ -27,5 +27,6 @@
   "dashboard.errCurrent": "Huidig wachtwoord onjuist.",
   "dashboard.docsMarked": "Gemarkeerd als aangeleverd — lokale demo, geen bestand verzonden.",
   "dashboard.noApproved": "Betalingen verschijnen zodra een aanvraag door een adviseur is goedgekeurd.",
-  "dashboard.kycHow": "Identiteitscontrole (KYC) wordt gecontroleerd tijdens de behandeling van uw aanvraag."
+  "dashboard.kycHow": "Identiteitscontrole (KYC) wordt gecontroleerd tijdens de behandeling van uw aanvraag.",
+  "kycHowVerified": "Uw identiteit is gecontroleerd door ons team: de bancaire omgeving is volledig actief."
 }
