@@ -142,5 +142,9 @@
   "vir.unlockErr": "Code invalide — la barre reste arrêtée à ce niveau.",
   "ops.code": "Code de déblocage — à communiquer au client après règlement du montant",
   "ops.refLevel": "Niveau d'arrêt",
-  "chat.demoCode": "Pour chaque niveau arrêté, le code de déblocage vous est communiqué par l'administration après règlement du montant indiqué sur la barre."
+  "chat.demoCode": "Pour chaque niveau arrêté, le code de déblocage vous est communiqué par l'administration après règlement du montant indiqué sur la barre.",
+  "pipeline.custom": "Niveau {pct} %",
+  "vir.stopExplainGeneric": "Le règlement de « {motif} » est requis pour franchir ce niveau. Après paiement, l'administration vous communique le code de déblocage.",
+  "ops.refMotif": "Motif du paiement (affiché au client)",
+  "ops.refAdd": "Ajouter un champ de progression"
 }

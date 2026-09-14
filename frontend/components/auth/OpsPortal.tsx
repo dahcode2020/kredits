@@ -107,12 +107,26 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     else setMsgCredit("err");
   };
 
-  const changerSurcharge = async (code: string, patch: { cout?: number; actif?: boolean }) => {
+  const changerSurcharge = async (code: string, patch: { cout?: number; actif?: boolean; pct?: number; motif?: string; creer?: boolean }) => {
     const r = await apiPost<{ referentiel?: Referentiel; surcharges?: SurchargesReferentiel }>(API.banqueReferentiel, { code, ...patch });
     if (r.ok && r.corps.referentiel) {
       setRef(r.corps.referentiel);
       setSurcharges(r.corps.surcharges ?? {});
     }
+  };
+
+  /** Libellé d'un niveau : clé canonique, ou « Niveau {pct} % » pour un niveau créé. */
+  const libelleNiveau = (code: string, pct: number) =>
+    CLES_PIPELINE[code] ? tr(CLES_PIPELINE[code]) : tr("banque:pipeline.custom", { pct });
+
+  /** Créer un nouveau champ de progression : premier code CHAMP_* libre, niveau 50 % par défaut. */
+  const ajouterChamp = () => {
+    const pris = new Set(ref.defauts.map((d) => d.code));
+    let code = "CHAMP_NOUVEAU";
+    for (const suf of ["_A", "_B", "_C", "_D", "_E", "_F", "_G", "_H"]) {
+      if (!pris.has(`CHAMP${suf}`)) { code = `CHAMP${suf}`; break; }
+    }
+    void changerSurcharge(code, { creer: true, pct: 50, cout: 0, actif: true, motif: "" });
   };
 
   const envoyerChat = async () => {
@@ -139,7 +153,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const barrePipeline = (v: BanqueCompte["virements"][number]) => (
     <div className="mt-3 flex h-2.5 gap-1">
       {(() => { let precedent = 0; return ref.pipeline.map((niveau) => { const largeur = niveau.pct - precedent; precedent = niveau.pct; const pct = progressionDe(v, ref); const fait = pct >= niveau.pct; return (
-        <div key={niveau.code} style={{ width: `${largeur}%` }} className="h-full rounded-full bg-slate-100 overflow-hidden" title={tr(CLES_PIPELINE[niveau.code] ?? "")}>
+        <div key={niveau.code} style={{ width: `${largeur}%` }} className="h-full rounded-full bg-slate-100 overflow-hidden" title={libelleNiveau(niveau.code, niveau.pct)}>
           <div className={cn("h-full", v.statut === "BLOQUE" ? "bg-red-500" : v.statut === "EN_COURS" ? "bg-primary" : v.statut === "EXECUTE" ? "bg-emerald-500" : "bg-slate-300")} style={{ width: fait ? "100%" : "0%" }} />
         </div>
       ); }); })()}
@@ -154,7 +168,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
         {blocageActif && (
           <div className="mt-3 rounded-xl bg-red-50 border border-red-100 p-3 text-[12px] text-red-700 font-bold flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
-            {tr("banque:vir.blockedFor", { defaut: tr(CLES_DEFAUT[blocageActif.code] ?? "") })} — {tr("banque:vir.blockedCost", { cout: formatEUR2(blocageActif.cout, locale) })}
+            {tr("banque:vir.blockedFor", { defaut: blocageActif.motif ? tSiCle(locale, blocageActif.motif) : tr(CLES_DEFAUT[blocageActif.code] ?? "") })} — {tr("banque:vir.blockedCost", { cout: formatEUR2(blocageActif.cout, locale) })}
           </div>
         )}
         {/* Le code d'arrêt : l'administration le communique au client après règlement du montant. */}
@@ -451,20 +465,40 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                 <th className="pb-2">{tr("banque:pipeline.title")}</th>
                 <th className="pb-2 text-right">{tr("banque:ops.refLevel")}</th>
                 <th className="pb-2 text-right">{tr("banque:ops.refCost")}</th>
+                <th className="pb-2">{tr("banque:ops.refMotif")}</th>
                 <th className="pb-2 text-right">{tr("banque:ops.refActif")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {ref.defauts.map((d) => (
                 <tr key={d.code}>
-                  <td className="py-2.5 font-bold text-ink">{tr(CLES_DEFAUT[d.code] ?? "")}</td>
-                  <td className="py-2.5 text-right tabular-nums font-bold text-slate-500">{d.pct} %</td>
+                  <td className="py-2.5 font-bold text-ink">
+                    {CLES_DEFAUT[d.code] ? tr(CLES_DEFAUT[d.code]) : d.motif || d.code}
+                    {surcharges[d.code]?.cree && <span className="ml-2 text-[9px] font-extrabold uppercase tracking-widest text-primary bg-primary-light px-1.5 py-0.5 rounded-full">admin</span>}
+                  </td>
+                  <td className="py-2.5 text-right">
+                    <input
+                      type="number" min={5} max={100} step={5} value={d.pct}
+                      onChange={(e) => void changerSurcharge(d.code, { pct: Math.min(100, Math.max(5, Number(e.target.value) || 5)) })}
+                      className="w-16 h-9 rounded-lg border border-slate-200 px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      aria-label={tr("banque:ops.refLevel")}
+                    />
+                  </td>
                   <td className="py-2.5 text-right">
                     <input
                       type="number" min={0} value={d.cout}
                       onChange={(e) => void changerSurcharge(d.code, { cout: Math.max(0, Number(e.target.value) || 0) })}
                       className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
                       aria-label={tr("banque:ops.refCost")}
+                    />
+                  </td>
+                  <td className="py-2.5">
+                    <input
+                      type="text" value={d.motif ?? (CLES_DEFAUT[d.code] ? tr(CLES_DEFAUT[d.code]) : "")}
+                      onChange={(e) => void changerSurcharge(d.code, { motif: e.target.value })}
+                      placeholder={tr("banque:ops.refMotif")}
+                      className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      aria-label={tr("banque:ops.refMotif")}
                     />
                   </td>
                   <td className="py-2.5 text-right">
@@ -474,12 +508,15 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
               ))}
             </tbody>
           </table>
+          <button type="button" onClick={ajouterChamp} className={cn(buttonClasses("outline-light", "sm"), "mt-3")}>
+            {tr("banque:ops.refAdd")}
+          </button>
           <div className="mt-4 rounded-xl bg-surface border p-3 max-w-xl">
             <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{tr("banque:ops.levels")}</div>
             <ol className="mt-1.5 space-y-1">
               {ref.pipeline.map((n) => (
                 <li key={n.code} className="text-[12px] text-slate-600 flex justify-between">
-                  <span>{tr(CLES_PIPELINE[n.code] ?? "")}</span><span className="tabular-nums font-bold">{n.pct} %</span>
+                  <span>{libelleNiveau(n.code, n.pct)}</span><span className="tabular-nums font-bold">{n.pct} %</span>
                 </li>
               ))}
             </ol>

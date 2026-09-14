@@ -19,11 +19,12 @@ import {
 
 export const PHOTO_MAX_OCTETS = 5 * 1024 * 1024;
 
-/** Code de déblocage d'un niveau d'arrêt : 6 caractères non ambigus, émis par le serveur. */
+/** Code de déblocage d'un niveau d'arrêt : généré automatiquement, 12 caractères alphanumériques
+ *  non ambigus, émis par le serveur à chaque arrêt (jamais servi au client). */
 const ALPHABET_CODE = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
 export function genererCodeDeblocage(): string {
   let s = "";
-  for (let i = 0; i < 6; i++) s += ALPHABET_CODE[Math.floor(Math.random() * ALPHABET_CODE.length)];
+  for (let i = 0; i < 12; i++) s += ALPHABET_CODE[Math.floor(Math.random() * ALPHABET_CODE.length)];
   return s;
 }
 
@@ -224,15 +225,32 @@ export function chatPour(magasin: Magasin, session: SessionServeur, compteId?: s
 export function referentielPourApi(magasin: Magasin) {
   return { referentiel: referentielDuMagasin(magasin), surcharges: magasin.surcharges ?? {} };
 }
-export function surchargerReferentiel(magasin: Magasin, session: SessionServeur, corps: { code?: string; cout?: number; actif?: boolean }): { statut: number; corps: Record<string, unknown> } {
+/** L'administration définit, pour chaque champ de progression : le niveau (pct), le montant à
+ *  payer (cout), le statut (actif), le motif du paiement (motif) — et peut CRÉER de nouveaux
+ *  champs (`creer`), qui ajoutent leur niveau à la barre si nécessaire. */
+export function surchargerReferentiel(
+  magasin: Magasin, session: SessionServeur,
+  corps: { code?: string; cout?: number; actif?: boolean; pct?: number; motif?: string; creer?: boolean },
+): { statut: number; corps: Record<string, unknown> } {
   if (session.role === "CUSTOMER") return { statut: 403, corps: { erreur: "reserve_staff" } };
-  const code = corps.code;
-  if (typeof code !== "string" || !referentielDuMagasin(magasin).defauts.some((d) => d.code === code)) {
-    return { statut: 400, corps: { erreur: "code_inconnu" } };
+  const code = String(corps.code ?? "").trim().toUpperCase();
+  if (!/^[A-Z][A-Z0-9_]{2,24}$/.test(code)) return { statut: 400, corps: { erreur: "code_invalide" } };
+  const pctValide = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0 && (n as number) <= 100;
+  const existant = referentielDuMagasin(magasin).defauts.some((d) => d.code === code);
+  const surcharge: { cout?: number; actif?: boolean; pct?: number; motif?: string; cree?: boolean } = { ...magasin.surcharges?.[code] };
+  if (!existant && !surcharge.cree) {
+    if (!corps.creer) return { statut: 400, corps: { erreur: "code_inconnu" } };
+    if (!pctValide(corps.pct)) return { statut: 400, corps: { erreur: "pct_invalide" } };
+    surcharge.cree = true;
+    surcharge.pct = corps.pct;
   }
-  const surcharge: { cout?: number; actif?: boolean } = { ...magasin.surcharges?.[code] };
-  if (typeof corps.cout === "number" && corps.cout >= 0) surcharge.cout = corps.cout;
+  if (corps.pct !== undefined) {
+    if (!pctValide(corps.pct)) return { statut: 400, corps: { erreur: "pct_invalide" } };
+    surcharge.pct = corps.pct;
+  }
+  if (typeof corps.cout === "number" && corps.cout >= 0) surcharge.cout = Math.round(corps.cout * 100) / 100;
   if (typeof corps.actif === "boolean") surcharge.actif = corps.actif;
+  if (typeof corps.motif === "string") surcharge.motif = corps.motif.trim().slice(0, 120);
   magasin.surcharges = { ...(magasin.surcharges ?? {}), [code]: surcharge };
   return { statut: 200, corps: referentielPourApi(magasin) };
 }

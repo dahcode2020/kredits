@@ -6,7 +6,7 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 15 — ce qui existe aujourd'hui
+## Slices 1 à 16 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
@@ -19,7 +19,7 @@ autorité — en 4 langues, animés, sans une seule donnée fausse à l'écran.*
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 12 namespaces,
-  **983 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  **987 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
   matériel fourni en alignait 715, les slices 2-12 en ajoutent dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
@@ -334,6 +334,23 @@ d'arrêt (`pct` dans `operations/virements.json`, surcharges admin inchangées).
   `tests/unit/serveur-banque.spec.ts` (code masqué côté client, lu côté admin, déblocages
   successifs → EXECUTE + dénouement) — 150 verrous au total.
 
+### Slice 16 — l'administration est propriétaire du pipeline : niveaux, montants, motifs, créations
+
+Dans l'espace admin (onglet Référentiel), chaque **champ de progression** est entièrement
+paramétrable : **niveau de progression** (pct), **montant à payer**, **statut actif/inactif** et
+**motif du paiement** — ce motif est affiché au client sur le panneau d'arrêt **et** dans son
+compte, en transaction de frais au dénouement. L'admin peut aussi **créer d'autres champs de
+progression** : leur niveau s'insère dans la barre (et dans le référentiel effectif), leur motif
+est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un texte libre tel quel).
+
+- **Codes de déblocage générés automatiquement, 12 caractères alphanumériques** (émis par le
+  serveur à chaque arrêt, jamais servis au client, lus par l'admin au dossier client).
+- Le dénouement produit désormais une transaction de frais **par défaut levé**, chacune portant le
+  motif du paiement défini par l'administration — le compte du client raconte tout le parcours.
+- Verrous : création de champ (niveau inséré dans la barre, arrêt au pct créé, motif en
+  transaction, pct manquant refusé), codes 12 caractères, dénouement en transactions séparées —
+  152 verrous au total.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -388,7 +405,7 @@ d'arrêt (`pct` dans `operations/virements.json`, surcharges admin inchangées).
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (150 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (152 verrous)
 ```
 
 ## Commandes
@@ -438,6 +455,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 15. **Barre de progression interactive** — fait (évolution automatique après initiation, arrêt au
     niveau paramétré par l'admin avec motif + explications + montant à régler, déblocage par code
     émis côté admin, barre figée sans code, rejusqu'à 100 %).
+16. **Pipeline propriété de l'admin** — fait (niveau, montant, statut, motif du paiement par champ ;
+    création de champs de progression ; codes auto 12 caractères alphanumériques ; motifs en
+    transactions de frais chez le client).
     Prochaine passe : e2e Playwright sur /api, durcissement (rate-limit, rotation de sessions).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`

@@ -142,5 +142,9 @@
   "vir.unlockErr": "Ungültiger Code — der Balken bleibt auf dieser Stufe stehen.",
   "ops.code": "Freischaltcode — dem Kunden nach Zahlung des Betrags mitzuteilen",
   "ops.refLevel": "Stoppstufe",
-  "chat.demoCode": "Für jede gestoppte Stufe wird Ihnen der Freischaltcode von der Verwaltung mitgeteilt, sobald der auf dem Balken angezeigte Betrag beglichen ist."
+  "chat.demoCode": "Für jede gestoppte Stufe wird Ihnen der Freischaltcode von der Verwaltung mitgeteilt, sobald der auf dem Balken angezeigte Betrag beglichen ist.",
+  "pipeline.custom": "Stufe {pct} %",
+  "vir.stopExplainGeneric": "Die Begleichung von „{motif}“ ist erforderlich, um diese Stufe zu passieren. Nach Zahlung übermittelt Ihnen die Verwaltung den Freischaltcode.",
+  "ops.refMotif": "Zahlungsgrund (dem Kunden angezeigt)",
+  "ops.refAdd": "Ein Fortschrittsfeld hinzufügen"
 }

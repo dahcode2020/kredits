@@ -22,7 +22,7 @@ import type { Session } from "@/lib/auth";
 import { API, apiGet, apiPost } from "@/lib/api";
 import {
   bicValide, disponibleDe, progressionDe, reserveDe, soldeDe,
-  type BanqueCompte, type MessageChat, type Referentiel, type StatutVirement, type Virement,
+  type BanqueCompte, type Blocage, type MessageChat, type Referentiel, type StatutVirement, type Virement,
 } from "@/lib/banque";
 
 /** Ordre de virement saisi, proposé en aperçu avant confirmation (jamais envoyé tel quel). */
@@ -56,6 +56,9 @@ export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel
   const bloque = v.statut === "BLOQUE";
   const fini = v.statut === "EXECUTE";
   // Largeur affichée animée : monte vers `pct` (effet, jamais au render — contrat d'hydratation).
+  /** Libellé d'un niveau : clé canonique, ou « Niveau {pct} % » pour un niveau créé par l'admin. */
+  const libelleNiveau = (code: string, pct: number) =>
+    CLES_PIPELINE[code] ? tr(CLES_PIPELINE[code]) : tr("banque:pipeline.custom", { pct });
   const [affiche, setAffiche] = useState(0);
   const afficheRef = useRef(0);
   useEffect(() => {
@@ -87,7 +90,7 @@ export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel
           const fait = affiche >= niveau.pct;
           const partiel = affiche > niveau.pct - largeur;
           return (
-            <div key={niveau.code} title={tr(CLES_PIPELINE[niveau.code] ?? "")} style={{ width: `${largeur}%` }} className="h-full rounded-full bg-slate-100 overflow-hidden">
+            <div key={niveau.code} title={libelleNiveau(niveau.code, niveau.pct)} style={{ width: `${largeur}%` }} className="h-full rounded-full bg-slate-100 overflow-hidden">
               <div
                 className={cn("h-full", bloque ? "bg-red-500" : fini ? "bg-emerald-500" : "bg-primary", bloque && fait && "motion-safe:animate-pulse")}
                 style={{ width: fait ? "100%" : partiel ? `${((affiche - (niveau.pct - largeur)) / largeur) * 100}%` : "0%" }}
@@ -99,7 +102,7 @@ export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
         {referentiel.pipeline.map((niveau) => (
           <span key={niveau.code} className={cn("text-[10px] font-bold uppercase tracking-wider", pct >= niveau.pct ? (bloque ? "text-red-500" : fini ? "text-emerald-600" : "text-primary") : "text-slate-400")}>
-            {tr(CLES_PIPELINE[niveau.code] ?? "")} · {niveau.pct} %
+            {libelleNiveau(niveau.code, niveau.pct)} · {niveau.pct} %
           </span>
         ))}
       </div>
@@ -196,6 +199,9 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
     const r = await apiPost<{ compte?: BanqueCompte }>(API.banque, { action: "annuler", virementId });
     if (r.ok && r.corps.compte) setBanque(r.corps.compte);
   };
+
+  /** Motif d'un arrêt : motif de paiement défini par l'admin (clé i18n ou texte libre), sinon libellé canonique. */
+  const libelleBlocage = (b: Blocage) => (b.motif ? tSiCle(locale, b.motif) : tr(CLES_DEFAUT[b.code] ?? ""));
 
   /** Le client renseigne le code émis par l'administration : la barre repart au niveau suivant. */
   const debloquerSurServeur = async (virementId: string) => {
@@ -403,10 +409,14 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                         {v.blocages.filter((b) => !b.leveA).map((b) => (
                           <li key={b.code}>
                             <div className="font-extrabold">
-                              {tr("banque:vir.blockedFor", { defaut: tr(CLES_DEFAUT[b.code] ?? "") })}
+                              {tr("banque:vir.blockedFor", { defaut: libelleBlocage(b) })}
                               {" — "}{tr("banque:vir.blockedCost", { cout: formatEUR2(b.cout, locale) })}
                             </div>
-                            <div className="text-red-600/80">{tr(`banque:defaut.${b.code}.explain`)}</div>
+                            <div className="text-red-600/80">
+                              {CLES_DEFAUT[b.code] && (!b.motif || b.motif === `banque:defaut.${b.code}`)
+                                ? tr(`banque:defaut.${b.code}.explain`)
+                                : tr("banque:vir.stopExplainGeneric", { motif: libelleBlocage(b) })}
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -420,7 +430,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                             value={codes[v.id] ?? ""}
                             onChange={(e) => { setCodes((p) => ({ ...p, [v.id]: e.target.value })); setErrCode((p) => ({ ...p, [v.id]: false })); }}
                             placeholder={tr("banque:vir.stopCode")}
-                            maxLength={6}
+                            maxLength={12}
                             className="w-full h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-300"
                           />
                         </label>

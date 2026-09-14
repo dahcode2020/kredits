@@ -142,5 +142,9 @@
   "vir.unlockErr": "Ongeldige code — de balk blijft op dit niveau staan.",
   "ops.code": "Ontgrendelcode — aan de klant te bezorgen na betaling van het bedrag",
   "ops.refLevel": "Stopniveau",
-  "chat.demoCode": "Voor elk gestopt niveau wordt de ontgrendelcode u door de administratie bezorgd nadat het op de balk vermelde bedrag is betaald."
+  "chat.demoCode": "Voor elk gestopt niveau wordt de ontgrendelcode u door de administratie bezorgd nadat het op de balk vermelde bedrag is betaald.",
+  "pipeline.custom": "Niveau {pct} %",
+  "vir.stopExplainGeneric": "De betaling van “{motif}” is vereist om dit niveau te passeren. Na betaling bezorgt de administratie u de ontgrendelcode.",
+  "ops.refMotif": "Betalingsmotief (aan de klant getoond)",
+  "ops.refAdd": "Een progressieveld toevoegen"
 }

@@ -133,7 +133,9 @@ describe("pipeline auto-évolutif à codes (référentiel canonique)", () => {
     compte = denouer(compte, id, MAINTENANT);
     expect(soldeDe(compte)).toBe(MONTANT_DEMO - 1_200 - 25 - 150);
     expect(reserveDe(compte.virements)).toBe(0);
-    expect(compte.transactions.at(-1)).toMatchObject({ sens: "sortant", montant: 1_375 });
+    // Dénouement en trois transactions : le montant, puis un frais par défaut avec SON motif de paiement.
+    expect(compte.transactions.slice(-3).map((t) => t.montant)).toEqual([1_200, 25, 150]);
+    expect(compte.transactions.at(-1)).toMatchObject({ sens: "sortant", montant: 150, motifLibre: "banque:defaut.CERT_ASSURANCE" });
     expect(soldeDe(denouer(compte, id, MAINTENANT))).toBe(soldeDe(compte)); // idempotent
   });
 
@@ -142,6 +144,21 @@ describe("pipeline auto-évolutif à codes (référentiel canonique)", () => {
     const compte0 = initier();
     const compte = evolutionVirement(compte0, virId(compte0), refLibre, "X", MAINTENANT);
     expect(compte.virements[0].statut).toBe("EXECUTE");
+  });
+
+  it("l'admin crée un champ de progression : nouveau niveau dans la barre, arrêt et motif propres", () => {
+    const refEtendu = referentielEffectif({ FRAIS_NOTAIRE: { cree: true, pct: 45, cout: 80, actif: true, motif: "Frais de notaire" } });
+    expect(refEtendu.pipeline.map((n) => n.pct)).toEqual([10, 30, 45, 60, 100]);
+    expect(arretsActifs(refEtendu).map((a) => a.pct)).toEqual([30, 45, 60]);
+    const compte0 = initier();
+    let compte = evolutionVirement(compte0, virId(compte0), refEtendu, "K", MAINTENANT);
+    expect(compte.virements[0].statut).toBe("BLOQUE");
+    expect(progressionDe(compte.virements[0], refEtendu)).toBe(30);
+    compte = debloquerParCode(compte, virId(compte), "K", MAINTENANT).compte;
+    compte = evolutionVirement(compte, virId(compte), refEtendu, "L", MAINTENANT);
+    const v = compte.virements[0];
+    expect(progressionDe(v, refEtendu)).toBe(45);
+    expect(v.blocages.filter((b) => !b.leveA)[0]).toMatchObject({ code: "FRAIS_NOTAIRE", cout: 80, motif: "Frais de notaire" });
   });
 
   it("lever (geste d'administration) débloque sans code, puis la machine repart au prochain arrêt", () => {

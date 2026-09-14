@@ -17,20 +17,32 @@ export const MONTANT_DEMO = 2_500;
 
 /* ——— Référentiel (table canonique + surcharges locales de l'administration) ——— */
 export interface NiveauPipeline { code: string; pct: number }
-/** Défaut bloquant : `pct` = niveau de la barre où le virement s'arrête tant que le code n'est pas fourni. */
-export interface DefautRef { code: string; pct: number; cout: number; actif: boolean }
+/** Défaut bloquant : `pct` = niveau de la barre où le virement s'arrête tant que le code n'est pas fourni.
+ *  `motif` = motif du paiement (clé i18n ou texte libre défini par l'administration), affiché au
+ *  client à l'arrêt et dans ses transactions au dénouement. */
+export interface DefautRef { code: string; pct: number; cout: number; actif: boolean; motif?: string }
 export interface Referentiel { devise: string; pipeline: NiveauPipeline[]; defauts: DefautRef[] }
-export type SurchargesReferentiel = Record<string, { cout?: number; actif?: boolean }>;
+/** Surcharges d'administration : l'admin définit niveau (pct), montant (cout), statut (actif),
+ *  motif du paiement — et crée de nouveaux champs de progression (`cree`). */
+export type SurchargesReferentiel = Record<string, { cout?: number; actif?: boolean; pct?: number; motif?: string; cree?: boolean }>;
 
 export const REFERENTIEL_CANONIQUE: Referentiel = referentielJSON;
 
-/** Référentiel effectif : la table canonique, avec les surcharges locales appliquées. */
+/** Référentiel effectif : la table canonique, surcharges admin appliquées, champs créés ajoutés,
+ *  et niveaux de progression supplémentaires insérés dans la barre (triés par pct). */
 export function referentielEffectif(surcharges: SurchargesReferentiel = {}): Referentiel {
-  return {
-    devise: REFERENTIEL_CANONIQUE.devise,
-    pipeline: REFERENTIEL_CANONIQUE.pipeline,
-    defauts: REFERENTIEL_CANONIQUE.defauts.map((d) => ({ ...d, ...surcharges[d.code] })),
-  };
+  const defauts: DefautRef[] = REFERENTIEL_CANONIQUE.defauts.map((d) => ({ ...d, ...surcharges[d.code] }));
+  for (const [code, s] of Object.entries(surcharges)) {
+    if (s.cree && !defauts.some((d) => d.code === code)) {
+      defauts.push({ code, pct: s.pct ?? 100, cout: s.cout ?? 0, actif: s.actif ?? true, motif: s.motif });
+    }
+  }
+  const pipeline = [...REFERENTIEL_CANONIQUE.pipeline];
+  for (const pct of [...new Set(defauts.map((d) => d.pct))].sort((a, b) => a - b)) {
+    if (!pipeline.some((n) => n.pct === pct)) pipeline.push({ code: `NIVEAU_${pct}`, pct });
+  }
+  pipeline.sort((a, b) => a.pct - b.pct);
+  return { devise: REFERENTIEL_CANONIQUE.devise, pipeline, defauts };
 }
 
 /* ——— IBAN belge fictif, mais formellement valide (ISO 7064 mod 97) ——— */
@@ -81,7 +93,7 @@ export interface Transaction {
 }
 
 export type StatutVirement = "EN_COURS" | "BLOQUE" | "EXECUTE" | "REFUSE" | "ANNULE";
-export interface Blocage { code: string; cout: number; depuis: string; leveA?: string }
+export interface Blocage { code: string; cout: number; depuis: string; leveA?: string; motif?: string }
 export interface Virement {
   id: string; beneficiaireNom: string; beneficiaireIban: string;
   beneficiaireAdresse?: string; beneficiaireBic?: string;
@@ -175,7 +187,7 @@ export function evolutionVirement(compte: BanqueCompte, virementId: string, ref:
       ...v,
       niveau: niveauPourPct(ref, arret.pct),
       statut: "BLOQUE",
-      blocages: [...v.blocages, ...arret.defauts.map((d) => ({ code: d.code, cout: d.cout, depuis: maintenant }))],
+      blocages: [...v.blocages, ...arret.defauts.map((d) => ({ code: d.code, cout: d.cout, depuis: maintenant, motif: d.motif ?? `banque:defaut.${d.code}` }))],
       codeDeblocage,
     };
   });
@@ -206,17 +218,24 @@ export function leverBlocage(compte: BanqueCompte, virementId: string, maintenan
   });
 }
 
-/** Exécute un virement EXECUTE dans le ledger : débit montant + frais des défauts levés. */
+/** Exécute un virement EXECUTE dans le ledger : débit du montant, puis une transaction de frais par
+ *  défaut levé — le MOTIF DU PAIEMENT défini par l'administration apparaît ainsi dans le compte du
+ *  client lors du dénouement. */
 export function denouer(compte: BanqueCompte, virementId: string, maintenant: string): BanqueCompte {
   const v = compte.virements.find((x) => x.id === virementId);
   if (!v || v.statut !== "EXECUTE") return compte;
   if (compte.transactions.some((tx) => tx.virementId === virementId)) return compte;
-  const frais = v.blocages.reduce((a, b) => a + b.cout, 0);
-  const tx: Transaction = {
-    id: `TX-${virementId}`, sens: "sortant", montant: v.montant + frais, date: maintenant,
+  const txs: Transaction[] = [{
+    id: `TX-${virementId}`, sens: "sortant", montant: v.montant, date: maintenant,
     contrepartie: v.beneficiaireNom, motifLibre: v.motif, virementId,
-  };
-  return { ...compte, transactions: [...compte.transactions, tx] };
+  }];
+  for (const b of v.blocages.filter((x) => x.cout > 0)) {
+    txs.push({
+      id: `TX-${virementId}-${b.code}`, sens: "sortant", montant: b.cout, date: maintenant,
+      contrepartie: "KREDIT", motifLibre: b.motif ?? `banque:defaut.${b.code}`, virementId,
+    });
+  }
+  return { ...compte, transactions: [...compte.transactions, ...txs] };
 }
 
 export function refuserVirement(compte: BanqueCompte, virementId: string): BanqueCompte {

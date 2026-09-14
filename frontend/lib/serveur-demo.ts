@@ -48,24 +48,24 @@ export function banqueDemoIllustrative(): { compte: BanqueCompte; chat: MessageC
   // 1) Virement exécuté : la barre évolue, s'arrête à 30 % puis 60 %, débloquée par codes, 100 %.
   compte = initierVirement(compte, "Régie des Ardennes", "BE68539007547034", 450, "banque.vir.demoMotifRent", "2026-09-06T09:00:00.000Z", { adresse: "Avenue Louise 12, 1050 Ixelles", bic: "GEBABEBB" }).compte;
   const id1 = compte.virements[0].id;
-  compte = evolutionVirement(compte, id1, ref, "KRD30A", "2026-09-06T09:00:00.000Z");
-  compte = debloquerParCode(compte, id1, "KRD30A", "2026-09-07T08:00:00.000Z").compte;
-  compte = evolutionVirement(compte, id1, ref, "KRD60A", "2026-09-07T08:00:00.000Z");
-  compte = debloquerParCode(compte, id1, "KRD60A", "2026-09-08T09:00:00.000Z").compte;
-  compte = evolutionVirement(compte, id1, ref, "KRDFINA", "2026-09-08T09:00:00.000Z");
+  compte = evolutionVirement(compte, id1, ref, "KRD30ADEMO26", "2026-09-06T09:00:00.000Z");
+  compte = debloquerParCode(compte, id1, "KRD30ADEMO26", "2026-09-07T08:00:00.000Z").compte;
+  compte = evolutionVirement(compte, id1, ref, "KRD60ADEMO26", "2026-09-07T08:00:00.000Z");
+  compte = debloquerParCode(compte, id1, "KRD60ADEMO26", "2026-09-08T09:00:00.000Z").compte;
+  compte = evolutionVirement(compte, id1, ref, "KRDFINA12026", "2026-09-08T09:00:00.000Z");
   compte = denouer(compte, id1, "2026-09-08T10:00:00.000Z");
 
   // 2) Virement arrêté à 30 % (justificatif de domicile) : code DEMO30, jouable en démo.
   compte = initierVirement(compte, "Énergie Bruxelles", "BE68539007547034", 300, "banque.vir.demoMotifEnergy", "2026-09-12T11:00:00.000Z", { adresse: "Boulevard de l'Impératrice 5, 1000 Bruxelles", bic: "BRUBBEBB" }).compte;
   const id2 = compte.virements[1].id;
-  compte = evolutionVirement(compte, id2, ref, "DEMO30", "2026-09-12T11:00:00.000Z");
+  compte = evolutionVirement(compte, id2, ref, "DEMO30AB2026", "2026-09-12T11:00:00.000Z");
 
   // 3) Virement arrêté à 60 % (certificat d'assurance) : code DEMO60, jouable en démo.
   compte = initierVirement(compte, "Assurances Fanchon", "BE68539007547034", 750, "banque.vir.demoMotifInsurance", "2026-09-13T14:00:00.000Z", { adresse: "Place Saint-Lambert 8, 4000 Liège", bic: "BBRUBEBB" }).compte;
   const id3 = compte.virements[2].id;
-  compte = evolutionVirement(compte, id3, ref, "TMP30B", "2026-09-13T14:00:00.000Z");
-  compte = debloquerParCode(compte, id3, "TMP30B", "2026-09-13T15:00:00.000Z").compte;
-  compte = evolutionVirement(compte, id3, ref, "DEMO60", "2026-09-13T16:00:00.000Z");
+  compte = evolutionVirement(compte, id3, ref, "TMP30BDEMO26", "2026-09-13T14:00:00.000Z");
+  compte = debloquerParCode(compte, id3, "TMP30BDEMO26", "2026-09-13T15:00:00.000Z").compte;
+  compte = evolutionVirement(compte, id3, ref, "DEMO60AB2026", "2026-09-13T16:00:00.000Z");
 
   const chat: MessageChat[] = [
     { id: "MSG-DEMO-1", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoWelcome", ts: "2026-09-05T09:10:00.000Z" },

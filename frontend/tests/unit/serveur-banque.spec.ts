@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   MONTANT_DEMO, REFERENTIEL_CANONIQUE, bicValide, disponibleDe, ibanBEValide, soldeDe,
-  type BanqueCompte,
+  type BanqueCompte, type Referentiel,
 } from "@/lib/banque";
 import {
   creerCompte, lireMagasin, ouvrirSessionServeur, type Magasin, type SessionServeur,
@@ -113,7 +113,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
 
     // L'administration lit le code dans sa vue (dossier client).
     const code1 = listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements[0].codeDeblocage!;
-    expect(code1).toBeTruthy();
+    expect(code1).toMatch(/^[A-Z0-9]{12}$/); // généré automatiquement : 12 caractères alphanumériques
     const d1 = actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code1.toLowerCase() });
     expect(d1.statut).toBe(200); // insensible à la casse
     const v1 = (d1.corps.compte as BanqueCompte).virements.find((x) => x.id === v.id)!;
@@ -246,7 +246,7 @@ describe("compte de démonstration « vitrine »", () => {
     // Le client ne voit JAMAIS les codes ; l'administration, oui (DEMO30 / DEMO60 en démo).
     expect(compte.virements.every((v) => v.codeDeblocage === undefined)).toBe(true);
     const vueAdmin = magasin.banques![cleDemo];
-    expect(vueAdmin.virements.map((v) => v.codeDeblocage).filter(Boolean).sort()).toEqual(["DEMO30", "DEMO60"]);
+    expect(vueAdmin.virements.map((v) => v.codeDeblocage).filter(Boolean).sort()).toEqual(["DEMO30AB2026", "DEMO60AB2026"]);
     // Cohérence machine : 2500 (dotation) + 1850 (salaire) − 450 − 175 (frais des défauts du loyer exécuté)
     expect(soldeDe(compte)).toBe(2_500 + 1_850 - 450 - 175);
     // Réserves : 300 + 25 (arrêt 30 %) et 750 + 150 (arrêt 60 %)
@@ -310,5 +310,39 @@ describe("chat, photo et référentiel", () => {
     expect(r.statut).toBe(200);
     expect(referentielPourApi(magasin).referentiel.defauts.find((d) => d.code === "CERT_ASSURANCE")!.cout).toBe(300);
     expect(REFERENTIEL_CANONIQUE.defauts.find((d) => d.code === "CERT_ASSURANCE")!.cout).toBe(150);
+  });
+
+  it("l'admin crée un champ (niveau, montant, motif) : la barre s'y arrête, le motif part en transaction", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin);
+    const admin = sessionAdmin(magasin);
+    banqueDeSession(magasin, session);
+    actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true });
+    const rc = surchargerReferentiel(magasin, admin, { code: "FRAIS_NOTAIRE", creer: true, pct: 45, cout: 80, actif: true, motif: "Frais de notaire" });
+    expect(rc.statut).toBe(200);
+    expect((rc.corps as { referentiel: Referentiel }).referentiel.pipeline.map((n) => n.pct)).toContain(45);
+    // Création sans pct : refusée.
+    expect(surchargerReferentiel(magasin, admin, { code: "SANS_NIVEAU", creer: true }).statut).toBe(400);
+
+    const r = actionClient(magasin, session, ordre(400, "notaire"));
+    const vid = (r.corps.compte as BanqueCompte).virements.at(-1)!.id;
+    const lireCode = () => listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements.find((x) => x.id === vid)!.codeDeblocage!;
+    const etat = () => listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements.find((x) => x.id === vid)!;
+    expect(etat().niveau).toBe(2); // premier arrêt : 30 %
+
+    let d = actionClient(magasin, session, { action: "debloquer", virementId: vid, code: lireCode() });
+    expect(d.statut).toBe(200);
+    expect(etat().niveau).toBe(3); // la barre s'arrête au champ créé (45 %)
+    expect(etat().blocages.filter((b) => !b.leveA)[0]).toMatchObject({ code: "FRAIS_NOTAIRE", cout: 80, motif: "Frais de notaire" });
+
+    d = actionClient(magasin, session, { action: "debloquer", virementId: vid, code: lireCode() });
+    expect(etat().niveau).toBe(4); // puis 60 %
+    d = actionClient(magasin, session, { action: "debloquer", virementId: vid, code: lireCode() });
+    expect(etat().statut).toBe("EXECUTE"); // dernier code : 100 %
+
+    // Le compte du client porte une transaction de frais avec le motif défini par l'admin.
+    const final = d.corps.compte as BanqueCompte;
+    expect(final.transactions.find((t) => t.motifLibre === "Frais de notaire")).toMatchObject({ sens: "sortant", montant: 80 });
+    expect(soldeDe(final)).toBe(MONTANT_DEMO - 400 - 25 - 80 - 150);
   });
 });

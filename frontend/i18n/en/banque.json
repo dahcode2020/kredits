@@ -142,5 +142,9 @@
   "vir.unlockErr": "Invalid code — the bar remains stopped at this level.",
   "ops.code": "Unlock code — hand to the client once the amount is settled",
   "ops.refLevel": "Stop level",
-  "chat.demoCode": "For each stopped level, the unlock code is provided by the administration once the amount shown on the bar is settled."
+  "chat.demoCode": "For each stopped level, the unlock code is provided by the administration once the amount shown on the bar is settled.",
+  "pipeline.custom": "Level {pct} %",
+  "vir.stopExplainGeneric": "Settling “{motif}” is required to pass this level. After payment, the administration sends you the unlock code.",
+  "ops.refMotif": "Payment reason (shown to the client)",
+  "ops.refAdd": "Add a progression field"
 }
