@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, reglesDeEntree } from "@/lib/credit-engine";
 import {
   DUREE_SESSION_JOURS, changerMotDePasse, creerCompte, ecrireMagasin, grillePourApi,
-  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, nouveauSel, ouvrirSessionServeur,
+  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, nouveauSel, ouvrirSessionServeur, VERSION_MAGASIN,
   optionsCookie, revoquerSession, simulerServeur, sondeGrillePourApi, trouverCompte,
   verifierMotDePasse, verifierSession,
 } from "@/lib/serveur";
@@ -151,5 +151,23 @@ describe("menu profil : le client édite SES champs (liste blanche serveur)", ()
     expect(profil.nom).toBe(avant.nom);
     expect(profil.naissance).toBe(avant.naissance);
     expect(profil.rue).toHaveLength(200);
+  });
+});
+
+describe("magasin versionné : un vieux format est re-semé, jamais réutilisé", () => {
+  it("un magasin sans version (vieux déploiement) repart à neuf : données fantômes jetées", () => {
+    const { writeFileSync, mkdirSync } = require("node:fs");
+    const { join } = require("node:path");
+    mkdirSync(dossier, { recursive: true });
+    writeFileSync(join(dossier, "magasin.json"), JSON.stringify({
+      comptes: [{ email: "vieux@exemple.be", role: "CUSTOMER", nom: "Vieux", sel: "x", hash: "y" }],
+      sessions: [], banques: { "vieux@exemple.be::CUSTOMER": { iban: "BE00000000000000", verifie: true, photo: null, transactions: [], virements: [] } },
+    }), "utf8");
+    const magasin = lireMagasin(dossier);
+    expect(magasin.comptes.some((c) => c.email === "vieux@exemple.be")).toBe(false); // jeté
+    expect(magasin.banques).toBeUndefined(); // banques fantômes jetées
+    expect(magasin.comptes.some((c) => c.role === "ADMIN")).toBe(true); // personnel re-semé
+    ecrireMagasin(magasin, dossier);
+    expect(lireMagasin(dossier).versionMagasin).toBe(VERSION_MAGASIN);
   });
 });

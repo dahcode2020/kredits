@@ -37,7 +37,13 @@ export interface Magasin {
   banques?: Record<string, BanqueCompte>;
   chats?: Record<string, MessageChat[]>;
   surcharges?: SurchargesReferentiel;
+  /** Version du format de données : un magasin d'une autre version est re-semé, jamais migré à
+   *  l'aveugle — aucun vieux fichier ne peut produire des comportements fantômes après un déploiement. */
+  versionMagasin?: number;
 }
+
+/** À incrémenter à chaque changement de forme des données du magasin. */
+export const VERSION_MAGASIN = 2;
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";
@@ -68,11 +74,15 @@ export function lireMagasin(dossier: string = dossierDonnees()): Magasin {
   if (existsSync(chemin)) {
     try { magasin = JSON.parse(readFileSync(chemin, "utf8")) as Magasin; } catch { magasin = { comptes: [], sessions: [] }; }
   }
+  // Un magasin d'une autre version (vieux déploiement, ids dupliqués, champs manquants…) est
+  // jeté et re-semé : le comportement repart toujours de l'état neuf du code courant.
+  if (magasin.versionMagasin !== VERSION_MAGASIN) magasin = { comptes: [], sessions: [], versionMagasin: VERSION_MAGASIN };
   if (!magasin.comptes.some((c) => c.role !== "CUSTOMER")) semerPersonnel(magasin);
   return magasin;
 }
 export function ecrireMagasin(magasin: Magasin, dossier: string = dossierDonnees()): void {
   mkdirSync(dossier, { recursive: true });
+  magasin.versionMagasin = VERSION_MAGASIN;
   writeFileSync(cheminMagasin(dossier), JSON.stringify(magasin, null, 2), "utf8");
 }
 function semerPersonnel(magasin: Magasin): void {

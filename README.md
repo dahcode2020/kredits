@@ -349,7 +349,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   motif du paiement défini par l'administration — le compte du client raconte tout le parcours.
 - Verrous : création de champ (niveau inséré dans la barre, arrêt au pct créé, motif en
   transaction, pct manquant refusé), codes 12 caractères, dénouement en transactions séparées —
-  154 verrous au total.
+  155 verrous au total.
 
 ### Correctifs (retours utilisateur) — annulation ciblée, solde réel, un prêt en cours par catégorie
 
@@ -361,6 +361,9 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   (fonds − virements en cours ou bloqués) et le *réservé* restent affichés en détail dessous.
 - **Un client avec un prêt en cours ne peut pas redemander dans la même catégorie** : le dépôt est
   refusé avec explication (verrou jsdom) ; les autres catégories restent ouvertes.
+- **Magasin versionné** (`VERSION_MAGASIN`) : un fichier de données d'une autre version (vieux
+  déploiement, ids dupliqués, champs manquants) est jeté et re-semé automatiquement au démarrage —
+  plus aucun « comportement fantôme » après mise à jour, dans aucun environnement (verrou jest).
 
 ### Ce que les pages ne montrent volontairement PAS
 
@@ -416,7 +419,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (154 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (155 verrous)
 ```
 
 ## Commandes
