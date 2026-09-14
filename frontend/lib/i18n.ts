@@ -237,8 +237,10 @@ export function tNs(locale: Locale, ns: Namespace, key: string, vars?: Record<st
  */
 export function tSiCle(locale: Locale, texte: string | undefined | null): string {
   if (!texte) return "";
-  const forme = translations[locale]?.[texte] ?? translations[defaultLocale]?.[texte];
-  return forme ?? texte;
+  // Même résolution que t() (tolère la forme pointée « banque.chat.x » et la forme « banque:x ») ;
+  // un texte libre saisi par un utilisateur qui ne résout rien passe tel quel.
+  const forme = t(locale, texte);
+  return forme === texte ? texte : forme;
 }
 
 // --- Détection (implémentation partagée avec middleware.ts) ---
