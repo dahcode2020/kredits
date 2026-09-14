@@ -24,6 +24,7 @@ import {
   disponibleDe, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel, type Transaction,
 } from "@/lib/banque";
+import type { PaiementServeur, TypePaiement } from "@/lib/serveur";
 
 const CLES_PIPELINE: Record<string, string> = {
   RECEPTION: "banque:pipeline.RECEPTION", CONFORMITE: "banque:pipeline.CONFORMITE",
@@ -54,12 +55,23 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [motifCredit, setMotifCredit] = useState("");
   const [msgCredit, setMsgCredit] = useState<"ok" | "err" | null>(null);
   const [texteChat, setTexteChat] = useState("");
+  const [paiements, setPaiements] = useState<PaiementServeur[]>([]);
+  const [chargeType, setChargeType] = useState<TypePaiement>("FRAIS");
+  const [chargeMontant, setChargeMontant] = useState("");
+  const [chargeLibelle, setChargeLibelle] = useState("");
+  const [chargeEcheance, setChargeEcheance] = useState("");
+  const [msgCharge, setMsgCharge] = useState<"ok" | "err" | null>(null);
   const [pret, setPret] = useState(false);
   const [apiKo, setApiKo] = useState(false);
 
   const chargerMessages = async (idCompte: string) => {
     const r = await apiGet<{ messages: MessageChat[] }>(API.banqueChat(idCompte));
     setMessages(r.ok ? r.corps.messages : []);
+  };
+  /** Paiements & charges du dossier ouvert (le client les voit dans SON menu Paiements). */
+  const chargerPaiements = async (idCompte: string) => {
+    const r = await apiGet<{ paiements: PaiementServeur[] }>(`${API.paiements}?compte=${encodeURIComponent(idCompte)}`);
+    setPaiements(r.ok ? r.corps.paiements : []);
   };
   const rafraichir = () => {
     apiGet<{ clients: ClientOps[]; referentiel: Referentiel; surcharges: SurchargesReferentiel }>(API.banqueComptes).then((r) => {
@@ -73,7 +85,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   };
 
   useEffect(() => { rafraichir(); }, []);
-  useEffect(() => { if (choisi) void chargerMessages(choisi); }, [choisi]);
+  useEffect(() => { if (choisi) { void chargerMessages(choisi); void chargerPaiements(choisi); } }, [choisi]);
 
   if (!pret) return null;
   if (apiKo || !ref) {
@@ -103,8 +115,33 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     const montantNum = Number(montantCredit.replace(",", "."));
     if (!(montantNum > 0)) { setMsgCredit("err"); return; }
     const compte = await operation({ action: "crediter", compteId: cible.id, montant: montantNum, motif: motifCredit.trim() });
-    if (compte) { setMontantCredit(""); setMotifCredit(""); setMsgCredit("ok"); }
+    if (compte) { setMontantCredit(""); setMotifCredit(""); setMsgCredit("ok"); void chargerPaiements(cible.id); }
     else setMsgCredit("err");
+  };
+
+  /** Créer une mensualité / des frais : le client la voit « en attente de paiement ». */
+  const creerCharge = async () => {
+    if (!cible) return;
+    setMsgCharge(null);
+    const montantNum = Number(chargeMontant.replace(",", "."));
+    if (!(montantNum > 0) || !chargeLibelle.trim()) { setMsgCharge("err"); return; }
+    const r = await apiPost<{ paiement?: PaiementServeur }>(API.paiements, {
+      action: "creer", compteId: cible.id, type: chargeType, montant: montantNum,
+      libelle: chargeLibelle.trim(), echeance: chargeEcheance.trim() || undefined,
+    });
+    if (r.ok && r.corps.paiement) {
+      setPaiements((prev) => [...prev, r.corps.paiement!]);
+      setChargeMontant(""); setChargeLibelle(""); setChargeEcheance(""); setMsgCharge("ok");
+    } else setMsgCharge("err");
+  };
+
+  /** Marquer la charge payée : le client le constate dans son propre menu Paiements. */
+  const confirmerPaiementAdmin = async (paiementId: string) => {
+    const r = await apiPost<{ paiement?: PaiementServeur }>(API.paiements, { action: "confirmer", paiementId });
+    if (r.ok && r.corps.paiement) {
+      const neuf = r.corps.paiement;
+      setPaiements((prev) => prev.map((p) => (p.id === neuf.id ? neuf : p)));
+    }
   };
 
   const changerSurcharge = async (code: string, patch: { cout?: number; actif?: boolean; pct?: number; motif?: string; creer?: boolean }) => {
@@ -407,6 +444,59 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                       ))}
                     </ul>
                   )}
+                </div>
+
+                {/* Paiements & charges : créés ici, réglés par le client, confirmés ici. */}
+                <div className="bg-white rounded-[24px] shadow-card border p-6">
+                  <h4 className="font-display font-extrabold text-ink flex items-center gap-2"><ArrowDownLeft className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.payTitle")}</h4>
+                  {paiements.length === 0 ? (
+                    <p className="mt-3 text-[13px] text-slate-500">{tr("banque:ops.payNone")}</p>
+                  ) : (
+                    <ul className="mt-4 space-y-3">
+                      {[...paiements].sort((a, b) => b.creeA.localeCompare(a.creeA)).map((p) => (
+                        <li key={p.id} className="rounded-2xl border border-slate-100 p-4 flex flex-wrap items-center gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-extrabold text-ink">{tSiCle(locale, p.libelle)}</div>
+                            <div className="text-[11px] text-slate-400 tabular-nums">
+                              {tr(`payments.type.${p.type}`)} · {formatDateTime(p.creeA, locale)}
+                              {p.echeance ? ` · ${tr("payments.dueOn", { date: p.echeance })}` : ""}
+                              {p.demandeId ? ` · ${p.demandeId}` : ""}
+                            </div>
+                          </div>
+                          <div className="ml-auto text-right">
+                            <div className="font-extrabold tabular-nums text-ink">{formatEUR2(p.montant, locale)}</div>
+                            <span className={cn("mt-1 inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full",
+                              p.statut === "PAYE" ? "bg-emerald-50 text-emerald-600" : p.statut === "DECLARE" ? "bg-primary-light text-primary" : "bg-amber-50 text-amber-600")}>
+                              {tr(`payments.flow.${p.statut}`)}
+                            </span>
+                          </div>
+                          {p.statut !== "PAYE" && (
+                            <div className="w-full flex flex-wrap items-center gap-2">
+                              {p.statut === "DECLARE" && <span className="text-[11px] font-bold text-primary">{tr("banque:ops.payDeclared")}</span>}
+                              <button type="button" onClick={() => void confirmerPaiementAdmin(p.id)} className={cn(buttonClasses("primary", "sm"), "ml-auto")}>
+                                {tr("banque:ops.payConfirm")}
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-4 rounded-2xl bg-surface border p-4">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:ops.payCreate")}</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <select value={chargeType} onChange={(e) => setChargeType(e.target.value as TypePaiement)} aria-label={tr("banque:ops.payType")} className="h-11 rounded-xl border border-slate-200 px-3 text-sm bg-white text-ink focus:outline-none focus:ring-2 focus:ring-primary/30">
+                        <option value="FRAIS">{tr("payments.type.FRAIS")}</option>
+                        <option value="MENSUALITE">{tr("payments.type.MENSUALITE")}</option>
+                      </select>
+                      <input value={chargeMontant} onChange={(e) => { setChargeMontant(e.target.value); setMsgCharge(null); }} inputMode="decimal" placeholder={tr("banque:ops.payAmountPh")} className="h-11 w-32 rounded-xl border border-slate-200 px-4 text-sm tabular-nums bg-white text-ink focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      <input value={chargeLibelle} onChange={(e) => { setChargeLibelle(e.target.value); setMsgCharge(null); }} placeholder={tr("banque:ops.payLabelPh")} className="h-11 flex-1 min-w-[200px] rounded-xl border border-slate-200 px-4 text-sm bg-white text-ink focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      <input value={chargeEcheance} onChange={(e) => setChargeEcheance(e.target.value)} placeholder={tr("banque:ops.payDuePh")} className="h-11 w-56 rounded-xl border border-slate-200 px-4 text-sm bg-white text-ink focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                      <button type="button" onClick={() => void creerCharge()} className={buttonClasses("dark", "md")}>{tr("banque:ops.payCreateCta")}</button>
+                    </div>
+                    {msgCharge === "ok" && <p role="status" className="mt-2 text-[12px] font-bold text-emerald-600">{tr("banque:ops.payCreated")}</p>}
+                    {msgCharge === "err" && <p role="alert" className="mt-2 text-[12px] font-bold text-red-600">{tr("banque:ops.payErr")}</p>}
+                  </div>
                 </div>
               </>
             )}

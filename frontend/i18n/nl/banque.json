@@ -146,5 +146,17 @@
   "pipeline.custom": "Niveau {pct} %",
   "vir.stopExplainGeneric": "De betaling van “{motif}” is vereist om dit niveau te passeren. Na betaling bezorgt de administratie u de ontgrendelcode.",
   "ops.refMotif": "Betalingsmotief (aan de klant getoond)",
-  "ops.refAdd": "Een progressieveld toevoegen"
+  "ops.refAdd": "Een progressieveld toevoegen",
+  "ops.payTitle": "Betalingen & kosten van de klant",
+  "ops.payNone": "Geen betalingen voor deze rekening.",
+  "ops.payCreate": "Maak een termijn of kosten die de klant moet betalen",
+  "ops.payType": "Type",
+  "ops.payAmountPh": "Bedrag (€)",
+  "ops.payLabelPh": "Label — i18n-sleutel of vrije tekst",
+  "ops.payDuePh": "Vervaldatum (JJJJ-MM-DD, optioneel)",
+  "ops.payCreateCta": "Kosten aanmaken",
+  "ops.payCreated": "Kosten aangemaakt — de klant ziet ze als “in afwachting van betaling”.",
+  "ops.payErr": "Aanmaken mislukt: ongeldig bedrag of ontbrekend veld.",
+  "ops.payConfirm": "Als betaald markeren",
+  "ops.payDeclared": "De klant heeft de betaling gemeld — bevestig ze."
 }

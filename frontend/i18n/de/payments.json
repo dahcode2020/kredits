@@ -1,1 +1,26 @@
-{ "title": "Zahlungen", "dueOn": "Fällig am {date}", "amount": "Betrag", "status.CONFIRMED": "Bestätigt", "status.PENDING": "Ausstehend", "status.FAILED": "Fehlgeschlagen", "sepa.mandate": "SEPA-Mandat", "psp.mollie": "Mollie", "overdue": "Überfällig seit {days} Tagen" }
+{
+  "title": "Zahlungen",
+  "dueOn": "Fällig am {date}",
+  "amount": "Betrag",
+  "status.CONFIRMED": "Bestätigt",
+  "status.PENDING": "Ausstehend",
+  "status.FAILED": "Fehlgeschlagen",
+  "sepa.mandate": "SEPA-Mandat",
+  "psp.mollie": "Mollie",
+  "overdue": "Überfällig seit {days} Tagen",
+  "empty": "Noch keine Zahlungen. Eingehende Überweisungen, gezahlte Raten und fällige oder beglichene Gebühren werden hier in chronologischer Reihenfolge aufgelistet.",
+  "intro": "Eingegangene Überweisungen, gezahlte Raten und Gebühren zu Ihren Kreditanträgen — neueste zuerst.",
+  "flow.EN_ATTENTE": "Zahlung ausstehend",
+  "flow.DECLARE": "Zahlung gemeldet — Bestätigung ausstehend",
+  "flow.PAYE": "Bezahlt",
+  "type.VIREMENT_ENTRANT": "Eingehende Überweisung",
+  "type.MENSUALITE": "Monatsrate",
+  "type.FRAIS": "Gebühr",
+  "payCta": "Diesen Betrag bezahlen",
+  "payOk": "Zahlung an die Verwaltung gemeldet. Die Gebühr erscheint nach Bestätigung als „bezahlt“.",
+  "createdOn": "Erstellt am {date}",
+  "paidOn": "Bezahlt am {date}",
+  "confirmedOn": "Bestätigt am {date}",
+  "seed.dossierFee": "Bearbeitungsgebühr — Antrag KRD-2026-DEMOA1",
+  "seed.monthlyOne": "Rate Nr. 1 — Antrag KRD-2026-DEMOA1"
+}

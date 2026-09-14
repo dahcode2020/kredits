@@ -146,5 +146,17 @@
   "pipeline.custom": "Level {pct} %",
   "vir.stopExplainGeneric": "Settling “{motif}” is required to pass this level. After payment, the administration sends you the unlock code.",
   "ops.refMotif": "Payment reason (shown to the client)",
-  "ops.refAdd": "Add a progression field"
+  "ops.refAdd": "Add a progression field",
+  "ops.payTitle": "Client payments & charges",
+  "ops.payNone": "No payments for this account.",
+  "ops.payCreate": "Create an instalment or charge for the client to settle",
+  "ops.payType": "Type",
+  "ops.payAmountPh": "Amount (€)",
+  "ops.payLabelPh": "Label — i18n key or free text",
+  "ops.payDuePh": "Due date (YYYY-MM-DD, optional)",
+  "ops.payCreateCta": "Create the charge",
+  "ops.payCreated": "Charge created — it shows as “awaiting payment” for the client.",
+  "ops.payErr": "Cannot create: invalid amount or missing field.",
+  "ops.payConfirm": "Mark as paid",
+  "ops.payDeclared": "The client declared the payment — confirm it."
 }

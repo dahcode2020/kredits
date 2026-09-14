@@ -37,6 +37,7 @@ export const API = {
   grilleSonde: (date: string) => `/api/grille/sonde?date=${date}`,
   simuler: "/api/simuler",
   demandes: "/api/demandes",
+  paiements: "/api/paiements",
   banque: "/api/banque",
   banqueComptes: "/api/banque/comptes",
   banqueOperations: "/api/banque/operations",

@@ -1,1 +1,26 @@
-{ "title": "Paiements", "dueOn": "Échéance le {date}", "amount": "Montant", "status.CONFIRMED": "Confirmé", "status.PENDING": "En attente", "status.FAILED": "Échoué", "sepa.mandate": "Mandat SEPA", "psp.mollie": "Mollie", "overdue": "Impayé depuis {days} jours" }
+{
+  "title": "Paiements",
+  "dueOn": "Échéance le {date}",
+  "amount": "Montant",
+  "status.CONFIRMED": "Confirmé",
+  "status.PENDING": "En attente",
+  "status.FAILED": "Échoué",
+  "sepa.mandate": "Mandat SEPA",
+  "psp.mollie": "Mollie",
+  "overdue": "Impayé depuis {days} jours",
+  "empty": "Aucun paiement pour l'instant. Les virements entrants, mensualités et charges réglées ou à régler seront listés ici par ordre chronologique.",
+  "intro": "Virements reçus, mensualités réglées et charges liées à vos demandes de crédit — du plus récent au plus ancien.",
+  "flow.EN_ATTENTE": "En attente de paiement",
+  "flow.DECLARE": "Paiement déclaré — en attente de confirmation",
+  "flow.PAYE": "Payé",
+  "type.VIREMENT_ENTRANT": "Virement entrant",
+  "type.MENSUALITE": "Mensualité",
+  "type.FRAIS": "Frais",
+  "payCta": "Régler ce montant",
+  "payOk": "Paiement déclaré à l'administration. La charge apparaîtra « payée » après confirmation.",
+  "createdOn": "Créé le {date}",
+  "paidOn": "Réglé le {date}",
+  "confirmedOn": "Confirmé le {date}",
+  "seed.dossierFee": "Frais de dossier — demande KRD-2026-DEMOA1",
+  "seed.monthlyOne": "Mensualité n° 1 — demande KRD-2026-DEMOA1"
+}

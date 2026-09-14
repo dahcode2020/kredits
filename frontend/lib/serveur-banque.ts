@@ -9,7 +9,7 @@
  * ADMIN / SUPER_ADMIN agissent sur tous les comptes (crédit, vérification, pipeline, référentiel,
  * chat support). Tout passe par la session httpOnly (voir lib/serveur.ts).
  */
-import { NOM_COOKIE, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
+import { NOM_COOKIE, enregistrerVirementEntrant, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO, banqueDemoIllustrative } from "@/lib/serveur-demo";
 import {
   annulerVirement, bicValide, cleBanque, debloquerParCode, denouer, evolutionVirement, initierVirement,
@@ -46,10 +46,22 @@ export function sessionDeRequete(req: Request, magasin: Magasin): SessionServeur
 }
 
 /* ——— État servi au client : son compte + le référentiel effectif ——— */
+/** Un compte stocké SANS aucun mouvement est un compte corrompu (vieux magasin manipulé hors du
+ *  code courant) : un vrai compte a toujours au moins la dotation d'ouverture. Plutôt que
+ *  d'afficher un solde à 0,00 € qui n'existe pas, on l'écarte et on le re-sème — même
+ *  philosophie que VERSION_MAGASIN, appliquée compte par compte. */
+export function compteIntact(compte: BanqueCompte | undefined): compte is BanqueCompte {
+  return Boolean(
+    compte && typeof compte.iban === "string" && typeof compte.verifie === "boolean"
+      && Array.isArray(compte.transactions) && compte.transactions.length > 0
+      && Array.isArray(compte.virements),
+  );
+}
 export function ouvrirBanquePour(magasin: Magasin, email: string, role: string, maintenant: string): BanqueCompte {
   magasin.banques = magasin.banques ?? {};
   const cle = cleBanque(email, role);
-  if (!magasin.banques[cle]) {
+  if (!compteIntact(magasin.banques[cle])) {
+    delete magasin.banques[cle]; // état corrompu/vide écarté, jamais réutilisé
     // Le compte de démonstration arrive « vitrine » : vérifié, avec historique et chat, pour que
     // chaque état du pipeline soit illustré d'un coup d'œil (données fictives étiquetées démo).
     if (role === "CUSTOMER" && email.trim().toLowerCase() === COMPTES_PORTE_DEMO[0].email) {
@@ -182,6 +194,8 @@ export function actionAdmin(
       }],
     };
     persister(neuf);
+    // Le virement entrant est listé dans le menu Paiements du client, déjà encaissé.
+    enregistrerVirementEntrant(magasin, compteId.split("::")[0], montant, String(corps.motif ?? ""), maintenant);
     return { statut: 200, corps: { compte: neuf }, modifie: true };
   }
   if (corps.action === "lever") {

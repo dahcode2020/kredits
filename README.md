@@ -349,7 +349,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   motif du paiement défini par l'administration — le compte du client raconte tout le parcours.
 - Verrous : création de champ (niveau inséré dans la barre, arrêt au pct créé, motif en
   transaction, pct manquant refusé), codes 12 caractères, dénouement en transactions séparées —
-  173 verrous au total.
+  180 verrous au total.
 
 ### Correctifs (retours utilisateur) — annulation ciblée, solde réel, un prêt en cours par catégorie
 
@@ -367,6 +367,16 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
 - **Magasin versionné** (`VERSION_MAGASIN`) : un fichier de données d'une autre version (vieux
   déploiement, ids dupliqués, champs manquants) est jeté et re-semé automatiquement au démarrage —
   plus aucun « comportement fantôme » après mise à jour, dans aucun environnement (verrou jest).
+- **Garde d'intégrité du compte (fin du « solde 0,00 € »)** : un compte stocké sans AUCUN
+  mouvement est un état corrompu (un vrai compte a toujours sa dotation d'ouverture) — il est
+  écarté et re-semé à la lecture, jamais réutilisé. Verrou : compte vide → vitrine/dotation
+  restaurées, solde exact.
+- **Menu Paiements du client** (`/api/paiements`, table `paiements` du magasin) : les virements
+  entrants déposés par l'administration y sont listés (déjà encaissés), ainsi que les mensualités
+  et les frais liés aux demandes de crédit. L'administration crée une mensualité/des frais →
+  visible « en attente de paiement » chez le client ; le client règle → « paiement déclaré » ;
+  l'administration marque payée → le client constate « payé ». Le crédit admin (action
+  « créditer ») crée automatiquement l'entrée de virement entrant correspondante.
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -435,7 +445,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (173 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (180 verrous)
 ```
 
 ## Commandes

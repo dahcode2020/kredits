@@ -1,1 +1,26 @@
-{ "title": "Payments", "dueOn": "Due on {date}", "amount": "Amount", "status.CONFIRMED": "Confirmed", "status.PENDING": "Pending", "status.FAILED": "Failed", "sepa.mandate": "SEPA mandate", "psp.mollie": "Mollie", "overdue": "Overdue {days} days" }
+{
+  "title": "Payments",
+  "dueOn": "Due on {date}",
+  "amount": "Amount",
+  "status.CONFIRMED": "Confirmed",
+  "status.PENDING": "Pending",
+  "status.FAILED": "Failed",
+  "sepa.mandate": "SEPA mandate",
+  "psp.mollie": "Mollie",
+  "overdue": "Overdue {days} days",
+  "empty": "No payments yet. Incoming transfers, paid instalments and charges settled or due will be listed here in chronological order.",
+  "intro": "Transfers received, instalments paid and charges linked to your credit applications — newest first.",
+  "flow.EN_ATTENTE": "Awaiting payment",
+  "flow.DECLARE": "Payment declared — awaiting confirmation",
+  "flow.PAYE": "Paid",
+  "type.VIREMENT_ENTRANT": "Incoming transfer",
+  "type.MENSUALITE": "Instalment",
+  "type.FRAIS": "Charge",
+  "payCta": "Pay this amount",
+  "payOk": "Payment declared to the administration. The charge will show as “paid” once confirmed.",
+  "createdOn": "Created on {date}",
+  "paidOn": "Paid on {date}",
+  "confirmedOn": "Confirmed on {date}",
+  "seed.dossierFee": "File fee — application KRD-2026-DEMOA1",
+  "seed.monthlyOne": "Instalment no. 1 — application KRD-2026-DEMOA1"
+}

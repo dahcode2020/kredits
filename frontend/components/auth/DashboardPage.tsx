@@ -13,16 +13,16 @@
 import { useEffect, useMemo, useId, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowRight, BadgeCheck, Bell, BellRing, CalendarClock, Camera, ChevronDown, CreditCard,
-  FileText, Fingerprint, Landmark, LayoutDashboard, Lock, LogOut, Mail, MessageCircle,
-  ScrollText, ShieldAlert, Smartphone, UserRound, Wallet,
+  ArrowDownLeft, ArrowRight, BadgeCheck, Bell, BellRing, CalendarClock, Camera, ChevronDown,
+  CreditCard, FileText, Fingerprint, Landmark, LayoutDashboard, Lock, LogOut, Mail,
+  MessageCircle, Receipt, ScrollText, ShieldAlert, Smartphone, UserRound, Wallet,
 } from "lucide-react";
 import Reveal from "@/components/motion/Reveal";
 import CountUp from "@/components/motion/CountUp";
 import { buttonClasses } from "@/components/ui/Button";
 import { formatDate, formatCurrency0, formatPercent } from "@/lib/formatters";
 import { formatEUR2 } from "@/lib/utils";
-import { Locale, t } from "@/lib/i18n";
+import { Locale, t, tSiCle } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
   comptePour, fermerSession, lireSession,
@@ -34,7 +34,7 @@ import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { API, apiGet, apiPost } from "@/lib/api";
 import type { BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
-import type { DemandeServeur } from "@/lib/serveur";
+import type { DemandeServeur, PaiementServeur } from "@/lib/serveur";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
 import {
   DEFAUT_PREFS, cleDoc, enregistrerPrefs, lireDocsFournis, lirePrefs, marquerDocFourni,
@@ -93,6 +93,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const [pret, setPret] = useState(false);
   const [demandesLocales, setDemandesLocales] = useState<DemandeLocale[]>([]);
   const [demandesServeur, setDemandesServeur] = useState<DemandeServeur[]>([]);
+  const [paiements, setPaiements] = useState<PaiementServeur[]>([]);
+  const [msgPaiement, setMsgPaiement] = useState(false);
   const [onglet, setOnglet] = useState<Onglet>("apercu");
   const [ouverte, setOuverte] = useState<string | null>(null);
   const [choisie, setChoisie] = useState<string | null>(null);
@@ -118,6 +120,9 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
       if (s.role === "CUSTOMER") {
         apiGet<{ demandes: DemandeServeur[] }>(API.demandes).then((r) => {
           if (r.ok) setDemandesServeur(r.corps.demandes);
+        });
+        apiGet<{ paiements: PaiementServeur[] }>(API.paiements).then((r) => {
+          if (r.ok) setPaiements(r.corps.paiements);
         });
       }
       setPrefs(lirePrefs());
@@ -208,6 +213,17 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
       setMsgProfil("ok");
     } else {
       setMsgProfil("err");
+    }
+  };
+
+  /** Le client règle une charge : le serveur la passe en « paiement déclaré » ; c'est la
+   *  confirmation de l'administration qui la marquera payée (le serveur fait foi). */
+  const reglerPaiementClient = async (paiementId: string) => {
+    const r = await apiPost<{ paiement?: PaiementServeur }>(API.paiements, { action: "payer", paiementId });
+    if (r.ok && r.corps.paiement) {
+      const neuf = r.corps.paiement;
+      setPaiements((prev) => prev.map((p) => (p.id === neuf.id ? neuf : p)));
+      setMsgPaiement(true);
     }
   };
 
@@ -484,8 +500,50 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
           {onglet === "paiements" && (
             <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
               <h2 className="font-extrabold text-ink text-lg">{tr("payments.title")}</h2>
-              <p className="mt-3 text-sm text-slate-500">{tr("empty.noData")}</p>
-              <p className="mt-2 text-[13px] text-slate-400">{tr("dashboard.noApproved")}</p>
+              <p className="mt-1 text-[12px] text-slate-400">{tr("payments.intro")}</p>
+              {paiements.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-500">{tr("payments.empty")}</p>
+              ) : (
+                <ul className="mt-4 space-y-3">
+                  {[...paiements].sort((a, b) => b.creeA.localeCompare(a.creeA)).map((p) => (
+                    <li key={p.id} className="rounded-2xl border border-slate-100 bg-surface p-4">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={cn("w-10 h-10 rounded-xl grid place-items-center shrink-0",
+                          p.type === "VIREMENT_ENTRANT" ? "bg-emerald-50 text-emerald-600" : p.type === "MENSUALITE" ? "bg-primary-light text-primary" : "bg-amber-50 text-amber-600")}>
+                          {p.type === "VIREMENT_ENTRANT"
+                            ? <ArrowDownLeft className="w-5 h-5" aria-hidden="true" />
+                            : p.type === "MENSUALITE"
+                              ? <CalendarClock className="w-5 h-5" aria-hidden="true" />
+                              : <Receipt className="w-5 h-5" aria-hidden="true" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-extrabold text-ink">{tSiCle(locale, p.libelle)}</div>
+                          <div className="text-[11px] text-slate-400 tabular-nums">
+                            {tr(`payments.type.${p.type}`)} · {tr("payments.createdOn", { date: formatDate(p.creeA, locale) })}
+                            {p.echeance ? ` · ${tr("payments.dueOn", { date: p.echeance })}` : ""}
+                            {p.statut === "PAYE" && p.regleA ? ` · ${tr("payments.paidOn", { date: formatDate(p.regleA, locale) })}` : ""}
+                          </div>
+                        </div>
+                        <div className="ml-auto text-right">
+                          <div className={cn("font-extrabold tabular-nums", p.type === "VIREMENT_ENTRANT" ? "text-emerald-600" : "text-ink")}>
+                            {p.type === "VIREMENT_ENTRANT" ? "+" : ""}{formatEUR2(p.montant, locale)}
+                          </div>
+                          <span className={cn("mt-1 inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full",
+                            p.statut === "PAYE" ? "bg-emerald-50 text-emerald-600" : p.statut === "DECLARE" ? "bg-primary-light text-primary" : "bg-amber-50 text-amber-600")}>
+                            {tr(`payments.flow.${p.statut}`)}
+                          </span>
+                        </div>
+                      </div>
+                      {p.statut === "EN_ATTENTE" && (
+                        <button type="button" onClick={() => void reglerPaiementClient(p.id)} className={buttonClasses("primary", "sm", "mt-3")}>
+                          <Wallet className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("payments.payCta")}</span>
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {msgPaiement && <p role="status" className="mt-4 text-[13px] font-bold text-emerald-600">{tr("payments.payOk")}</p>}
               <div className="mt-5 flex items-center gap-3 rounded-2xl bg-surface border p-4 text-[13px] text-slate-500">
                 <Wallet className="w-4 h-4 text-primary shrink-0" aria-hidden="true" /> {tr("payments.sepa.mandate")} — SEPA
               </div>

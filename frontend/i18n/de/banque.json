@@ -146,5 +146,17 @@
   "pipeline.custom": "Stufe {pct} %",
   "vir.stopExplainGeneric": "Die Begleichung von „{motif}“ ist erforderlich, um diese Stufe zu passieren. Nach Zahlung übermittelt Ihnen die Verwaltung den Freischaltcode.",
   "ops.refMotif": "Zahlungsgrund (dem Kunden angezeigt)",
-  "ops.refAdd": "Ein Fortschrittsfeld hinzufügen"
+  "ops.refAdd": "Ein Fortschrittsfeld hinzufügen",
+  "ops.payTitle": "Zahlungen & Gebühren des Kunden",
+  "ops.payNone": "Keine Zahlungen für dieses Konto.",
+  "ops.payCreate": "Rate oder Gebühr für den Kunden anlegen",
+  "ops.payType": "Typ",
+  "ops.payAmountPh": "Betrag (€)",
+  "ops.payLabelPh": "Bezeichnung — i18n-Schlüssel oder Freitext",
+  "ops.payDuePh": "Fälligkeit (JJJJ-MM-TT, optional)",
+  "ops.payCreateCta": "Gebühr anlegen",
+  "ops.payCreated": "Gebühr angelegt — sie erscheint beim Kunden als „Zahlung ausstehend“.",
+  "ops.payErr": "Anlegen nicht möglich: ungültiger Betrag oder fehlendes Feld.",
+  "ops.payConfirm": "Als bezahlt markieren",
+  "ops.payDeclared": "Der Kunde hat die Zahlung gemeldet — bestätigen Sie sie."
 }

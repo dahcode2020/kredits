@@ -14,9 +14,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, reglesDeEntree } from "@/lib/credit-engine";
 import {
-  DUREE_SESSION_JOURS, changerMotDePasse, creerCompte, deposerDemandeServeur, demandesPour,
-  ecrireMagasin, grillePourApi, hacherMotDePasse, lireMagasin, mettreAJourProfilServeur,
-  nouveauSel, ouvrirSessionServeur, VERSION_MAGASIN, optionsCookie, revoquerSession,
+  DUREE_SESSION_JOURS, changerMotDePasse, confirmerPaiement, creerCompte, creerPaiement,
+  deposerDemandeServeur, demandesPour, ecrireMagasin, enregistrerVirementEntrant, grillePourApi,
+  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, nouveauSel, ouvrirSessionServeur,
+  paiementsPour, reglerPaiement, VERSION_MAGASIN, optionsCookie, revoquerSession,
   simulerServeur, sondeGrillePourApi, trouverCompte, verifierMotDePasse, verifierSession,
   type DemandeServeur,
 } from "@/lib/serveur";
@@ -187,6 +188,79 @@ describe("demandes de crédit : table serveur, un aperçu par client", () => {
     const relire = lireMagasin(dossier);
     expect(demandesPour(relire, "autre@exemple.be")).toHaveLength(1);
     expect(demandesPour(relire, "client@kredit.be")).toHaveLength(2); // sans effet sur les autres
+  });
+});
+
+describe("paiements & charges : semis, cycle de règlement, isolation par client", () => {
+  it("le client démo reçoit trois paiements semés, dont la mensualité calculée par LE moteur", () => {
+    const magasin = lireMagasin(dossier);
+    const siens = paiementsPour(magasin, "client@kredit.be");
+    expect(siens).toHaveLength(3);
+    const entrant = siens.find((p) => p.type === "VIREMENT_ENTRANT")!;
+    expect(entrant.statut).toBe("PAYE"); // les fonds sont arrivés : déjà encaissé
+    expect(entrant.montant).toBe(1_850);
+    const frais = siens.find((p) => p.type === "FRAIS")!;
+    expect(frais.statut).toBe("EN_ATTENTE");
+    expect(frais.demandeId).toBe("KRD-2026-DEMOA1");
+    const mensualite = siens.find((p) => p.type === "MENSUALITE")!;
+    const attendu = simulerServeur({
+      amount: 15_000, termMonths: 48, monthlyIncome: 2_800, monthlyCharges: 950,
+      incomeType: "SALARY", employmentStatus: "CDI", loanPurpose: "CONSUMPTION",
+      existingCreditsMonthly: 0, country: "BE", productType: "PERSONAL",
+    }).simulation.monthlyPayment;
+    expect(mensualite.montant).toBe(Math.round(attendu * 100) / 100); // jamais un montant en dur
+  });
+
+  it("chaque client ne voit que SES paiements", () => {
+    const magasin = lireMagasin(dossier);
+    expect(paiementsPour(magasin, "autre@exemple.be")).toHaveLength(0);
+    expect(paiementsPour(magasin, "admin@kredit.be")).toHaveLength(0);
+  });
+
+  it("l'administration crée une charge : elle naît « en attente de paiement »", () => {
+    const magasin = lireMagasin(dossier);
+    const r = creerPaiement(magasin, {
+      email: "client@kredit.be", type: "FRAIS", libelle: "Frais de dossier", montant: 150.456,
+      maintenant: "2026-09-14T10:00:00.000Z", echeance: "2026-09-30", demandeId: "KRD-2026-DEMOA1",
+    });
+    if ("erreur" in r) throw new Error("la création devrait réussir");
+    expect(r.statut).toBe("EN_ATTENTE");
+    expect(r.montant).toBe(150.46); // arrondi au centime
+    expect(r.id).toMatch(/^PAY-20260914-/);
+    expect(creerPaiement(magasin, { email: "client@kredit.be", type: "FRAIS", libelle: "x", montant: 0, maintenant: "2026-09-14T10:00:00.000Z" })).toEqual({ erreur: "montant_invalide" });
+    const typeInterdit = creerPaiement(magasin, { email: "client@kredit.be", type: "VIREMENT_ENTRANT", libelle: "x", montant: 10, maintenant: "2026-09-14T10:00:00.000Z" });
+    expect("erreur" in typeInterdit && typeInterdit.erreur).toBe("type_invalide");
+  });
+
+  it("le client règle → paiement déclaré ; l'administration confirme → payé", () => {
+    const magasin = lireMagasin(dossier);
+    const frais = paiementsPour(magasin, "client@kredit.be").find((p) => p.type === "FRAIS")!;
+    // Un autre client ne peut pas régler à sa place.
+    expect(reglerPaiement(magasin, frais.id, "pirate@exemple.be", "2026-09-15T10:00:00.000Z")).toEqual({ erreur: "introuvable" });
+    const regle = reglerPaiement(magasin, frais.id, "client@kredit.be", "2026-09-15T10:00:00.000Z");
+    expect(regle.paiement?.statut).toBe("DECLARE");
+    expect(regle.paiement?.regleA).toBe("2026-09-15T10:00:00.000Z");
+    expect(reglerPaiement(magasin, frais.id, "client@kredit.be", "2026-09-15T11:00:00.000Z").erreur).toBe("etat_inchange");
+    const confirme = confirmerPaiement(magasin, frais.id, "2026-09-15T12:00:00.000Z");
+    expect(confirme.paiement?.statut).toBe("PAYE");
+    expect(confirme.paiement?.confirmeA).toBe("2026-09-15T12:00:00.000Z");
+    expect(confirmerPaiement(magasin, frais.id, "2026-09-15T13:00:00.000Z").erreur).toBe("etat_inchange");
+    ecrireMagasin(magasin, dossier);
+    expect(paiementsPour(lireMagasin(dossier), "client@kredit.be").find((p) => p.id === frais.id)?.statut).toBe("PAYE");
+  });
+
+  it("l'administration peut marquer payée une charge encore en attente (règlement hors application)", () => {
+    const magasin = lireMagasin(dossier);
+    const frais = paiementsPour(magasin, "client@kredit.be").find((p) => p.type === "FRAIS")!;
+    expect(confirmerPaiement(magasin, frais.id, "2026-09-16T09:00:00.000Z").paiement?.statut).toBe("PAYE");
+  });
+
+  it("le crédit déposé par l'administration crée un virement entrant déjà encaissé", () => {
+    const magasin = lireMagasin(dossier);
+    const p = enregistrerVirementEntrant(magasin, "client@kredit.be", 250, "Geste commercial", "2026-09-16T10:00:00.000Z");
+    expect(p.type).toBe("VIREMENT_ENTRANT");
+    expect(p.statut).toBe("PAYE");
+    expect(paiementsPour(magasin, "client@kredit.be").some((x) => x.id === p.id)).toBe(true);
   });
 });
 

@@ -1,1 +1,26 @@
-{ "title": "Betalingen", "dueOn": "Vervaldag op {date}", "amount": "Bedrag", "status.CONFIRMED": "Bevestigd", "status.PENDING": "In afwachting", "status.FAILED": "Mislukt", "sepa.mandate": "SEPA-mandaat", "psp.mollie": "Mollie", "overdue": "Achterstallig sinds {days} dagen" }
+{
+  "title": "Betalingen",
+  "dueOn": "Vervaldag op {date}",
+  "amount": "Bedrag",
+  "status.CONFIRMED": "Bevestigd",
+  "status.PENDING": "In afwachting",
+  "status.FAILED": "Mislukt",
+  "sepa.mandate": "SEPA-mandaat",
+  "psp.mollie": "Mollie",
+  "overdue": "Achterstallig sinds {days} dagen",
+  "empty": "Nog geen betalingen. Inkomende overschrijvingen, betaalde termijnen en verschuldigde of betaalde kosten worden hier in chronologische volgorde weergegeven.",
+  "intro": "Ontvangen overschrijvingen, betaalde termijnen en kosten bij uw kredietaanvragen — nieuwste eerst.",
+  "flow.EN_ATTENTE": "In afwachting van betaling",
+  "flow.DECLARE": "Betaling gemeld — in afwachting van bevestiging",
+  "flow.PAYE": "Betaald",
+  "type.VIREMENT_ENTRANT": "Inkomende overschrijving",
+  "type.MENSUALITE": "Maandtermijn",
+  "type.FRAIS": "Kosten",
+  "payCta": "Dit bedrag betalen",
+  "payOk": "Betaling gemeld aan de administratie. De kosten verschijnen als “betaald” na bevestiging.",
+  "createdOn": "Aangemaakt op {date}",
+  "paidOn": "Betaald op {date}",
+  "confirmedOn": "Bevestigd op {date}",
+  "seed.dossierFee": "Dossierkosten — aanvraag KRD-2026-DEMOA1",
+  "seed.monthlyOne": "Maandtermijn nr. 1 — aanvraag KRD-2026-DEMOA1"
+}

@@ -265,6 +265,25 @@ describe("compte de démonstration « vitrine »", () => {
     expect(compte.virements).toHaveLength(0);
     expect(compte.transactions).toHaveLength(1);
   });
+
+  it("un compte stocké SANS mouvements est écarté puis re-semé — jamais de solde 0,00 € fantôme", () => {
+    const magasin = lireMagasin(dossier);
+    const compteDemo = magasin.comptes.find((c) => c.email === "client@kredit.be")!;
+    const session = ouvrirSessionServeur(magasin, compteDemo);
+    // Corruption : un vieux magasin manipulé hors du code courant a laissé un compte vide.
+    magasin.banques = magasin.banques ?? {};
+    magasin.banques[cleDemo] = { iban: "BE00000000000000", verifie: true, photo: null, transactions: [], virements: [] };
+    const r = banqueDeSession(magasin, session) as { compte: BanqueCompte };
+    expect(r.compte.transactions.length).toBeGreaterThan(0); // re-semé, pas 0,00 €
+    expect(r.compte.verifie).toBe(true);                    // la vitrine démo est restaurée
+    expect(soldeDe(r.compte)).toBe(2_500 + 1_850 - 450 - 175);
+    // Même garde pour un compte non-démo : il repart avec sa dotation d'ouverture.
+    const sessionNeuve = sessionClient(magasin);
+    magasin.banques[`${sessionNeuve.email}::CUSTOMER`] = { iban: "BE00000000000000", verifie: false, photo: null, transactions: [], virements: [] };
+    const r2 = banqueDeSession(magasin, sessionNeuve) as { compte: BanqueCompte };
+    expect(r2.compte.transactions).toHaveLength(1);
+    expect(soldeDe(r2.compte)).toBe(MONTANT_DEMO);
+  });
 });
 
 describe("chat, photo et référentiel", () => {

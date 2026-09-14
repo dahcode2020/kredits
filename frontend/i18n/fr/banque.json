@@ -146,5 +146,17 @@
   "pipeline.custom": "Niveau {pct} %",
   "vir.stopExplainGeneric": "Le règlement de « {motif} » est requis pour franchir ce niveau. Après paiement, l'administration vous communique le code de déblocage.",
   "ops.refMotif": "Motif du paiement (affiché au client)",
-  "ops.refAdd": "Ajouter un champ de progression"
+  "ops.refAdd": "Ajouter un champ de progression",
+  "ops.payTitle": "Paiements & charges du client",
+  "ops.payNone": "Aucun paiement pour ce compte.",
+  "ops.payCreate": "Créer une mensualité ou des frais à régler par le client",
+  "ops.payType": "Type",
+  "ops.payAmountPh": "Montant (€)",
+  "ops.payLabelPh": "Libellé — clé i18n ou texte libre",
+  "ops.payDuePh": "Échéance (AAAA-MM-JJ, optionnel)",
+  "ops.payCreateCta": "Créer la charge",
+  "ops.payCreated": "Charge créée — elle apparaît « en attente de paiement » chez le client.",
+  "ops.payErr": "Création impossible : montant invalide ou champ manquant.",
+  "ops.payConfirm": "Marquer payée",
+  "ops.payDeclared": "Le client a déclaré le paiement — confirmez-le."
 }
