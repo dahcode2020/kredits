@@ -1,7 +1,7 @@
 {
   "tab": "Banque",
   "opsTab": "Opérations",
-  "demoBadge": "Démo locale — aucune donnée réelle n'est déplacée",
+  "demoBadge": "Compte de démonstration — authentification et banque servies par l'API (session httpOnly) · build S16 du 14/09/2026",
   "balance": "Solde du compte",
   "available": "Disponible",
   "reserved": "Réservé",

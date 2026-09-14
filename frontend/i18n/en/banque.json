@@ -1,7 +1,7 @@
 {
   "tab": "Banking",
   "opsTab": "Operations",
-  "demoBadge": "Local demo — no real money moves",
+  "demoBadge": "Demonstration account — authentication and banking served by the API (httpOnly session) · build S16, 14/09/2026",
   "balance": "Account balance",
   "available": "Available",
   "reserved": "Reserved",

@@ -1,7 +1,7 @@
 {
   "tab": "Banking",
   "opsTab": "Operationen",
-  "demoBadge": "Lokale Demo — es bewegt sich kein echtes Geld",
+  "demoBadge": "Demonstrationskonto — Authentifizierung und Bank über die API (httpOnly-Session) · Build S16, 14.09.2026",
   "balance": "Kontostand",
   "available": "Verfügbar",
   "reserved": "Reserviert",

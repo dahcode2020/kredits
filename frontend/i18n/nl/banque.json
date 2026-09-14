@@ -1,7 +1,7 @@
 {
   "tab": "Bankieren",
   "opsTab": "Operaties",
-  "demoBadge": "Lokale demo — er gaat geen echt geld om",
+  "demoBadge": "Demonstratieaccount — authenticatie en bankieren via de API (httpOnly-sessie) · build S16, 14/09/2026",
   "balance": "Rekeningsaldo",
   "available": "Beschikbaar",
   "reserved": "Gereserveerd",
