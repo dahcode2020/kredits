@@ -190,17 +190,23 @@ try {
     if (p[p.length - 1].pct !== 100) probleme("référentiel : le dernier niveau doit atteindre 100 %");
   }
   const codes = new Set();
+  const pctsPipeline = new Set((p || []).map((n) => n.pct));
   for (const d of ref.defauts || []) {
     if (!/^[A-Z][A-Z_]*$/.test(d.code)) probleme(`référentiel : code de défaut mal formé (${d.code})`);
     if (!(typeof d.cout === "number" && d.cout >= 0)) probleme(`référentiel : coût invalide pour ${d.code}`);
+    if (!pctsPipeline.has(d.pct)) probleme(`référentiel : le pct d'arrêt de ${d.code} doit être celui d'un niveau du pipeline`);
     if (codes.has(d.code)) probleme(`référentiel : défaut en double (${d.code})`);
     codes.add(d.code);
   }
-  // Chaque code a son libellé dans les quatre langues (clés banque.pipeline.<CODE> / banque.defaut.<CODE>).
+  // Chaque code a son libellé ET son explication dans les quatre langues
+  // (clés banque.pipeline.<CODE> / banque.defaut.<CODE> / banque.defaut.<CODE>.explain).
   for (const loc of ["fr", "en", "nl", "de"]) {
     const d = JSON.parse(readFileSync(join(FRONT, "i18n", loc, "banque.json"), "utf8"));
     for (const n of p || []) if (!d[`pipeline.${n.code}`]) probleme(`clé manquante : banque.pipeline.${n.code} (${loc})`);
-    for (const c of codes) if (!d[`defaut.${c}`]) probleme(`clé manquante : banque.defaut.${c} (${loc})`);
+    for (const c of codes) {
+      if (!d[`defaut.${c}`]) probleme(`clé manquante : banque.defaut.${c} (${loc})`);
+      if (!d[`defaut.${c}.explain`]) probleme(`clé manquante : banque.defaut.${c}.explain (${loc})`);
+    }
   }
   const moteurBanque = readFileSync(join(FRONT, "lib", "banque.ts"), "utf8");
   if (!/from\s+["']\.\.\/\.\.\/operations\/virements\.json["']/.test(moteurBanque)) {

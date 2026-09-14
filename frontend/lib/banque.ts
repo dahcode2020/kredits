@@ -17,7 +17,8 @@ export const MONTANT_DEMO = 2_500;
 
 /* ——— Référentiel (table canonique + surcharges locales de l'administration) ——— */
 export interface NiveauPipeline { code: string; pct: number }
-export interface DefautRef { code: string; cout: number; actif: boolean }
+/** Défaut bloquant : `pct` = niveau de la barre où le virement s'arrête tant que le code n'est pas fourni. */
+export interface DefautRef { code: string; pct: number; cout: number; actif: boolean }
 export interface Referentiel { devise: string; pipeline: NiveauPipeline[]; defauts: DefautRef[] }
 export type SurchargesReferentiel = Record<string, { cout?: number; actif?: boolean }>;
 
@@ -85,8 +86,10 @@ export interface Virement {
   id: string; beneficiaireNom: string; beneficiaireIban: string;
   beneficiaireAdresse?: string; beneficiaireBic?: string;
   montant: number; motif: string;
-  creeA: string; statut: StatutVirement; niveau: number; // dernier niveau confirmé (0 = aucun)
+  creeA: string; statut: StatutVirement; niveau: number; // dernier niveau atteint (0 = aucun)
   blocages: Blocage[];
+  /** Code émis par l'administration pour débloquer le niveau d'arrêt courant (jamais servi au client). */
+  codeDeblocage?: string;
 }
 
 export interface BanqueCompte {
@@ -145,13 +148,61 @@ export function bicValide(bic: string): boolean {
   return /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic.replace(/\s+/g, "").toUpperCase());
 }
 
-/** L'administration confirme le niveau suivant ; au dernier niveau le virement est exécuté. */
-export function confirmerNiveau(compte: BanqueCompte, virementId: string, ref: Referentiel): BanqueCompte {
+/* ——— Pipeline auto-évolutif (slice 15) : la barre avance seule, s'arrête aux défauts actifs ——— */
+
+/** Arrêts actifs du référentiel : défauts actifs groupés par pct, pct croissants. */
+export function arretsActifs(ref: Referentiel): Array<{ pct: number; defauts: DefautRef[] }> {
+  const par = new Map<number, DefautRef[]>();
+  for (const d of ref.defauts.filter((x) => x.actif)) par.set(d.pct, [...(par.get(d.pct) ?? []), d]);
+  return [...par.entries()].map(([pct, defauts]) => ({ pct, defauts })).sort((a, b) => a.pct - b.pct);
+}
+
+function niveauPourPct(ref: Referentiel, pct: number): number {
+  return ref.pipeline.findIndex((n) => n.pct === pct) + 1;
+}
+
+/**
+ * Évolution automatique : le virement EN_COURS avance jusqu'au premier arrêt dont le pct dépasse
+ * sa progression — il y reste BLOQUE (défauts du niveau + code de déblocage fourni par le serveur) ;
+ * sans arrêt restant, il atteint le dernier niveau et passe EXECUTE.
+ */
+export function evolutionVirement(compte: BanqueCompte, virementId: string, ref: Referentiel, codeDeblocage: string, maintenant: string): BanqueCompte {
   return mapVirement(compte, virementId, (v) => {
-    if (v.statut !== "EN_COURS" || v.niveau >= ref.pipeline.length) return v;
-    const niveau = v.niveau + 1;
-    const execute = niveau === ref.pipeline.length;
-    return { ...v, niveau, statut: execute ? "EXECUTE" : "EN_COURS" };
+    if (v.statut !== "EN_COURS") return v;
+    const arret = arretsActifs(ref).find((a) => a.pct > progressionDe(v, ref));
+    if (!arret) return { ...v, niveau: ref.pipeline.length, statut: "EXECUTE", codeDeblocage: undefined };
+    return {
+      ...v,
+      niveau: niveauPourPct(ref, arret.pct),
+      statut: "BLOQUE",
+      blocages: [...v.blocages, ...arret.defauts.map((d) => ({ code: d.code, cout: d.cout, depuis: maintenant }))],
+      codeDeblocage,
+    };
+  });
+}
+
+/** Le client renseigne le code émis par l'administration : le niveau se débloque et la machine repart. */
+export function debloquerParCode(compte: BanqueCompte, virementId: string, code: string, maintenant: string): { compte: BanqueCompte; ok: boolean } {
+  const v = compte.virements.find((x) => x.id === virementId);
+  const propre = String(code ?? "").trim().toUpperCase();
+  if (!v || v.statut !== "BLOQUE" || !v.codeDeblocage || propre !== v.codeDeblocage) return { compte, ok: false };
+  return {
+    compte: mapVirement(compte, virementId, (x) => ({
+      ...x,
+      statut: "EN_COURS",
+      codeDeblocage: undefined,
+      blocages: x.blocages.map((b) => (b.leveA ? b : { ...b, leveA: maintenant })),
+    })),
+    ok: true,
+  };
+}
+
+/** Surcharges d'administration : lever un blocage sans code (geste commercial) remet la machine en marche. */
+export function leverBlocage(compte: BanqueCompte, virementId: string, maintenant: string): BanqueCompte {
+  return mapVirement(compte, virementId, (v) => {
+    if (v.statut !== "BLOQUE") return v;
+    const blocages = v.blocages.map((b) => (b.leveA ? b : { ...b, leveA: maintenant }));
+    return { ...v, statut: "EN_COURS", blocages, codeDeblocage: undefined };
   });
 }
 
@@ -166,24 +217,6 @@ export function denouer(compte: BanqueCompte, virementId: string, maintenant: st
     contrepartie: v.beneficiaireNom, motifLibre: v.motif, virementId,
   };
   return { ...compte, transactions: [...compte.transactions, tx] };
-}
-
-/** L'administration bloque un virement pour un défaut du référentiel (code + coût). */
-export function bloquerVirement(compte: BanqueCompte, virementId: string, codeDefaut: string, ref: Referentiel, maintenant: string): BanqueCompte {
-  const defaut = ref.defauts.find((d) => d.code === codeDefaut && d.actif);
-  if (!defaut) return compte;
-  return mapVirement(compte, virementId, (v) =>
-    v.statut !== "EN_COURS" ? v : { ...v, statut: "BLOQUE", blocages: [...v.blocages, { code: defaut.code, cout: defaut.cout, depuis: maintenant }] },
-  );
-}
-
-/** Le défaut est résolu : le virement repart du niveau où il s'était arrêté. */
-export function leverBlocage(compte: BanqueCompte, virementId: string, maintenant: string): BanqueCompte {
-  return mapVirement(compte, virementId, (v) => {
-    if (v.statut !== "BLOQUE") return v;
-    const blocages = v.blocages.map((b) => (b.leveA ? b : { ...b, leveA: maintenant }));
-    return { ...v, statut: "EN_COURS", blocages };
-  });
 }
 
 export function refuserVirement(compte: BanqueCompte, virementId: string): BanqueCompte {

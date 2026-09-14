@@ -10,10 +10,10 @@
  * atteint, avec le code et le coût du référentiel.
  */
 import {
-  MONTANT_DEMO, REFERENTIEL_CANONIQUE, annulerVirement, bloquerVirement, confirmerNiveau,
-  denouer, disponibleDe, genererIbanBE, ibanBEValide, initierVirement, leverBlocage,
-  ouvrirBanqueClient, progressionDe, referentielEffectif, refuserVirement, reserveDe, soldeDe,
-  type BanqueCompte,
+  MONTANT_DEMO, REFERENTIEL_CANONIQUE, annulerVirement, arretsActifs, debloquerParCode,
+  denouer, disponibleDe, evolutionVirement, genererIbanBE, ibanBEValide, initierVirement,
+  leverBlocage, ouvrirBanqueClient, progressionDe, referentielEffectif, refuserVirement,
+  reserveDe, soldeDe, type BanqueCompte,
 } from "@/lib/banque";
 
 const MAINTENANT = "2026-09-13T10:00:00.000Z";
@@ -83,62 +83,76 @@ describe("virement sortant : garde-fous", () => {
   });
 });
 
-describe("pipeline de validation (référentiel canonique)", () => {
+describe("pipeline auto-évolutif à codes (référentiel canonique)", () => {
   const BENEF = { nom: "Garage Central", iban: "BE68539007547034" };
   const virId = (c: BanqueCompte) => c.virements[0].id;
 
   const initier = () => initierVirement(compteVerifie(), BENEF.nom, BENEF.iban, 1_200, "Acompte", MAINTENANT).compte;
 
-  it("la progression suit les pct du référentiel, niveau confirmé par niveau", () => {
+  it("référentiel : niveaux 10/30/60/100 ; arrêts actifs à 30 % puis 60 %", () => {
     expect(ref.pipeline.map((n) => n.pct)).toEqual([10, 30, 60, 100]);
-    let compte = initier();
-    expect(progressionDe(compte.virements[0], ref)).toBe(0);
-    compte = confirmerNiveau(compte, virId(compte), ref);
-    expect(compte.virements[0].statut).toBe("EN_COURS");
-    expect(progressionDe(compte.virements[0], ref)).toBe(10);
-    compte = confirmerNiveau(compte, virId(compte), ref);
-    expect(progressionDe(compte.virements[0], ref)).toBe(30);
+    expect(arretsActifs(ref).map((a) => a.pct)).toEqual([30, 60]);
   });
 
-  it("un blocage arrête le virement exactement au niveau atteint, avec code et coût du référentiel", () => {
-    let compte = initier();
-    compte = confirmerNiveau(compte, virId(compte), ref); // 10 %
-    compte = confirmerNiveau(compte, virId(compte), ref); // 30 %
-    compte = bloquerVirement(compte, virId(compte), "CERT_ASSURANCE", ref, MAINTENANT);
+  it("l'évolution arrête la barre au premier défaut actif (30 %), avec code et coût en réserve", () => {
+    const compte0 = initier();
+    const compte = evolutionVirement(compte0, virId(compte0), ref, "CODE30", MAINTENANT);
     const v = compte.virements[0];
     expect(v.statut).toBe("BLOQUE");
     expect(progressionDe(v, ref)).toBe(30);
-    expect(v.blocages).toEqual([{ code: "CERT_ASSURANCE", cout: 150, depuis: MAINTENANT, leveA: undefined }]);
-    // Bloqué : plus aucune confirmation possible.
-    expect(confirmerNiveau(compte, virId(compte), ref).virements[0].statut).toBe("BLOQUE");
-    // La réserve inclut le coût du défaut.
-    expect(reserveDe(compte.virements)).toBe(1_200 + 150);
+    expect(v.codeDeblocage).toBe("CODE30");
+    expect(v.blocages.map((b) => b.code)).toEqual(["JUSTIF_DOMICILE"]);
+    expect(reserveDe(compte.virements)).toBe(1_200 + 25);
   });
 
-  it("un défaut inactif ou inconnu ne bloque pas", () => {
-    const compte = initier();
-    const surcharge = referentielEffectif({ CAPACITE_INSUFFISANTE: { actif: false } });
-    expect(bloquerVirement(compte, virId(compte), "CAPACITE_INSUFFISANTE", surcharge, MAINTENANT).virements[0].statut).toBe("EN_COURS");
-    expect(bloquerVirement(compte, virId(compte), "INCONNU", ref, MAINTENANT).virements[0].statut).toBe("EN_COURS");
-  });
-
-  it("lever le blocage repart du même niveau ; le dénouement débite montant + frais et libère la réserve", () => {
+  it("mauvais code : rien ne bouge ; bon code (insensible à la casse) : la barre repart et s'arrête à 60 %", () => {
     let compte = initier();
-    compte = confirmerNiveau(compte, virId(compte), ref);
-    compte = bloquerVirement(compte, virId(compte), "CERT_ASSURANCE", ref, MAINTENANT);
-    compte = leverBlocage(compte, virId(compte), MAINTENANT);
-    expect(compte.virements[0].statut).toBe("EN_COURS");
-    expect(progressionDe(compte.virements[0], ref)).toBe(10);
-    compte = confirmerNiveau(compte, virId(compte), ref);  // 30
-    compte = confirmerNiveau(compte, virId(compte), ref);  // 60
-    compte = confirmerNiveau(compte, virId(compte), ref);  // 100 → EXECUTE
+    const id = virId(compte);
+    compte = evolutionVirement(compte, id, ref, "CODE30", MAINTENANT);
+    expect(debloquerParCode(compte, id, "FAUX", MAINTENANT).ok).toBe(false);
+    expect(debloquerParCode(compte, id, "FAUX", MAINTENANT).compte.virements[0].statut).toBe("BLOQUE");
+    const r = debloquerParCode(compte, id, "code30", MAINTENANT);
+    expect(r.ok).toBe(true);
+    compte = evolutionVirement(r.compte, id, ref, "CODE60", MAINTENANT);
+    const v = compte.virements[0];
+    expect(v.statut).toBe("BLOQUE");
+    expect(progressionDe(v, ref)).toBe(60);
+    expect(v.blocages.filter((b) => !b.leveA).map((b) => b.code)).toEqual(["CERT_ASSURANCE"]);
+    expect(v.blocages.find((b) => b.code === "JUSTIF_DOMICILE")?.leveA).toBe(MAINTENANT);
+  });
+
+  it("dernier déblocage : barre à 100 %, EXECUTE, dénouement montant + frais des défauts", () => {
+    let compte = initier();
+    const id = virId(compte);
+    compte = evolutionVirement(compte, id, ref, "A", MAINTENANT);
+    compte = debloquerParCode(compte, id, "A", MAINTENANT).compte;
+    compte = evolutionVirement(compte, id, ref, "B", MAINTENANT);
+    compte = debloquerParCode(compte, id, "B", MAINTENANT).compte;
+    compte = evolutionVirement(compte, id, ref, "C", MAINTENANT);
     expect(compte.virements[0].statut).toBe("EXECUTE");
-    compte = denouer(compte, virId(compte), MAINTENANT);
-    expect(soldeDe(compte)).toBe(MONTANT_DEMO - 1_200 - 150);
+    compte = denouer(compte, id, MAINTENANT);
+    expect(soldeDe(compte)).toBe(MONTANT_DEMO - 1_200 - 25 - 150);
     expect(reserveDe(compte.virements)).toBe(0);
-    expect(compte.transactions.at(-1)).toMatchObject({ sens: "sortant", montant: 1_350 });
-    // Idempotent : dénouer deux fois ne débite pas deux fois.
-    expect(soldeDe(denouer(compte, virId(compte), MAINTENANT))).toBe(soldeDe(compte));
+    expect(compte.transactions.at(-1)).toMatchObject({ sens: "sortant", montant: 1_375 });
+    expect(soldeDe(denouer(compte, id, MAINTENANT))).toBe(soldeDe(compte)); // idempotent
+  });
+
+  it("sans défaut actif au-delà du niveau courant, l'évolution exécute directement", () => {
+    const refLibre = referentielEffectif({ JUSTIF_DOMICILE: { actif: false }, CERT_ASSURANCE: { actif: false } });
+    const compte0 = initier();
+    const compte = evolutionVirement(compte0, virId(compte0), refLibre, "X", MAINTENANT);
+    expect(compte.virements[0].statut).toBe("EXECUTE");
+  });
+
+  it("lever (geste d'administration) débloque sans code, puis la machine repart au prochain arrêt", () => {
+    let compte = initier();
+    const id = virId(compte);
+    compte = evolutionVirement(compte, id, ref, "A", MAINTENANT);
+    compte = leverBlocage(compte, id, MAINTENANT);
+    expect(compte.virements[0].statut).toBe("EN_COURS");
+    compte = evolutionVirement(compte, id, ref, "B", MAINTENANT);
+    expect(compte.virements[0].statut).toBe("BLOQUE");
+    expect(progressionDe(compte.virements[0], ref)).toBe(60);
   });
 
   it("refus et annulation libèrent la réserve sans toucher au solde", () => {

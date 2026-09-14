@@ -1,7 +1,7 @@
 {
-  "schema": "kredit.pipeline-virement/1",
+  "schema": "kredit.pipeline-virement/2",
   "devise": "EUR",
-  "note": "Référentiel des virements sortants : niveaux de validation (pct atteints quand l'administration confirme le niveau) et défauts bloquants (codes, coûts) — définis par l'administration, lus par le moteur local (lib/banque.ts) et, à terme, par le backend. Les libellés sortent des clés i18n banque.pipeline.<CODE> et banque.defaut.<CODE>.",
+  "note": "Référentiel des virements sortants : niveaux de validation et défauts bloquants (codes, coûts, niveau d'arrêt en pct) — définis par l'administration, lus par le moteur (lib/banque.ts) et, à terme, par le backend. La barre de progression évolue automatiquement après l'initiation et s'arrête au pct de chaque défaut actif ; le client débloque le niveau avec le code émis par l'administration (après règlement du coût), sinon la barre reste figée à ce niveau. Les libellés et explications sortent des clés i18n banque.pipeline.<CODE>, banque.defaut.<CODE> et banque.defaut.<CODE>.explain.",
   "pipeline": [
     { "code": "RECEPTION", "pct": 10 },
     { "code": "CONFORMITE", "pct": 30 },
@@ -9,9 +9,9 @@
     { "code": "EXECUTION", "pct": 100 }
   ],
   "defauts": [
-    { "code": "CERT_ASSURANCE", "cout": 150, "actif": true },
-    { "code": "JUSTIF_DOMICILE", "cout": 25, "actif": true },
-    { "code": "ORIGINE_FONDS", "cout": 75, "actif": true },
-    { "code": "CAPACITE_INSUFFISANTE", "cout": 0, "actif": true }
+    { "code": "JUSTIF_DOMICILE", "pct": 30, "cout": 25, "actif": true },
+    { "code": "ORIGINE_FONDS", "pct": 30, "cout": 75, "actif": false },
+    { "code": "CERT_ASSURANCE", "pct": 60, "cout": 150, "actif": true },
+    { "code": "CAPACITE_INSUFFISANTE", "pct": 100, "cout": 0, "actif": false }
   ]
 }

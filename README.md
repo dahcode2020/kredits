@@ -6,7 +6,7 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 14 — ce qui existe aujourd'hui
+## Slices 1 à 15 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
@@ -19,7 +19,7 @@ autorité — en 4 langues, animés, sans une seule donnée fausse à l'écran.*
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 12 namespaces,
-  **973 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  **983 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
   matériel fourni en alignait 715, les slices 2-12 en ajoutent dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
@@ -310,6 +310,30 @@ devient entièrement serveur.
   `/api/auth/mdp` (contrôle scrypt du mot actuel) — plus aucune empreinte calculée côté client.
 - 4 clés `banque:profile.*` ajoutées ×4 pour la parité (973 clés au total).
 
+### Slice 15 — barre de progression interactive : évolution automatique, arrêt motivé, déblocage par code
+
+La barre de validation d'un virement devient **vivante et interactive** : après l'initiation elle
+**évolue d'elle-même** (animée, `prefers-reduced-motion` respecté) et **s'arrête au niveau
+paramétré par l'administration** — chaque défaut actif du référentiel porte désormais son niveau
+d'arrêt (`pct` dans `operations/virements.json`, surcharges admin inchangées).
+
+- **À l'arrêt**, la barre pulse en rouge et le panneau d'arrêt affiche : le **motif** (défaut),
+  les **explications** (`banque:defaut.<CODE>.explain` ×4), le **montant à régler** (somme des
+  coûts des défauts du niveau) et **une case code de déblocage**.
+- **Sans le bon code, la barre reste figée à ce niveau.** Le code (6 caractères) est émis par le
+  serveur à chaque arrêt ; l'administration le lit dans le dossier client (« à communiquer après
+  règlement du montant ») ; le client le renseigne et la barre **repart** jusqu'au prochain arrêt
+  ou jusqu'à 100 % (exécution + dénouement, frais des défauts inclus). Mauvais code → 400, rien
+  ne bouge. Codes **jamais servis au client** (vue dédiée `vueClientCompte`).
+- L'administration garde : référentiel (activer/désactiver un défaut = ajouter/retirer un arrêt,
+  coûts), **lever** sans code (geste commercial — la machine repart au prochain arrêt), refuser,
+  KYC, crédits, chat. Les confirmations manuelles niveau par niveau sont remplacées par
+  l'évolution automatique.
+- Verrous : `tests/unit/banque.spec.ts` (arrêts 30/60, mauvais/bon code insensible à la casse,
+  exécution au dernier déblocage, référentiel libéré → exécution directe, lever) et
+  `tests/unit/serveur-banque.spec.ts` (code masqué côté client, lu côté admin, déblocages
+  successifs → EXECUTE + dénouement) — 150 verrous au total.
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -364,7 +388,7 @@ devient entièrement serveur.
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (148 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (150 verrous)
 ```
 
 ## Commandes
@@ -411,6 +435,9 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
     KYC client pilotée par la validation admin, miroir local périmé renvoyé vers l'auth).
 14. **Vrai menu Profil** — fait (adresse & téléphone éditables persistés serveur via liste blanche,
     identité / situation / logement en lecture, sécurité : changement de mot de passe serveur).
+15. **Barre de progression interactive** — fait (évolution automatique après initiation, arrêt au
+    niveau paramétré par l'admin avec motif + explications + montant à régler, déblocage par code
+    émis côté admin, barre figée sans code, rejusqu'à 100 %).
     Prochaine passe : e2e Playwright sur /api, durcissement (rate-limit, rotation de sessions).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`

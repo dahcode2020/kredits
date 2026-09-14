@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import {
-  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, CheckCircle2, FolderOpen, Landmark,
+  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, FolderOpen, Landmark,
   Lock, MessageCircle, Send, ServerOff, ShieldAlert, ShieldX, UserRound, Users,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
@@ -53,7 +53,6 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [montantCredit, setMontantCredit] = useState("");
   const [motifCredit, setMotifCredit] = useState("");
   const [msgCredit, setMsgCredit] = useState<"ok" | "err" | null>(null);
-  const [defautChoisi, setDefautChoisi] = useState<Record<string, string>>({});
   const [texteChat, setTexteChat] = useState("");
   const [pret, setPret] = useState(false);
   const [apiKo, setApiKo] = useState(false);
@@ -98,12 +97,6 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   };
 
   const cible = clients.find((c) => c.id === choisi) ?? null;
-
-  const bloquer = (id: string, virementId: string) => {
-    const code = defautChoisi[virementId] ?? ref.defauts.find((d) => d.actif)?.code;
-    if (!code) return;
-    void operation({ action: "bloquer", compteId: id, virementId, codeDefaut: code });
-  };
 
   const crediter = async () => {
     if (!cible) return;
@@ -154,7 +147,6 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   );
 
   const actionsVirement = (id: string, v: BanqueCompte["virements"][number]) => {
-    const prochain = ref.pipeline[v.niveau];
     const blocageActif = v.statut === "BLOQUE" ? v.blocages.find((b) => !b.leveA) : undefined;
     return (
       <div className="mt-3">
@@ -165,32 +157,15 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
             {tr("banque:vir.blockedFor", { defaut: tr(CLES_DEFAUT[blocageActif.code] ?? "") })} — {tr("banque:vir.blockedCost", { cout: formatEUR2(blocageActif.cout, locale) })}
           </div>
         )}
+        {/* Le code d'arrêt : l'administration le communique au client après règlement du montant. */}
+        {v.statut === "BLOQUE" && v.codeDeblocage && (
+          <div className="mt-3 rounded-xl bg-ink text-white p-4 flex flex-wrap items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">{tr("banque:ops.code")}</span>
+            <span className="font-mono text-[18px] tracking-[0.3em] text-primary">{v.codeDeblocage}</span>
+          </div>
+        )}
         {(v.statut === "EN_COURS" || v.statut === "BLOQUE") && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {v.statut === "EN_COURS" && prochain && (
-              <button type="button" onClick={() => void operation({ action: "confirmer", compteId: id, virementId: v.id })} className={buttonClasses("primary", "sm")}>
-                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                <span className="ml-2">{tr("banque:ops.confirmLevel", { niveau: tr(CLES_PIPELINE[prochain.code] ?? "") })}</span>
-              </button>
-            )}
-            {v.statut === "EN_COURS" && (
-              <>
-                <select
-                  value={defautChoisi[v.id] ?? ""}
-                  onChange={(e) => setDefautChoisi((p) => ({ ...p, [v.id]: e.target.value }))}
-                  className="h-9 rounded-full border border-slate-200 px-3 text-[12px] bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  aria-label={tr("banque:ops.block")}
-                >
-                  <option value="">{tr("banque:ops.block")}</option>
-                  {ref.defauts.filter((d) => d.actif).map((d) => (
-                    <option key={d.code} value={d.code}>{tr(CLES_DEFAUT[d.code] ?? "")} — {formatEUR2(d.cout, locale)}</option>
-                  ))}
-                </select>
-                <button type="button" onClick={() => bloquer(id, v.id)} className={buttonClasses("outline-light", "sm")}>
-                  <ShieldAlert className="w-4 h-4" aria-hidden="true" />
-                </button>
-              </>
-            )}
             {v.statut === "BLOQUE" && (
               <button type="button" onClick={() => void operation({ action: "lever", compteId: id, virementId: v.id })} className={buttonClasses("primary", "sm")}>
                 {tr("banque:ops.lift")}
@@ -474,6 +449,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
             <thead>
               <tr className="text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">
                 <th className="pb-2">{tr("banque:pipeline.title")}</th>
+                <th className="pb-2 text-right">{tr("banque:ops.refLevel")}</th>
                 <th className="pb-2 text-right">{tr("banque:ops.refCost")}</th>
                 <th className="pb-2 text-right">{tr("banque:ops.refActif")}</th>
               </tr>
@@ -482,6 +458,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
               {ref.defauts.map((d) => (
                 <tr key={d.code}>
                   <td className="py-2.5 font-bold text-ink">{tr(CLES_DEFAUT[d.code] ?? "")}</td>
+                  <td className="py-2.5 text-right tabular-nums font-bold text-slate-500">{d.pct} %</td>
                   <td className="py-2.5 text-right">
                     <input
                       type="number" min={0} value={d.cout}

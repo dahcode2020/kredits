@@ -12,12 +12,32 @@
 import { NOM_COOKIE, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO, banqueDemoIllustrative } from "@/lib/serveur-demo";
 import {
-  annulerVirement, bicValide, bloquerVirement, cleBanque, confirmerNiveau, denouer, initierVirement,
+  annulerVirement, bicValide, cleBanque, debloquerParCode, denouer, evolutionVirement, initierVirement,
   leverBlocage, ouvrirBanqueClient, referentielEffectif, refuserVirement,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel,
 } from "@/lib/banque";
 
 export const PHOTO_MAX_OCTETS = 5 * 1024 * 1024;
+
+/** Code de déblocage d'un niveau d'arrêt : 6 caractères non ambigus, émis par le serveur. */
+const ALPHABET_CODE = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+export function genererCodeDeblocage(): string {
+  let s = "";
+  for (let i = 0; i < 6; i++) s += ALPHABET_CODE[Math.floor(Math.random() * ALPHABET_CODE.length)];
+  return s;
+}
+
+/** Vue du compte pour LE CLIENT : le code de déblocage d'un arrêt ne doit jamais lui être servi. */
+export function vueClientCompte(compte: BanqueCompte): BanqueCompte {
+  return { ...compte, virements: compte.virements.map((v) => ({ ...v, codeDeblocage: undefined })) };
+}
+
+/** Initiation puis évolution automatique : arrêt au premier défaut actif, ou exécution + dénouement. */
+export function initierEtEvoluer(compte: BanqueCompte, virementId: string, ref: Referentiel, maintenant: string): BanqueCompte {
+  const bloque = evolutionVirement(compte, virementId, ref, genererCodeDeblocage(), maintenant);
+  const v = bloque.virements.find((x) => x.id === virementId);
+  return v?.statut === "EXECUTE" ? denouer(bloque, virementId, maintenant) : bloque;
+}
 
 export function sessionDeRequete(req: Request, magasin: Magasin): SessionServeur | null {
   const jeton = req.headers.get("cookie")?.split("; ").find((c) => c.startsWith(`${NOM_COOKIE}=`))?.split("=")[1];
@@ -48,17 +68,18 @@ export function referentielDuMagasin(magasin: Magasin): Referentiel {
 
 export function banqueDeSession(magasin: Magasin, session: SessionServeur): { compte: BanqueCompte; referentiel: Referentiel } | { erreur: string; statut: number } {
   if (session.role !== "CUSTOMER") return { erreur: "reserve_client", statut: 403 };
-  return { compte: ouvrirBanquePour(magasin, session.email, session.role, new Date().toISOString()), referentiel: referentielDuMagasin(magasin) };
+  return { compte: vueClientCompte(ouvrirBanquePour(magasin, session.email, session.role, new Date().toISOString())), referentiel: referentielDuMagasin(magasin) };
 }
 
 /* ——— Actions du client sur SON compte ——— */
 export function actionClient(
   magasin: Magasin, session: SessionServeur,
-  corps: { action?: string; beneficiaireNom?: string; beneficiaireIban?: string; beneficiaireAdresse?: string; beneficiaireBic?: string; montant?: number; motif?: string; virementId?: string; texte?: string; photo?: string | null },
+  corps: { action?: string; beneficiaireNom?: string; beneficiaireIban?: string; beneficiaireAdresse?: string; beneficiaireBic?: string; montant?: number; motif?: string; virementId?: string; code?: string; texte?: string; photo?: string | null },
 ): { statut: number; corps: Record<string, unknown>; modifie: boolean } {
   if (session.role !== "CUSTOMER") return { statut: 403, corps: { erreur: "reserve_client" }, modifie: false };
   const compte = ouvrirBanquePour(magasin, session.email, session.role, new Date().toISOString());
   const maintenant = new Date().toISOString();
+  const ref = referentielDuMagasin(magasin);
 
   if (corps.action === "virement") {
     // L'ordre de virement complet exige l'adresse du bénéficiaire et un BIC/SWIFT valide.
@@ -69,8 +90,20 @@ export function actionClient(
       { adresse: String(corps.beneficiaireAdresse ?? ""), bic: String(corps.beneficiaireBic ?? "") },
     );
     if (r.erreur) return { statut: 400, corps: { erreur: r.erreur }, modifie: false };
-    magasin.banques![cleBanque(session.email, session.role)] = r.compte;
-    return { statut: 200, corps: { compte: r.compte }, modifie: true };
+    // La barre évolue immédiatement : arrêt au premier défaut actif (code émis) ou exécution.
+    const id = r.compte.virements[r.compte.virements.length - 1].id;
+    const neuf = initierEtEvoluer(r.compte, id, ref, maintenant);
+    magasin.banques![cleBanque(session.email, session.role)] = neuf;
+    return { statut: 200, corps: { compte: vueClientCompte(neuf) }, modifie: true };
+  }
+  if (corps.action === "debloquer") {
+    // Le client fournit le code émis par l'administration : le niveau se débloque et la barre repart.
+    if (typeof corps.virementId !== "string" || typeof corps.code !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
+    const r = debloquerParCode(compte, corps.virementId, corps.code, maintenant);
+    if (!r.ok) return { statut: 400, corps: { erreur: "code_invalide" }, modifie: false };
+    const neuf = initierEtEvoluer(r.compte, corps.virementId, ref, maintenant);
+    magasin.banques![cleBanque(session.email, session.role)] = neuf;
+    return { statut: 200, corps: { compte: vueClientCompte(neuf) }, modifie: true };
   }
   if (corps.action === "annuler") {
     if (typeof corps.virementId !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
@@ -78,7 +111,7 @@ export function actionClient(
     if (!v || (v.statut !== "EN_COURS" && v.statut !== "BLOQUE")) return { statut: 400, corps: { erreur: "etat_inchange" }, modifie: false };
     const neuf = annulerVirement(compte, corps.virementId);
     magasin.banques![cleBanque(session.email, session.role)] = neuf;
-    return { statut: 200, corps: { compte: neuf }, modifie: true };
+    return { statut: 200, corps: { compte: vueClientCompte(neuf) }, modifie: true };
   }
   if (corps.action === "chat") {
     const texte = String(corps.texte ?? "").trim();
@@ -95,7 +128,7 @@ export function actionClient(
     if (photo !== null && photo.length > PHOTO_MAX_OCTETS) return { statut: 413, corps: { erreur: "photo_trop_lourde" }, modifie: false };
     const neuf = { ...compte, photo };
     magasin.banques![cleBanque(session.email, session.role)] = neuf;
-    return { statut: 200, corps: { compte: neuf }, modifie: true };
+    return { statut: 200, corps: { compte: vueClientCompte(neuf) }, modifie: true };
   }
   return { statut: 400, corps: { erreur: "action_inconnue" }, modifie: false };
 }
@@ -150,32 +183,12 @@ export function actionAdmin(
     persister(neuf);
     return { statut: 200, corps: { compte: neuf }, modifie: true };
   }
-  if (corps.action === "confirmer") {
-    if (!compte || typeof corps.virementId !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
-    const v = compte.virements.find((x) => x.id === corps.virementId);
-    if (!v || v.statut !== "EN_COURS" || v.niveau >= ref.pipeline.length) return { statut: 400, corps: { erreur: "etat_inchange" }, modifie: false };
-    const confirme = confirmerNiveau(compte, corps.virementId, ref);
-    const apres = confirme.virements.find((x) => x.id === corps.virementId);
-    const neuf = apres?.statut === "EXECUTE" ? denouer(confirme, corps.virementId, maintenant) : confirme;
-    persister(neuf);
-    return { statut: 200, corps: { compte: neuf }, modifie: true };
-  }
-  if (corps.action === "bloquer") {
-    if (!compte || typeof corps.virementId !== "string" || typeof corps.codeDefaut !== "string") {
-      return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
-    }
-    const v = compte.virements.find((x) => x.id === corps.virementId);
-    const defaut = ref.defauts.find((d) => d.code === corps.codeDefaut && d.actif);
-    if (!v || v.statut !== "EN_COURS" || !defaut) return { statut: 400, corps: { erreur: "etat_inchange" }, modifie: false };
-    const neuf = bloquerVirement(compte, corps.virementId, corps.codeDefaut, ref, maintenant);
-    persister(neuf);
-    return { statut: 200, corps: { compte: neuf }, modifie: true };
-  }
   if (corps.action === "lever") {
+    // Geste d'administration : lève le blocage SANS code, puis la barre repart (arrêt suivant ou exécution).
     if (!compte || typeof corps.virementId !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
     const v = compte.virements.find((x) => x.id === corps.virementId);
     if (!v || v.statut !== "BLOQUE") return { statut: 400, corps: { erreur: "etat_inchange" }, modifie: false };
-    const neuf = leverBlocage(compte, corps.virementId, maintenant);
+    const neuf = initierEtEvoluer(leverBlocage(compte, corps.virementId, maintenant), corps.virementId, ref, maintenant);
     persister(neuf);
     return { statut: 200, corps: { compte: neuf }, modifie: true };
   }

@@ -45,13 +45,32 @@ const CLES_DEFAUT: Record<string, string> = {
   ORIGINE_FONDS: "banque:defaut.ORIGINE_FONDS", CAPACITE_INSUFFISANTE: "banque:defaut.CAPACITE_INSUFFISANTE",
 };
 
-/** Barre de progression par niveaux : segments du référentiel, état bloqué en rouge.
+/** Barre de progression INTERACTIVE (slice 15) : après l'initiation, elle évolue d'elle-même
+ *  jusqu'au niveau d'arrêt paramétré par l'administration (défaut actif du référentiel) et y
+ *  pulse en rouge ; un code de déblocage la fait repartir jusqu'au prochain arrêt ou 100 %.
+ *  L'animation respecte `prefers-reduced-motion` (la barre saute alors directement au niveau).
  *  NB : le prop s'appelle `referentiel` — `ref` est réservé par React (jamais transmis
  *  à un composant fonction sans forwardRef) : l'écran plantait sur `ref.pipeline`. */
 export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel: Referentiel; tr: (k: string, vars?: Record<string, string | number>) => string }) {
   const pct = progressionDe(v, referentiel);
   const bloque = v.statut === "BLOQUE";
   const fini = v.statut === "EXECUTE";
+  // Largeur affichée animée : monte vers `pct` (effet, jamais au render — contrat d'hydratation).
+  const [affiche, setAffiche] = useState(0);
+  const afficheRef = useRef(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+      afficheRef.current = pct; setAffiche(pct); return;
+    }
+    const id = window.setInterval(() => {
+      const courant = afficheRef.current;
+      if (courant >= pct) { window.clearInterval(id); return; }
+      afficheRef.current = Math.min(pct, courant + Math.max(0.5, pct / 60));
+      setAffiche(afficheRef.current);
+    }, 28);
+    return () => window.clearInterval(id);
+  }, [pct]);
   let precedent = 0;
   return (
     <div>
@@ -65,12 +84,13 @@ export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel
         {referentiel.pipeline.map((niveau) => {
           const largeur = niveau.pct - precedent;
           precedent = niveau.pct;
-          const fait = pct >= niveau.pct;
+          const fait = affiche >= niveau.pct;
+          const partiel = affiche > niveau.pct - largeur;
           return (
             <div key={niveau.code} title={tr(CLES_PIPELINE[niveau.code] ?? "")} style={{ width: `${largeur}%` }} className="h-full rounded-full bg-slate-100 overflow-hidden">
               <div
-                className={cn("h-full transition-all duration-500", bloque ? "bg-red-500" : "bg-primary", (fait || (bloque && pct > niveau.pct - largeur)) && !fini && pct === niveau.pct && "motion-safe:animate-pulse")}
-                style={{ width: fait ? "100%" : pct > niveau.pct - largeur ? `${((pct - (niveau.pct - largeur)) / largeur) * 100}%` : "0%" }}
+                className={cn("h-full", bloque ? "bg-red-500" : fini ? "bg-emerald-500" : "bg-primary", bloque && fait && "motion-safe:animate-pulse")}
+                style={{ width: fait ? "100%" : partiel ? `${((affiche - (niveau.pct - largeur)) / largeur) * 100}%` : "0%" }}
               />
             </div>
           );
@@ -78,7 +98,7 @@ export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
         {referentiel.pipeline.map((niveau) => (
-          <span key={niveau.code} className={cn("text-[10px] font-bold uppercase tracking-wider", pct >= niveau.pct ? (bloque ? "text-red-500" : "text-primary") : "text-slate-400")}>
+          <span key={niveau.code} className={cn("text-[10px] font-bold uppercase tracking-wider", pct >= niveau.pct ? (bloque ? "text-red-500" : fini ? "text-emerald-600" : "text-primary") : "text-slate-400")}>
             {tr(CLES_PIPELINE[niveau.code] ?? "")} · {niveau.pct} %
           </span>
         ))}
@@ -102,6 +122,8 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
   const [erreurEnvoi, setErreurEnvoi] = useState<string | null>(null);
   const [okEnvoi, setOkEnvoi] = useState(false);
   const [texteChat, setTexteChat] = useState("");
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [errCode, setErrCode] = useState<Record<string, boolean>>({});
   const [ref, setRef] = useState<Referentiel | null>(null);
   const [apiKo, setApiKo] = useState(false);
   const finChat = useRef<HTMLDivElement>(null);
@@ -173,6 +195,20 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
   const annulerSurServeur = async (virementId: string) => {
     const r = await apiPost<{ compte?: BanqueCompte }>(API.banque, { action: "annuler", virementId });
     if (r.ok && r.corps.compte) setBanque(r.corps.compte);
+  };
+
+  /** Le client renseigne le code émis par l'administration : la barre repart au niveau suivant. */
+  const debloquerSurServeur = async (virementId: string) => {
+    const code = (codes[virementId] ?? "").trim();
+    if (!code) return;
+    const r = await apiPost<{ compte?: BanqueCompte }>(API.banque, { action: "debloquer", virementId, code });
+    if (r.ok && r.corps.compte) {
+      setBanque(r.corps.compte);
+      setCodes((p) => ({ ...p, [virementId]: "" }));
+      setErrCode((p) => ({ ...p, [virementId]: false }));
+    } else {
+      setErrCode((p) => ({ ...p, [virementId]: true }));
+    }
   };
 
   const copierIban = () => {
@@ -357,10 +393,43 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                   </div>
                   <div className="mt-4"><BarrePipeline v={v} referentiel={ref} tr={tr} /></div>
                   {blocageActif && (
-                    <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 p-4 text-[13px] leading-6 text-red-700">
-                      <div className="font-extrabold flex items-center gap-2"><ShieldAlert className="w-4 h-4" aria-hidden="true" /> {tr("banque:vir.blockedFor", { defaut: tr(CLES_DEFAUT[blocageActif.code] ?? "") })}</div>
-                      <div className="mt-1">{tr("banque:vir.blockedCost", { cout: formatEUR2(blocageActif.cout, locale) })}</div>
-                      <div className="mt-1 text-red-600/80">{tr("banque:vir.blockedHint")}</div>
+                    /* ——— Arrêt de la barre : motif + explications + montant à régler + code ——— */
+                    <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 p-5 text-[13px] leading-6 text-red-700">
+                      <div className="font-extrabold flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4" aria-hidden="true" />
+                        {tr("banque:vir.stopTitle", { pct: progressionDe(v, ref) })}
+                      </div>
+                      <ul className="mt-2 space-y-2">
+                        {v.blocages.filter((b) => !b.leveA).map((b) => (
+                          <li key={b.code}>
+                            <div className="font-extrabold">
+                              {tr("banque:vir.blockedFor", { defaut: tr(CLES_DEFAUT[b.code] ?? "") })}
+                              {" — "}{tr("banque:vir.blockedCost", { cout: formatEUR2(b.cout, locale) })}
+                            </div>
+                            <div className="text-red-600/80">{tr(`banque:defaut.${b.code}.explain`)}</div>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-3 font-extrabold text-ink">
+                        {tr("banque:vir.stopAmount", { montant: formatEUR2(v.blocages.filter((b) => !b.leveA).reduce((a, b) => a + b.cout, 0), locale) })}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <label className="flex-1 min-w-[180px]">
+                          <span className="sr-only">{tr("banque:vir.stopCode")}</span>
+                          <input
+                            value={codes[v.id] ?? ""}
+                            onChange={(e) => { setCodes((p) => ({ ...p, [v.id]: e.target.value })); setErrCode((p) => ({ ...p, [v.id]: false })); }}
+                            placeholder={tr("banque:vir.stopCode")}
+                            maxLength={6}
+                            className="w-full h-11 rounded-xl border border-red-200 bg-white px-4 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-300"
+                          />
+                        </label>
+                        <button type="button" onClick={() => void debloquerSurServeur(v.id)} className={buttonClasses("primary", "md")}>
+                          <Lock className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("banque:vir.unlock")}</span>
+                        </button>
+                      </div>
+                      {errCode[v.id] && <p role="alert" className="mt-2 text-[12px] font-bold text-red-600">{tr("banque:vir.unlockErr")}</p>}
+                      <p className="mt-2 text-red-600/80">{tr("banque:vir.stopWait")}</p>
                     </div>
                   )}
                   {(v.statut === "EN_COURS" || v.statut === "BLOQUE") && (

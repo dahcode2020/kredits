@@ -6,9 +6,10 @@
  *
  * Ce qui est verrouillé : l'ouverture de la banque côté serveur (IBAN BE valide + dotation démo,
  * idempotente), le client n'envoie que des INTENTIONS (un compte non vérifié ne peut pas virer),
- * le pipeline : confirmer × 4 niveaux → EXECUTE + dénouement du solde, le blocage par défaut
- * admin-défini (CERT_ASSURANCE) réserve montant + coût et lever libère, refuser libère la
- * réserve, CUSTOMER ne peut ni agir en staff ni lire la banque d'autrui, le chat est isolé par
+ * le pipeline auto-évolutif : l'initiation arrête la barre au premier défaut actif (30 %) avec un
+ * code de déblocage émis côté serveur (jamais servi au client, l'admin le lit dans sa vue), le bon
+ * code fait repartir la barre jusqu'au prochain arrêt puis 100 % + dénouement, un mauvais code ne
+ * bouge rien, lever (admin) débloque sans code et la machine repart, refuser libère la réserve, CUSTOMER ne peut ni agir en staff ni lire la banque d'autrui, le chat est isolé par
  * compte, la photo est plafonnée, et une surcharge du référentiel change l'effectif SANS toucher
  * à la table canonique.
  */
@@ -88,7 +89,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(r.modifie).toBe(false);
   });
 
-  it("une fois vérifié : virement EN_COURS + réserve, puis confirmer × 4 → EXECUTE et solde débité", () => {
+  it("une fois vérifié : l'initiation arrête la barre à 30 % ; codes admin → 60 % puis EXECUTE", () => {
     const magasin = lireMagasin(dossier);
     const session = sessionClient(magasin);
     const admin = sessionAdmin(magasin);
@@ -100,25 +101,35 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(r.modifie).toBe(true);
     const compte = r.corps.compte as BanqueCompte;
     const v = compte.virements[0];
-    expect(v.statut).toBe("EN_COURS");
-    expect(v.niveau).toBe(0);
-    expect(disponibleDe(compte)).toBe(MONTANT_DEMO - 500); // réservé, pas encore débité
-    expect(soldeDe(compte)).toBe(MONTANT_DEMO);
+    expect(v.statut).toBe("BLOQUE"); // la barre évolue puis s'arrête au premier défaut actif (30 %)
+    expect(v.niveau).toBe(2);
+    expect(v.codeDeblocage).toBeUndefined(); // le code n'est JAMAIS servi au client
+    expect(disponibleDe(compte)).toBe(MONTANT_DEMO - 500 - 25); // montant + coût du défaut réservés
+    expect(soldeDe(compte)).toBe(MONTANT_DEMO); // rien n'est débité avant le dénouement
 
-    let actuel = compte;
-    for (let i = 1; i <= 4; i += 1) {
-      const rc = actionAdmin(magasin, admin, { action: "confirmer", compteId: cle, virementId: v.id });
-      expect(rc.statut).toBe(200);
-      actuel = rc.corps.compte as BanqueCompte;
-      const va = actuel.virements.find((x) => x.id === v.id)!;
-      expect(va.niveau).toBe(i);
-    }
-    const final = actuel.virements.find((x) => x.id === v.id)!;
-    expect(final.statut).toBe("EXECUTE");
-    expect(soldeDe(actuel)).toBe(MONTANT_DEMO - 500); // dénouement : le solde bouge à la fin
-    expect(disponibleDe(actuel)).toBe(MONTANT_DEMO - 500); // réserve libérée
-    // Un virement exécuté n'est plus confirmable.
-    expect(actionAdmin(magasin, admin, { action: "confirmer", compteId: cle, virementId: v.id }).statut).toBe(400);
+    // Mauvais code : 400, rien ne bouge.
+    expect(actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: "FAUX" }))
+      .toMatchObject({ statut: 400, corps: { erreur: "code_invalide" }, modifie: false });
+
+    // L'administration lit le code dans sa vue (dossier client).
+    const code1 = listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements[0].codeDeblocage!;
+    expect(code1).toBeTruthy();
+    const d1 = actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code1.toLowerCase() });
+    expect(d1.statut).toBe(200); // insensible à la casse
+    const v1 = (d1.corps.compte as BanqueCompte).virements.find((x) => x.id === v.id)!;
+    expect(v1.statut).toBe("BLOQUE");
+    expect(v1.niveau).toBe(3); // la barre repart et s'arrête à 60 %
+
+    const code2 = listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements[0].codeDeblocage!;
+    const d2 = actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code2 });
+    expect(d2.statut).toBe(200);
+    const fin = (d2.corps.compte as BanqueCompte).virements.find((x) => x.id === v.id)!;
+    expect(fin.statut).toBe("EXECUTE"); // dernier déblocage : barre à 100 %, exécution
+    const c2 = d2.corps.compte as BanqueCompte;
+    expect(soldeDe(c2)).toBe(MONTANT_DEMO - 500 - 25 - 150); // dénouement : montant + frais des défauts
+    expect(disponibleDe(c2)).toBe(MONTANT_DEMO - 500 - 25 - 150);
+    // Un virement exécuté n'est plus déblocable.
+    expect(actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code2 }).statut).toBe(400);
   });
 
   it("l'ordre de virement exige adresse du bénéficiaire et BIC/SWIFT valide, et les conserve", () => {
@@ -141,7 +152,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(bicValide("GEBABEB")).toBe(false);
   });
 
-  it("bloquer par CERT_ASSURANCE réserve montant + coût ; lever récupère le coût", () => {
+  it("l'arrêt réserve montant + coût ; lever (admin, sans code) repart au prochain arrêt", () => {
     const magasin = lireMagasin(dossier);
     const session = sessionClient(magasin);
     const admin = sessionAdmin(magasin);
@@ -149,20 +160,17 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true });
     const r = actionClient(magasin, session, ordre(300, "frais"));
     const v = (r.corps.compte as BanqueCompte).virements[0];
-
-    const rb = actionAdmin(magasin, admin, { action: "bloquer", compteId: cle, virementId: v.id, codeDefaut: "CERT_ASSURANCE" });
-    expect(rb.statut).toBe(200);
-    const bloque = rb.corps.compte as BanqueCompte;
-    const vb = bloque.virements.find((x) => x.id === v.id)!;
-    expect(vb.statut).toBe("BLOQUE");
-    expect(vb.blocages[0]).toMatchObject({ code: "CERT_ASSURANCE", cout: 150 });
-    expect(disponibleDe(bloque)).toBe(MONTANT_DEMO - 300 - 150);
+    expect(v.statut).toBe("BLOQUE");
+    expect(v.blocages[0]).toMatchObject({ code: "JUSTIF_DOMICILE", cout: 25 });
+    expect(disponibleDe(r.corps.compte as BanqueCompte)).toBe(MONTANT_DEMO - 300 - 25);
 
     const rl = actionAdmin(magasin, admin, { action: "lever", compteId: cle, virementId: v.id });
     expect(rl.statut).toBe(200);
     const leve = rl.corps.compte as BanqueCompte;
-    expect(leve.virements.find((x) => x.id === v.id)!.statut).toBe("EN_COURS");
-    expect(disponibleDe(leve)).toBe(MONTANT_DEMO - 300); // coût libéré, montant toujours réservé
+    const vl = leve.virements.find((x) => x.id === v.id)!;
+    expect(vl.statut).toBe("BLOQUE"); // la machine repart et s'arrête au prochain défaut (60 %)
+    expect(vl.niveau).toBe(3);
+    expect(disponibleDe(leve)).toBe(MONTANT_DEMO - 300 - 150); // coût levé libéré, nouveau coût réservé
   });
 
   it("refuser libère toute la réserve ; annuler reste un droit du client tant que c'est vivant", () => {
@@ -180,9 +188,9 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(refuse.virements.find((x) => x.id === v.id)!.statut).toBe("REFUSE");
     expect(disponibleDe(refuse)).toBe(MONTANT_DEMO);
 
-    // Annulation par le client sur un second virement encore EN_COURS.
+    // Annulation par le client sur un second virement (arrêté, donc encore annulable).
     const r2 = actionClient(magasin, session, ordre(100, "x"));
-    const v2 = (r2.corps.compte as BanqueCompte).virements.find((x) => x.statut === "EN_COURS")!;
+    const v2 = (r2.corps.compte as BanqueCompte).virements.at(-1)!;
     const ra = actionClient(magasin, session, { action: "annuler", virementId: v2.id });
     expect(ra.statut).toBe(200);
     const annule = ra.corps.compte as BanqueCompte;
@@ -230,16 +238,22 @@ describe("compte de démonstration « vitrine »", () => {
     const compte = (r as { compte: BanqueCompte }).compte;
     expect(compte.verifie).toBe(true); // le virement sortant est possible tout de suite
     const statuts = compte.virements.map((v) => v.statut).sort();
-    expect(statuts).toEqual(["BLOQUE", "EN_COURS", "EXECUTE"]);
-    const enCours = compte.virements.find((v) => v.statut === "EN_COURS")!;
-    expect(enCours.niveau).toBe(2);
-    // Cohérence machine : 2500 (dotation) + 1850 (salaire) − 450 (loyer exécuté)
-    expect(soldeDe(compte)).toBe(2_500 + 1_850 - 450);
-    // Réserves : 300 (en cours) + 750 + 150 (bloqué, coût CERT_ASSURANCE)
-    expect(disponibleDe(compte)).toBe(2_500 + 1_850 - 450 - 300 - 750 - 150);
+    expect(statuts).toEqual(["BLOQUE", "BLOQUE", "EXECUTE"]);
+    const a30 = compte.virements.find((v) => v.niveau === 2)!;
+    const a60 = compte.virements.find((v) => v.niveau === 3)!;
+    expect(a30.statut).toBe("BLOQUE"); // arrêté à 30 %
+    expect(a60.statut).toBe("BLOQUE"); // arrêté à 60 %
+    // Le client ne voit JAMAIS les codes ; l'administration, oui (DEMO30 / DEMO60 en démo).
+    expect(compte.virements.every((v) => v.codeDeblocage === undefined)).toBe(true);
+    const vueAdmin = magasin.banques![cleDemo];
+    expect(vueAdmin.virements.map((v) => v.codeDeblocage).filter(Boolean).sort()).toEqual(["DEMO30", "DEMO60"]);
+    // Cohérence machine : 2500 (dotation) + 1850 (salaire) − 450 − 175 (frais des défauts du loyer exécuté)
+    expect(soldeDe(compte)).toBe(2_500 + 1_850 - 450 - 175);
+    // Réserves : 300 + 25 (arrêt 30 %) et 750 + 150 (arrêt 60 %)
+    expect(disponibleDe(compte)).toBe(2_500 + 1_850 - 450 - 175 - 300 - 25 - 750 - 150);
     // Chat semé, lisible par le client comme par le staff.
     const chat = chatPour(magasin, session) as { messages: Array<{ de: string }> };
-    expect(chat.messages).toHaveLength(3);
+    expect(chat.messages).toHaveLength(4);
     expect(chatPour(magasin, sessionAdmin(magasin), cleDemo)).toEqual(chat);
   });
 

@@ -24,16 +24,17 @@ export const COMPTES_PORTE_DEMO: ReadonlyArray<{ email: string; role: RoleServeu
 ];
 
 import {
-  bloquerVirement, confirmerNiveau, denouer, initierVirement, ouvrirBanqueClient,
+  debloquerParCode, denouer, evolutionVirement, initierVirement, ouvrirBanqueClient,
   referentielEffectif, type BanqueCompte, type MessageChat, type Transaction,
 } from "@/lib/banque";
 
 /**
  * Compte client « vitrine » de la démo : vérifié (le virement sortant est donc possible), avec un
- * salaire fictif, un virement EXÉCUTÉ, un virement EN COURS (niveau 2/4) et un virement BLOQUÉ
- * pour défaut du référentiel — chaque état du pipeline est illustré. Construit en appliquant la
- * machine à états pure : soldes et réserves restent cohérents. Les motifs et le chat portent des
- * CLÉS i18n (résolues par `tSiCle` à l'affichage), jamais de français codé ici.
+ * salaire fictif, un virement EXÉCUTÉ (barre allée à 100 % après deux déblocages), un virement
+ * ARRÊTÉ à 30 % (code DEMO30) et un virement ARRÊTÉ à 60 % (code DEMO60) — chaque état du
+ * pipeline est illustré, codes jouables côté client ou lisibles côté administration. Construit en
+ * appliquant la machine à états pure : soldes et réserves restent cohérents. Les motifs et le chat
+ * portent des CLÉS i18n (résolues par `tSiCle` à l'affichage), jamais de français codé ici.
  */
 export function banqueDemoIllustrative(): { compte: BanqueCompte; chat: MessageChat[] } {
   const ref = referentielEffectif();
@@ -44,28 +45,33 @@ export function banqueDemoIllustrative(): { compte: BanqueCompte; chat: MessageC
   };
   compte = { ...compte, verifie: true, transactions: [...compte.transactions, salaire] };
 
-  // 1) Virement exécuté : 4 niveaux confirmés puis dénouement (le solde est débité).
+  // 1) Virement exécuté : la barre évolue, s'arrête à 30 % puis 60 %, débloquée par codes, 100 %.
   compte = initierVirement(compte, "Régie des Ardennes", "BE68539007547034", 450, "banque.vir.demoMotifRent", "2026-09-06T09:00:00.000Z", { adresse: "Avenue Louise 12, 1050 Ixelles", bic: "GEBABEBB" }).compte;
   const id1 = compte.virements[0].id;
-  for (let i = 0; i < ref.pipeline.length; i += 1) compte = confirmerNiveau(compte, id1, ref);
+  compte = evolutionVirement(compte, id1, ref, "KRD30A", "2026-09-06T09:00:00.000Z");
+  compte = debloquerParCode(compte, id1, "KRD30A", "2026-09-07T08:00:00.000Z").compte;
+  compte = evolutionVirement(compte, id1, ref, "KRD60A", "2026-09-07T08:00:00.000Z");
+  compte = debloquerParCode(compte, id1, "KRD60A", "2026-09-08T09:00:00.000Z").compte;
+  compte = evolutionVirement(compte, id1, ref, "KRDFINA", "2026-09-08T09:00:00.000Z");
   compte = denouer(compte, id1, "2026-09-08T10:00:00.000Z");
 
-  // 2) Virement en cours, niveau 2/4 (barre de progression à 30 %).
+  // 2) Virement arrêté à 30 % (justificatif de domicile) : code DEMO30, jouable en démo.
   compte = initierVirement(compte, "Énergie Bruxelles", "BE68539007547034", 300, "banque.vir.demoMotifEnergy", "2026-09-12T11:00:00.000Z", { adresse: "Boulevard de l'Impératrice 5, 1000 Bruxelles", bic: "BRUBBEBB" }).compte;
   const id2 = compte.virements[1].id;
-  compte = confirmerNiveau(compte, id2, ref);
-  compte = confirmerNiveau(compte, id2, ref);
+  compte = evolutionVirement(compte, id2, ref, "DEMO30", "2026-09-12T11:00:00.000Z");
 
-  // 3) Virement bloqué au niveau atteint pour défaut CERT_ASSURANCE (coût en réserve).
+  // 3) Virement arrêté à 60 % (certificat d'assurance) : code DEMO60, jouable en démo.
   compte = initierVirement(compte, "Assurances Fanchon", "BE68539007547034", 750, "banque.vir.demoMotifInsurance", "2026-09-13T14:00:00.000Z", { adresse: "Place Saint-Lambert 8, 4000 Liège", bic: "BBRUBEBB" }).compte;
   const id3 = compte.virements[2].id;
-  compte = confirmerNiveau(compte, id3, ref);
-  compte = bloquerVirement(compte, id3, "CERT_ASSURANCE", ref, "2026-09-13T16:00:00.000Z");
+  compte = evolutionVirement(compte, id3, ref, "TMP30B", "2026-09-13T14:00:00.000Z");
+  compte = debloquerParCode(compte, id3, "TMP30B", "2026-09-13T15:00:00.000Z").compte;
+  compte = evolutionVirement(compte, id3, ref, "DEMO60", "2026-09-13T16:00:00.000Z");
 
   const chat: MessageChat[] = [
     { id: "MSG-DEMO-1", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoWelcome", ts: "2026-09-05T09:10:00.000Z" },
     { id: "MSG-DEMO-2", de: "client", auteur: "Client KREDIT", texte: "banque.chat.demoQuestion", ts: "2026-09-13T16:20:00.000Z" },
     { id: "MSG-DEMO-3", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoAnswer", ts: "2026-09-13T17:05:00.000Z" },
+    { id: "MSG-DEMO-4", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoCode", ts: "2026-09-13T17:40:00.000Z" },
   ];
   return { compte, chat };
 }
