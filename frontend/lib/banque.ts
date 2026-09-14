@@ -85,6 +85,32 @@ export function ibanBEValide(iban: string): boolean {
   return mod97(decale) === 1;
 }
 
+/** Longueurs officielles de l'IBAN par code pays (registre SWIFT) : un virement sortant peut
+ *  viser n'importe quel pays, la validation reste stricte — structure, longueur et checksum. */
+export const LONGUEURS_IBAN: Readonly<Record<string, number>> = {
+  AD: 24, AE: 23, AL: 28, AO: 25, AT: 20, AZ: 28, BA: 20, BE: 16, BF: 27, BG: 22,
+  BH: 22, BI: 16, BJ: 28, BR: 29, BY: 28, CH: 21, CI: 28, CM: 27, CR: 22, CV: 25,
+  CY: 28, CZ: 24, DE: 22, DJ: 27, DK: 18, DO: 28, DZ: 26, EE: 20, EG: 29, ES: 24,
+  FI: 18, FO: 18, FR: 27, GB: 22, GE: 22, GI: 23, GL: 18, GR: 27, GT: 28, HR: 21,
+  HU: 28, IE: 22, IL: 23, IQ: 23, IS: 26, IT: 27, JO: 30, KW: 30, KZ: 20, LB: 28,
+  LC: 32, LI: 21, LT: 20, LU: 20, LV: 21, LY: 25, MA: 28, MC: 27, MD: 24, ME: 22,
+  MK: 19, MR: 27, MT: 31, MU: 30, MZ: 25, NL: 18, NO: 15, PK: 24, PL: 28, PS: 29,
+  PT: 25, QA: 29, RO: 24, RS: 22, SA: 24, SC: 31, SD: 18, SE: 24, SI: 19, SK: 24,
+  SM: 27, SN: 28, ST: 25, SV: 28, TL: 23, TN: 24, TR: 26, UA: 29, VA: 22, VG: 24, XK: 20,
+};
+
+/** Vérification d'un IBAN TOUS PAYS : 2 lettres pays + 2 chiffres + BBAN alphanumérique,
+ *  longueur exacte du registre et checksum ISO 7064 mod 97 (les lettres deviennent des chiffres). */
+export function ibanValide(iban: string): boolean {
+  const propre = iban.replace(/\s+/g, "").toUpperCase();
+  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{8,30}$/.test(propre)) return false;
+  if (LONGUEURS_IBAN[propre.slice(0, 2)] !== propre.length) return false;
+  // Les 4 premiers caractères passent à la fin, puis TOUTES les lettres deviennent des chiffres
+  // (A=10 … Z=35) : certains BBAN contiennent des lettres (FR, NL, GB…).
+  const decale = (propre.slice(4) + propre.slice(0, 4)).replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
+  return mod97(decale) === 1;
+}
+
 /* ——— Ledger : transactions et virements ——— */
 export type SensTx = "entrant" | "sortant";
 export interface Transaction {
@@ -151,7 +177,8 @@ export function initierVirement(
   coordonnees?: { adresse?: string; bic?: string },
 ): { compte: BanqueCompte; erreur?: "non_verifie" | "iban_invalide" | "montant_invalide" } {
   if (!compte.verifie) return { compte, erreur: "non_verifie" };
-  if (!ibanBEValide(beneficiaireIban)) return { compte, erreur: "iban_invalide" };
+  // Le bénéficiaire peut être domicilié dans n'importe quel pays : IBAN international valide.
+  if (!ibanValide(beneficiaireIban)) return { compte, erreur: "iban_invalide" };
   if (!(montant > 0) || montant > disponibleDe(compte)) return { compte, erreur: "montant_invalide" };
   const v: Virement = {
     id: idVirement(maintenant, compte.virements.map((x) => x.id)), beneficiaireNom, beneficiaireIban: beneficiaireIban.replace(/\s+/g, "").toUpperCase(),

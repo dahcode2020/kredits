@@ -4,10 +4,11 @@
  * passé en props (même HTML côté serveur et premier rendu client) ; le localStorage n'est lu/écrit
  * que dans les handlers et après soumission — jamais au render (contrat d'hydratation).
  *
- * Honnêteté : sans backend, « déposer » enregistre la demande SUR L'APPAREIL et l'écran le dit
- * (`application.saved`) ; rien n'est « envoyé » en silence, aucun faux statut de traitement.
+ * Honnêteté : la demande est enregistrée SUR L'APPAREIL et, si une session est ouverte, déposée
+ * DANS LA TABLE DU SERVEUR (`/api/demandes`) — l'espace client la montre ensuite dans le menu
+ * « Demandes ». Rien n'est « envoyé » en silence, aucun faux statut de traitement.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, BadgeCheck, FileText } from "lucide-react";
 import Reveal from "@/components/motion/Reveal";
@@ -17,6 +18,8 @@ import { formatEUR2 } from "@/lib/utils";
 import { Locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ajouterDemande, lireDemandes, nouvelleReference, queryDepuisEtat, type DemandeLocale, type EtatSimulation } from "@/lib/application";
+import { lireSession } from "@/lib/auth";
+import { API, apiGet, apiPost } from "@/lib/api";
 import {
   DOCUMENT_CODES, simulateCredit,
   type EmploymentStatus, type IncomeType, type LoanPurpose, type ProductCode,
@@ -73,6 +76,18 @@ export default function ApplyPage({ locale, initial }: { locale: Locale; initial
   const [consent, setConsent] = useState(false);
   const [erreurs, setErreurs] = useState<{ nom?: string; email?: string; consent?: string; produit?: string }>({});
   const [confirmee, setConfirmee] = useState<DemandeLocale | null>(null);
+  /** Catégories déjà EN COURS côté serveur (source de vérité) — lues après montage seulement. */
+  const [produitsServeur, setProduitsServeur] = useState<ProductCode[]>([]);
+  const [connecte, setConnecte] = useState(false);
+
+  useEffect(() => {
+    const s = lireSession();
+    if (!s) return;
+    setConnecte(true);
+    apiGet<{ demandes: Array<{ etat: { product: ProductCode } }> }>(API.demandes).then((r) => {
+      if (r.ok) setProduitsServeur(r.corps.demandes.map((d) => d.etat.product));
+    });
+  }, []);
 
   const simulation = useMemo(
     () =>
@@ -92,8 +107,11 @@ export default function ApplyPage({ locale, initial }: { locale: Locale; initial
     if (!EMAIL_VALIDE.test(email.trim())) e.email = "credit:application.errEmail";
     if (!consent) e.consent = "credit:application.errConsent";
     // Règle métier : un client ayant un prêt EN COURS dans une catégorie ne peut pas
-    // déposer une seconde demande dans la même catégorie.
-    if (lireDemandes().some((d) => d.etat.product === etat.product)) e.produit = "credit:application.errSameProduct";
+    // déposer une seconde demande dans la même catégorie — vérifiée sur le serveur (source
+    // de vérité) ET sur le miroir local de cet appareil.
+    if (produitsServeur.includes(etat.product) || lireDemandes().some((d) => d.etat.product === etat.product)) {
+      e.produit = "credit:application.errSameProduct";
+    }
     setErreurs(e);
     if (Object.keys(e).length) return;
     const demande: DemandeLocale = {
@@ -106,6 +124,14 @@ export default function ApplyPage({ locale, initial }: { locale: Locale; initial
       telephone: telephone.trim(),
     };
     ajouterDemande(demande);
+    // Session ouverte → la demande part aussi dans la table du serveur (rattachée au compte).
+    if (connecte) {
+      void apiPost(API.demandes, {
+        product: etat.product, amount: etat.amount, term: etat.term, income: etat.income,
+        charges: etat.charges, existing: etat.existing, incomeType: etat.incomeType,
+        employment: etat.employment, purpose: etat.purpose, nom: demande.nom, telephone: demande.telephone,
+      });
+    }
     setConfirmee(demande);
   };
 

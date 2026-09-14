@@ -28,5 +28,6 @@
   "dashboard.docsMarked": "Marqué comme fourni — démo locale, aucun fichier envoyé.",
   "dashboard.noApproved": "Les paiements apparaîtront dès qu'une demande est approuvée par un conseiller.",
   "dashboard.kycHow": "La vérification d'identité (KYC) est contrôlée lors du traitement de votre demande.",
-  "kycHowVerified": "Votre identité a été contrôlée par notre équipe : l'espace bancaire est pleinement actif."
+  "kycHowVerified": "Votre identité a été contrôlée par notre équipe : l'espace bancaire est pleinement actif.",
+  "applications.hint": "Aperçu de vos demandes de crédit en cours d'examen — l'administration vous contacte pour la suite du dossier."
 }

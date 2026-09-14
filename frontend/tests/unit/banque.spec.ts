@@ -10,10 +10,10 @@
  * atteint, avec le code et le coût du référentiel.
  */
 import {
-  MONTANT_DEMO, REFERENTIEL_CANONIQUE, annulerVirement, arretsActifs, debloquerParCode,
-  denouer, disponibleDe, evolutionVirement, genererIbanBE, ibanBEValide, initierVirement,
-  leverBlocage, ouvrirBanqueClient, progressionDe, referentielEffectif, refuserVirement,
-  reserveDe, soldeDe, type BanqueCompte,
+  LONGUEURS_IBAN, MONTANT_DEMO, REFERENTIEL_CANONIQUE, annulerVirement, arretsActifs,
+  debloquerParCode, denouer, disponibleDe, evolutionVirement, genererIbanBE, ibanBEValide,
+  ibanValide, initierVirement, leverBlocage, ouvrirBanqueClient, progressionDe,
+  referentielEffectif, refuserVirement, reserveDe, soldeDe, type BanqueCompte,
 } from "@/lib/banque";
 
 const MAINTENANT = "2026-09-13T10:00:00.000Z";
@@ -42,6 +42,56 @@ describe("IBAN fictif, mais formellement valide", () => {
     expect(ibanBEValide(faux)).toBe(false);
     expect(ibanBEValide("BE68539007547034")).toBe(true); // exemple publié par Febelfin
     expect(ibanBEValide("FR1420041010050500013M02606")).toBe(false); // pas BE
+  });
+});
+
+describe("IBAN international : le bénéficiaire peut être dans n'importe quel pays", () => {
+  // Exemples publiés par le registre officiel (espaces tolérés à la saisie).
+  const VALIDES = [
+    "BE68539007547034",                     // Belgique
+    "FR1420041010050500013M02606",          // France
+    "DE89370400440532013000",               // Allemagne
+    "NL91ABNA0417164300",                   // Pays-Bas
+    "GB29NWBK60161331926819",               // Royaume-Uni
+    "ES9121000418450200051332",             // Espagne
+    "LU280019400644750000",                 // Luxembourg
+    "CH9300762011623852957",                // Suisse
+    "FR14 2004 1010 0505 0001 3M02 606",    // avec espaces
+  ];
+  it.each(VALIDES)("accepte un IBAN valide : %s", (iban) => {
+    expect(ibanValide(iban)).toBe(true);
+  });
+
+  it("refuse : mauvaise checksum, mauvaise longueur, pays inconnu, charabia", () => {
+    expect(ibanValide("FR1420041010050500013M02607")).toBe(false); // checksum cassée d'un chiffre
+    expect(ibanValide("DE8937040044053201300")).toBe(false);        // un chiffre de trop en moins
+    expect(ibanValide("XX9300762011623852957")).toBe(false);        // code pays hors registre
+    expect(ibanValide("BE68")).toBe(false);                          // trop court
+    expect(ibanValide("")).toBe(false);
+    expect(ibanValide("pas-un-iban")).toBe(false);
+  });
+
+  it("le registre couvre les longueurs officielles (BE 16, FR 27, DE 22, GB 22, NL 18…)", () => {
+    expect(LONGUEURS_IBAN.BE).toBe(16);
+    expect(LONGUEURS_IBAN.FR).toBe(27);
+    expect(LONGUEURS_IBAN.DE).toBe(22);
+    expect(LONGUEURS_IBAN.GB).toBe(22);
+    expect(LONGUEURS_IBAN.NL).toBe(18);
+    expect(Object.keys(LONGUEURS_IBAN).length).toBeGreaterThanOrEqual(80);
+  });
+
+  it("initierVirement accepte un bénéficiaire hors Belgique et normalise l'IBAN", () => {
+    const { compte, erreur } = initierVirement(
+      compteVerifie(), "Fournisseur Lyon", "FR14 2004 1010 0505 0001 3M02 606", 250, "Facture", MAINTENANT,
+      { adresse: "12 rue de la République, 69001 Lyon", bic: "BNPAFRPP" },
+    );
+    expect(erreur).toBeUndefined();
+    expect(compte.virements[0].beneficiaireIban).toBe("FR1420041010050500013M02606");
+  });
+
+  it("initierVirement refuse toujours un IBAN international invalide", () => {
+    const { erreur } = initierVirement(compteVerifie(), "X", "FR1420041010050500013M02607", 100, "x", MAINTENANT);
+    expect(erreur).toBe("iban_invalide");
   });
 });
 

@@ -372,7 +372,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                           value={texteChat} onChange={(e) => setTexteChat(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") void envoyerChat(); }}
                           placeholder={tr("banque:chat.placeholder")}
-                          className="flex-1 h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                          className="flex-1 h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
                         <button type="button" onClick={() => void envoyerChat()} className={buttonClasses("dark", "md")}>
                           <Send className="w-4 h-4" aria-hidden="true" />
@@ -480,7 +480,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                     <input
                       type="number" min={5} max={100} step={5} value={d.pct}
                       onChange={(e) => void changerSurcharge(d.code, { pct: Math.min(100, Math.max(5, Number(e.target.value) || 5)) })}
-                      className="w-16 h-9 rounded-lg border border-slate-200 px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-16 h-9 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
                       aria-label={tr("banque:ops.refLevel")}
                     />
                   </td>
@@ -488,7 +488,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                     <input
                       type="number" min={0} value={d.cout}
                       onChange={(e) => void changerSurcharge(d.code, { cout: Math.max(0, Number(e.target.value) || 0) })}
-                      className="w-24 h-9 rounded-lg border border-slate-200 px-2 text-right text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-24 h-9 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30"
                       aria-label={tr("banque:ops.refCost")}
                     />
                   </td>
@@ -497,7 +497,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                       type="text" value={d.motif ?? (CLES_DEFAUT[d.code] ? tr(CLES_DEFAUT[d.code]) : "")}
                       onChange={(e) => void changerSurcharge(d.code, { motif: e.target.value })}
                       placeholder={tr("banque:ops.refMotif")}
-                      className="w-full h-9 rounded-lg border border-slate-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30"
                       aria-label={tr("banque:ops.refMotif")}
                     />
                   </td>

@@ -14,10 +14,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, reglesDeEntree } from "@/lib/credit-engine";
 import {
-  DUREE_SESSION_JOURS, changerMotDePasse, creerCompte, ecrireMagasin, grillePourApi,
-  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, nouveauSel, ouvrirSessionServeur, VERSION_MAGASIN,
-  optionsCookie, revoquerSession, simulerServeur, sondeGrillePourApi, trouverCompte,
-  verifierMotDePasse, verifierSession,
+  DUREE_SESSION_JOURS, changerMotDePasse, creerCompte, deposerDemandeServeur, demandesPour,
+  ecrireMagasin, grillePourApi, hacherMotDePasse, lireMagasin, mettreAJourProfilServeur,
+  nouveauSel, ouvrirSessionServeur, VERSION_MAGASIN, optionsCookie, revoquerSession,
+  simulerServeur, sondeGrillePourApi, trouverCompte, verifierMotDePasse, verifierSession,
+  type DemandeServeur,
 } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO } from "@/lib/serveur-demo";
 
@@ -151,6 +152,41 @@ describe("menu profil : le client édite SES champs (liste blanche serveur)", ()
     expect(profil.nom).toBe(avant.nom);
     expect(profil.naissance).toBe(avant.naissance);
     expect(profil.rue).toHaveLength(200);
+  });
+});
+
+describe("demandes de crédit : table serveur, un aperçu par client", () => {
+  it("le client démo reçoit deux demandes en cours, semées et persistées", () => {
+    const magasin = lireMagasin(dossier);
+    const siennes = demandesPour(magasin, "client@kredit.be");
+    expect(siennes).toHaveLength(2);
+    expect(siennes.map((d) => d.id).sort()).toEqual(["KRD-2026-DEMOA1", "KRD-2026-DEMOB2"]);
+    expect(new Set(siennes.map((d) => d.statut))).toEqual(new Set(["SUBMITTED"]));
+    ecrireMagasin(magasin, dossier);
+    expect(demandesPour(lireMagasin(dossier), "client@kredit.be")).toHaveLength(2); // persistées
+  });
+
+  it("chaque client ne voit que SES demandes, pas celles des autres comptes", () => {
+    const magasin = lireMagasin(dossier);
+    expect(demandesPour(magasin, "autre@exemple.be")).toHaveLength(0);
+    expect(demandesPour(magasin, "admin@kredit.be")).toHaveLength(0);
+  });
+
+  it("le dépôt ajoute la demande à la table du magasin", () => {
+    const magasin = lireMagasin(dossier);
+    const neuve: DemandeServeur = {
+      id: "KRD-2026-TEST1", email: "autre@exemple.be", nom: "Autre", telephone: "",
+      creeA: "2026-09-14T10:00:00.000Z", statut: "SUBMITTED",
+      etat: {
+        product: "BUSINESS", amount: 25_000, term: 60, income: 3_000, charges: 500,
+        existing: 0, incomeType: "SALARY", employment: "CDI", purpose: "OTHER",
+      },
+    };
+    deposerDemandeServeur(magasin, neuve);
+    ecrireMagasin(magasin, dossier);
+    const relire = lireMagasin(dossier);
+    expect(demandesPour(relire, "autre@exemple.be")).toHaveLength(1);
+    expect(demandesPour(relire, "client@kredit.be")).toHaveLength(2); // sans effet sur les autres
   });
 });
 

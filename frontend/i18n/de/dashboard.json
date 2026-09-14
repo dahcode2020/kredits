@@ -28,5 +28,6 @@
   "dashboard.docsMarked": "Als bereit markiert — lokale Demo, keine Datei gesendet.",
   "dashboard.noApproved": "Zahlungen erscheinen, sobald ein Antrag von einem Berater genehmigt wurde.",
   "dashboard.kycHow": "Die Identitätsprüfung (KYC) wird während der Bearbeitung Ihres Antrags kontrolliert.",
-  "kycHowVerified": "Ihre Identität wurde von unserem Team geprüft: der Banking-Bereich ist voll aktiv."
+  "kycHowVerified": "Ihre Identität wurde von unserem Team geprüft: der Banking-Bereich ist voll aktiv.",
+  "applications.hint": "Übersicht Ihrer laufenden Kreditanträge — die Verwaltung kontaktiert Sie zu den nächsten Schritten."
 }

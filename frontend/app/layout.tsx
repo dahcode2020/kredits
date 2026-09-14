@@ -29,7 +29,9 @@ export const metadata = {
 
 export const viewport = {
   themeColor: "#0F1115",
-  colorScheme: "dark light",
+  // L'interface est entièrement claire : autoriser le rendu sombre des contrôles natifs
+  // (date, spinners, autofill) produisait des champs illisibles en thème sombre OS.
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,

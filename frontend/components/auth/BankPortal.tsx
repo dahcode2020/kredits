@@ -21,7 +21,7 @@ import { Locale, t, tSiCle } from "@/lib/i18n";
 import type { Session } from "@/lib/auth";
 import { API, apiGet, apiPost } from "@/lib/api";
 import {
-  bicValide, disponibleDe, progressionDe, reserveDe, soldeDe,
+  bicValide, disponibleDe, ibanValide, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type Blocage, type MessageChat, type Referentiel, type StatutVirement, type Virement,
 } from "@/lib/banque";
 
@@ -165,7 +165,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
     const montantNum = Number(montant.replace(",", "."));
     if (!nomBenef.trim()) { setErreurEnvoi("banque:send.err.name"); return; }
     if (!adresseBenef.trim()) { setErreurEnvoi("banque:send.err.address"); return; }
-    if (!ibanBenef.trim()) { setErreurEnvoi("banque:send.err.iban"); return; }
+    if (!ibanBenef.trim() || !ibanValide(ibanBenef)) { setErreurEnvoi("banque:send.err.iban"); return; }
     if (!bicValide(bicBenef)) { setErreurEnvoi("banque:send.err.bic"); return; }
     if (!(montantNum > 0)) { setErreurEnvoi("banque:send.err.amount"); return; }
     if (!motif.trim()) { setErreurEnvoi("banque:send.err.motif"); return; }
@@ -317,30 +317,30 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
             <div className="mt-4 space-y-3">
               <label className="block">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefName")}</span>
-                <input value={nomBenef} onChange={(e) => setNomBenef(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <input value={nomBenef} onChange={(e) => setNomBenef(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </label>
               <label className="block">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefAddress")}</span>
-                <input value={adresseBenef} onChange={(e) => setAdresseBenef(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                <input value={adresseBenef} onChange={(e) => setAdresseBenef(e.target.value)} className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </label>
               <div className="grid grid-cols-[1fr_auto] gap-3">
                 <label className="block">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefIban")}</span>
-                  <input value={ibanBenef} onChange={(e) => setIbanBenef(e.target.value)} placeholder="BE…" className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  <input value={ibanBenef} onChange={(e) => setIbanBenef(e.target.value)} placeholder="BE68… · FR14… · DE89…" className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink font-mono focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </label>
                 <label className="block w-36">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.benefBic")}</span>
-                  <input value={bicBenef} onChange={(e) => setBicBenef(e.target.value)} placeholder="GEBABEBB" maxLength={11} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-3 text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  <input value={bicBenef} onChange={(e) => setBicBenef(e.target.value)} placeholder="GEBABEBB" maxLength={11} className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-ink font-mono uppercase focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.amount")}</span>
-                  <input value={montant} onChange={(e) => setMontant(e.target.value)} inputMode="decimal" className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  <input value={montant} onChange={(e) => setMontant(e.target.value)} inputMode="decimal" className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </label>
                 <label className="block">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("banque:send.motif")}</span>
-                  <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder={tr("banque:send.motifPlaceholder")} className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder={tr("banque:send.motifPlaceholder")} className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30" />
                 </label>
               </div>
               {erreurEnvoi && <p role="alert" className="text-[13px] font-bold text-red-600">{tr(erreurEnvoi)}</p>}
@@ -475,7 +475,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
             value={texteChat} onChange={(e) => setTexteChat(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") envoyerChat(); }}
             placeholder={tr("banque:chat.placeholder")}
-            className="flex-1 h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="flex-1 h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
           <button type="button" onClick={envoyerChat} className={buttonClasses("dark", "md")}>
             <Send className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("banque:chat.send")}</span>

@@ -20,6 +20,16 @@ h1,h2,h3,h4 { @apply font-display; }
 /* Focus visible for a11y */
 *:focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2; }
 
+/* Lisibilité des champs : fond clair + texte sombre, toujours — y compris quand le navigateur
+   ou l'autofill tentent d'imposer leur propre fond (thème sombre OS, remplissage automatique). */
+input, select, textarea { color-scheme: light; }
+input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: #0F1115;
+  caret-color: #0F1115;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 /* custom scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 8px; }

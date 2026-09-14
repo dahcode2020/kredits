@@ -228,7 +228,7 @@ export default function GrilleHistorique({ locale }: { locale: Locale }) {
             <label className="text-[11px] font-bold uppercase tracking-wider text-white/50" htmlFor="sonde-date">{tr("admin.grille.probeDate")}</label>
             <input
               id="sonde-date" type="date" value={dateSonde} onChange={(e) => { setDateSonde(e.target.value); setSonde(null); }}
-              className="h-10 rounded-xl bg-white/10 border border-white/15 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="h-10 rounded-xl bg-white border border-white/15 px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
             <button
               type="button" disabled={!dateSonde} onClick={() => setSonde(grilleValideA(`${dateSonde}T12:00:00Z`))}

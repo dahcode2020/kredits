@@ -22,8 +22,16 @@ import {
 
 import { COMPTES_PORTE_DEMO, type RoleServeur } from "@/lib/serveur-demo";
 import type { BanqueCompte, MessageChat, SurchargesReferentiel } from "@/lib/banque";
+import type { EtatSimulation } from "@/lib/application";
 export type { RoleServeur };
 export { COMPTES_PORTE_DEMO };
+
+/** Demande de crédit côté serveur : un seul endroit par valeur — le navigateur ne garde qu'un
+ *  miroir local de courtoisie, l'espace client lit CETTE table (voir /api/demandes). */
+export interface DemandeServeur {
+  id: string; email: string; nom: string; telephone: string;
+  creeA: string; statut: "SUBMITTED"; etat: EtatSimulation;
+}
 
 export interface CompteServeur {
   email: string; role: RoleServeur; nom: string; creeA: string;
@@ -37,13 +45,14 @@ export interface Magasin {
   banques?: Record<string, BanqueCompte>;
   chats?: Record<string, MessageChat[]>;
   surcharges?: SurchargesReferentiel;
+  demandes?: DemandeServeur[];
   /** Version du format de données : un magasin d'une autre version est re-semé, jamais migré à
    *  l'aveugle — aucun vieux fichier ne peut produire des comportements fantômes après un déploiement. */
   versionMagasin?: number;
 }
 
 /** À incrémenter à chaque changement de forme des données du magasin. */
-export const VERSION_MAGASIN = 2;
+export const VERSION_MAGASIN = 3;
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";
@@ -78,6 +87,7 @@ export function lireMagasin(dossier: string = dossierDonnees()): Magasin {
   // jeté et re-semé : le comportement repart toujours de l'état neuf du code courant.
   if (magasin.versionMagasin !== VERSION_MAGASIN) magasin = { comptes: [], sessions: [], versionMagasin: VERSION_MAGASIN };
   if (!magasin.comptes.some((c) => c.role !== "CUSTOMER")) semerPersonnel(magasin);
+  if (!magasin.demandes) semerDemandesDemo(magasin);
   return magasin;
 }
 export function ecrireMagasin(magasin: Magasin, dossier: string = dossierDonnees()): void {
@@ -94,6 +104,40 @@ function semerPersonnel(magasin: Magasin): void {
       sel, hash: hacherMotDePasse(porte.motDePasse, sel), profil: porte.profil,
     });
   }
+}
+
+/** Demandes de démonstration du client vitrine : deux demandes EN COURS d'examen, construites
+ *  avec les mêmes bornes que le simulateur. L'espace client affiche ainsi un aperçu réel dès la
+ *  première connexion, et la règle « une seule demande en cours par catégorie » devient visible. */
+function semerDemandesDemo(magasin: Magasin): void {
+  magasin.demandes = [
+    {
+      id: "KRD-2026-DEMOA1", email: "client@kredit.be", nom: "Client KREDIT", telephone: "+32 470 12 34 56",
+      creeA: "2026-09-08T09:15:00.000Z", statut: "SUBMITTED",
+      etat: {
+        product: "PERSONAL", amount: 15_000, term: 48, income: 2_800, charges: 950,
+        existing: 0, incomeType: "SALARY", employment: "CDI", purpose: "CONSUMPTION",
+      },
+    },
+    {
+      id: "KRD-2026-DEMOB2", email: "client@kredit.be", nom: "Client KREDIT", telephone: "+32 470 12 34 56",
+      creeA: "2026-09-12T14:40:00.000Z", statut: "SUBMITTED",
+      etat: {
+        product: "MORTGAGE", amount: 95_000, term: 240, income: 2_800, charges: 950,
+        existing: 0, incomeType: "SALARY", employment: "CDI", purpose: "WORKS",
+      },
+    },
+  ];
+}
+
+/* ——— Demandes de crédit : chaque client ne voit que les siennes ——— */
+export function demandesPour(magasin: Magasin, email: string): DemandeServeur[] {
+  const e = email.trim().toLowerCase();
+  return (magasin.demandes ?? []).filter((d) => d.email === e);
+}
+export function deposerDemandeServeur(magasin: Magasin, d: DemandeServeur): DemandeServeur {
+  magasin.demandes = [...(magasin.demandes ?? []), d];
+  return d;
 }
 
 /* ——— Comptes ——— */

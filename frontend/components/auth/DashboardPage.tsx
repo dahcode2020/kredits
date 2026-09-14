@@ -34,6 +34,7 @@ import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { API, apiGet, apiPost } from "@/lib/api";
 import type { BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
+import type { DemandeServeur } from "@/lib/serveur";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
 import {
   DEFAUT_PREFS, cleDoc, enregistrerPrefs, lireDocsFournis, lirePrefs, marquerDocFourni,
@@ -90,7 +91,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
   const [session, setSession] = useState<Session | null>(null);
   const [pret, setPret] = useState(false);
-  const [demandes, setDemandes] = useState<DemandeLocale[]>([]);
+  const [demandesLocales, setDemandesLocales] = useState<DemandeLocale[]>([]);
+  const [demandesServeur, setDemandesServeur] = useState<DemandeServeur[]>([]);
   const [onglet, setOnglet] = useState<Onglet>("apercu");
   const [ouverte, setOuverte] = useState<string | null>(null);
   const [choisie, setChoisie] = useState<string | null>(null);
@@ -110,7 +112,14 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     const s = lireSession();
     setSession(s);
     if (s) {
-      setDemandes(lireDemandes().filter((d) => d.email.toLowerCase() === s.email.toLowerCase()));
+      setDemandesLocales(lireDemandes().filter((d) => d.email.toLowerCase() === s.email.toLowerCase()));
+      // Les demandes font foi côté serveur : l'aperçu du menu « Demandes » lit la table du
+      // magasin (semée pour le client démo) — le miroir local ne sert que de secours hors ligne.
+      if (s.role === "CUSTOMER") {
+        apiGet<{ demandes: DemandeServeur[] }>(API.demandes).then((r) => {
+          if (r.ok) setDemandesServeur(r.corps.demandes);
+        });
+      }
       setPrefs(lirePrefs());
       setDocsFournis(lireDocsFournis());
       if (s.role === "CUSTOMER") {
@@ -134,6 +143,17 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     }
     setPret(true);
   }, []);
+
+  /** Demandes affichées = demandes du serveur (source de vérité) + locales non encore déposées.
+   *  Un id présent des deux côtés n'apparaît qu'une fois. Tri : les plus récentes d'abord. */
+  const demandes = useMemo<DemandeLocale[]>(() => {
+    const duServeur: DemandeLocale[] = demandesServeur.map((d) => ({
+      id: d.id, createdAt: d.creeA, statut: d.statut, etat: d.etat, nom: d.nom, email: d.email, telephone: d.telephone,
+    }));
+    const ids = new Set(duServeur.map((d) => d.id));
+    return [...duServeur, ...demandesLocales.filter((d) => !ids.has(d.id))]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [demandesServeur, demandesLocales]);
 
   const sims = useMemo(() => {
     const m = new Map<string, ReturnType<typeof simulateCredit>>();
@@ -198,7 +218,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
       <input
         value={formContact?.[key] ?? ""}
         onChange={(e) => setFormContact((p) => ({ ...(p ?? {}), [key]: e.target.value }))}
-        className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        className="mt-1 w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
     </label>
   );
@@ -377,6 +397,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                   {tr("dashboard.applications.cta")}
                 </Link>
               </div>
+              <p className="mt-1 text-[12px] text-slate-400">{tr("dashboard.applications.hint")}</p>
               {demandes.length === 0 ? (
                 <p className="mt-4 text-sm text-slate-500">{tr("dashboard.applications.empty")}</p>
               ) : (
@@ -390,7 +411,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                           <div>
                             <div className="font-bold text-ink tabular-nums">{d.id}</div>
                             <div className="text-[12px] text-slate-500 tabular-nums">
-                              {tr(CLES_PRODUIT[d.etat.product])} · {formatCurrency0(d.etat.amount, locale)} · {formatEUR2(sim.simulation.monthlyPayment, locale)} {tr("credit:simulator.perMonth")}
+                              {tr(CLES_PRODUIT[d.etat.product])} · {formatCurrency0(d.etat.amount, locale)} · {formatEUR2(sim.simulation.monthlyPayment, locale)} {tr("credit:simulator.perMonth")} · {formatDate(d.createdAt, locale)}
                             </div>
                           </div>
                           <span className="flex items-center gap-3">
@@ -684,11 +705,11 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                   <div className="mt-4 space-y-4">
                     <div>
                       <label htmlFor="mdp-actuel" className="text-[12px] font-bold tracking-widest uppercase text-slate-500">{tr("dashboard.currentPassword")}</label>
-                      <input id="mdp-actuel" type="password" value={mdpActuel} onChange={(e) => setMdpActuel(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
+                      <input id="mdp-actuel" type="password" value={mdpActuel} onChange={(e) => setMdpActuel(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 bg-white px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
                     </div>
                     <div>
                       <label htmlFor="mdp-neuf" className="text-[12px] font-bold tracking-widest uppercase text-slate-500">{tr("dashboard.newPassword")}</label>
-                      <input id="mdp-neuf" type="password" value={mdpNeuf} onChange={(e) => setMdpNeuf(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
+                      <input id="mdp-neuf" type="password" value={mdpNeuf} onChange={(e) => setMdpNeuf(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 bg-white px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
                     </div>
                     {msgMdp === "ok" && <p role="status" className="text-[12px] font-semibold text-emerald-600">{tr("dashboard.passwordUpdated")}</p>}
                     {msgMdp === "err" && <p role="alert" className="text-[12px] font-semibold text-red-600">{tr("dashboard.errCurrent")}</p>}
