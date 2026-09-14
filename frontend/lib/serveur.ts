@@ -163,9 +163,12 @@ export function revoquerSession(magasin: Magasin, jeton: string | undefined | nu
 }
 
 /* ——— Options du cookie de session (posées par les Route Handlers) ——— */
+/** En production l'aperçu vit dans une iframe cross-site (preview Arena) : un cookie `Lax` n'y
+ *  est JAMAIS renvoyé par le navigateur → déconnexion immédiate après connexion. On passe donc à
+ *  `SameSite=None; Secure` en production (HTTPS) ; le dev local reste en `Lax`. */
 export function optionsCookie(production: boolean) {
   return {
-    httpOnly: true, sameSite: "lax" as const, path: "/",
+    httpOnly: true, sameSite: (production ? "none" : "lax") as "none" | "lax", path: "/",
     secure: production, maxAge: DUREE_SESSION_JOURS * 24 * 3600,
   };
 }

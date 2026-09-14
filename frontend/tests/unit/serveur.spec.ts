@@ -87,11 +87,14 @@ describe("sessions : jetons serveur, expiration, révocation", () => {
     expect(revoquerSession(magasin, session.jeton)).toBe(false);
   });
 
-  it("le cookie de session est httpOnly + SameSite=Lax", () => {
+  it("cookie de session : Lax en dev, None+Secure en production (iframe cross-site de l'aperçu)", () => {
     const opts = optionsCookie(false);
     expect(opts.httpOnly).toBe(true);
     expect(opts.sameSite).toBe("lax");
     expect(opts.maxAge).toBe(DUREE_SESSION_JOURS * 24 * 3600);
+    const prod = optionsCookie(true);
+    expect(prod.sameSite).toBe("none"); // sinon l'aperçu (iframe cross-site) perd la session
+    expect(prod.secure).toBe(true);
   });
 });
 
