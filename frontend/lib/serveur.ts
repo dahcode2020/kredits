@@ -16,8 +16,8 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, chainonValide, grilleValideA, reglesDeEntree,
-  simulateCredit, type SimulateInput,
+  DOCUMENT_CODES, GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, chainonValide, grilleValideA,
+  reglesDeEntree, simulateCredit, type SimulateInput,
 } from "@/lib/credit-engine";
 
 import { COMPTES_PORTE_DEMO, type RoleServeur } from "@/lib/serveur-demo";
@@ -48,6 +48,26 @@ export interface PaiementServeur {
   statut: StatutPaiement; regleA?: string; confirmeA?: string;
 }
 
+/** Document justificatif téléversé par le client (menu Documents) et vérifié par
+ *  l'administration : SOUMIS → l'admin le lit et l'approuve → APPROUVE, le client est
+ *  notifié et la mention « approuvé » apparaît dans son menu Documents. Le fichier voyage
+ *  en dataURL (démo locale, plafonné) ; `code` est un code du moteur (DOCUMENT_CODES). */
+export type StatutDocument = "SOUMIS" | "APPROUVE";
+export interface DocumentServeur {
+  id: string; email: string; demandeId: string; code: string; nom: string;
+  donnees: string; taille: number; creeA: string;
+  statut: StatutDocument; approuveA?: string; approuvePar?: string;
+}
+
+/** Notification au client (ex. document approuvé) : une clé i18n + ses variables, jamais de
+ *  texte en dur. */
+export interface NotificationServeur {
+  id: string; email: string; cle: string; vars?: Record<string, string>; creeA: string;
+}
+
+/** Taille maximale d'un document téléversé (dataURL comprise) — même plafond que la photo. */
+export const DOCUMENT_MAX_OCTETS = 5 * 1024 * 1024;
+
 export interface CompteServeur {
   email: string; role: RoleServeur; nom: string; creeA: string;
   sel: string; hash: string; profil?: Record<string, string>;
@@ -62,13 +82,15 @@ export interface Magasin {
   surcharges?: SurchargesReferentiel;
   demandes?: DemandeServeur[];
   paiements?: PaiementServeur[];
+  documents?: DocumentServeur[];
+  notifications?: NotificationServeur[];
   /** Version du format de données : un magasin d'une autre version est re-semé, jamais migré à
    *  l'aveugle — aucun vieux fichier ne peut produire des comportements fantômes après un déploiement. */
   versionMagasin?: number;
 }
 
 /** À incrémenter à chaque changement de forme des données du magasin. */
-export const VERSION_MAGASIN = 4;
+export const VERSION_MAGASIN = 5;
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";
@@ -105,6 +127,7 @@ export function lireMagasin(dossier: string = dossierDonnees()): Magasin {
   if (!magasin.comptes.some((c) => c.role !== "CUSTOMER")) semerPersonnel(magasin);
   if (!magasin.demandes) semerDemandesDemo(magasin);
   if (!magasin.paiements) semerPaiementsDemo(magasin);
+  if (!magasin.documents) semerDocumentsDemo(magasin);
   return magasin;
 }
 export function ecrireMagasin(magasin: Magasin, dossier: string = dossierDonnees()): void {
@@ -178,6 +201,90 @@ function semerPaiementsDemo(magasin: Magasin): void {
       echeance: "2026-10-08", demandeId: "KRD-2026-DEMOA1", statut: "EN_ATTENTE" as StatutPaiement,
     }] : []),
   ];
+}
+
+/* ——— Documents justificatifs : téléversés par le client, approuvés par l'administration ——— */
+function texteDemoBase64(lignes: string): string {
+  return `data:text/plain;base64,${Buffer.from(lignes, "utf8").toString("base64")}`;
+}
+/** Documents de démonstration du client vitrine : une pièce APPROUVÉE (avec sa notification)
+ *  et une pièce SOUMISE que l'administration peut approuver en direct. */
+function semerDocumentsDemo(magasin: Magasin): void {
+  magasin.documents = [
+    {
+      id: "DOC-2026-DEMOA1", email: "client@kredit.be", demandeId: "KRD-2026-DEMOA1", code: "ID",
+      nom: "carte-identite-demo.txt", donnees: texteDemoBase64("KREDIT — document de démonstration : carte d'identité (fictive)."),
+      taille: 2048, creeA: "2026-09-09T08:20:00.000Z",
+      statut: "APPROUVE", approuveA: "2026-09-11T09:30:00.000Z", approuvePar: "Admin KREDIT",
+    },
+    {
+      id: "DOC-2026-DEMOB2", email: "client@kredit.be", demandeId: "KRD-2026-DEMOA1", code: "INCOME_3M",
+      nom: "fiches-paie-demo.txt", donnees: texteDemoBase64("KREDIT — document de démonstration : fiches de paie (fictives)."),
+      taille: 8192, creeA: "2026-09-12T15:05:00.000Z", statut: "SOUMIS",
+    },
+  ];
+  magasin.notifications = [
+    {
+      id: "NOTIF-2026-DEMOA1", email: "client@kredit.be", cle: "documents.notify.approved",
+      vars: { doc: "credit:documents.ID" }, creeA: "2026-09-11T09:30:00.000Z",
+    },
+  ];
+}
+
+let compteurDocument = 0;
+function idDocument(maintenant: string, existants: string[]): string {
+  for (;;) {
+    compteurDocument += 1;
+    const id = `DOC-${maintenant.slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 46_656).toString(36).toUpperCase().padStart(3, "0")}${(compteurDocument % 36).toString(36).toUpperCase()}`;
+    if (!existants.includes(id)) return id;
+  }
+}
+export function documentsPour(magasin: Magasin, email: string): DocumentServeur[] {
+  const e = email.trim().toLowerCase();
+  return (magasin.documents ?? []).filter((d) => d.email === e);
+}
+/** Le client dépose une pièce pour une demande : un dépôt remplace le précédent TANT QU'IL
+ *  N'EST PAS approuvé (une pièce approuvée est figée). Le fichier est borné et validé. */
+export function deposerDocument(
+  magasin: Magasin,
+  d: { email: string; demandeId: string; code: string; nom: string; donnees: string; taille: number; maintenant: string },
+): { document?: DocumentServeur; erreur?: "code_invalide" | "fichier_invalide" | "trop_lourd" | "champs_manquants" } {
+  if (!(DOCUMENT_CODES as readonly string[]).includes(d.code)) return { erreur: "code_invalide" };
+  if (!d.demandeId.trim() || !d.nom.trim()) return { erreur: "champs_manquants" };
+  if (typeof d.donnees !== "string" || !d.donnees.startsWith("data:")) return { erreur: "fichier_invalide" };
+  if (d.taille <= 0 || d.taille > DOCUMENT_MAX_OCTETS || d.donnees.length > DOCUMENT_MAX_OCTETS * 2) return { erreur: "trop_lourd" };
+  const existant = (magasin.documents ?? []).find(
+    (x) => x.email === d.email.trim().toLowerCase() && x.demandeId === d.demandeId && x.code === d.code,
+  );
+  if (existant?.statut === "APPROUVE") return { erreur: "code_invalide" }; // pièce approuvée : figée
+  const document: DocumentServeur = {
+    id: existant?.id ?? idDocument(d.maintenant, (magasin.documents ?? []).map((x) => x.id)),
+    email: d.email.trim().toLowerCase(), demandeId: d.demandeId.trim(), code: d.code,
+    nom: d.nom.trim().slice(0, 120), donnees: d.donnees, taille: d.taille, creeA: d.maintenant, statut: "SOUMIS",
+  };
+  magasin.documents = existant
+    ? (magasin.documents ?? []).map((x) => (x.id === existant.id ? document : x))
+    : [...(magasin.documents ?? []), document];
+  return { document };
+}
+/** L'administration approuve une pièce soumise : le statut change ET le client est notifié
+ *  (il le constate dans son menu Documents et dans ses notifications). */
+export function approuverDocument(
+  magasin: Magasin, documentId: string, par: string, maintenant: string,
+): { document?: DocumentServeur; erreur?: "introuvable" | "etat_inchange" } {
+  const doc = (magasin.documents ?? []).find((x) => x.id === documentId);
+  if (!doc) return { erreur: "introuvable" };
+  if (doc.statut === "APPROUVE") return { erreur: "etat_inchange" };
+  doc.statut = "APPROUVE"; doc.approuveA = maintenant; doc.approuvePar = par;
+  magasin.notifications = [...(magasin.notifications ?? []), {
+    id: `NOTIF-${documentId}-${maintenant.replace(/[^0-9]/g, "").slice(-8)}`,
+    email: doc.email, cle: "documents.notify.approved", vars: { doc: `credit:documents.${doc.code}` }, creeA: maintenant,
+  }];
+  return { document: doc };
+}
+export function notificationsPour(magasin: Magasin, email: string): NotificationServeur[] {
+  const e = email.trim().toLowerCase();
+  return (magasin.notifications ?? []).filter((n) => n.email === e);
 }
 
 /* ——— Paiements & charges : chaque client ne voit que les siens ——— */

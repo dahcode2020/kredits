@@ -24,7 +24,8 @@ import {
   disponibleDe, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel, type Transaction,
 } from "@/lib/banque";
-import type { PaiementServeur, TypePaiement } from "@/lib/serveur";
+import type { DocumentServeur, PaiementServeur, TypePaiement } from "@/lib/serveur";
+import type { DOCUMENT_CODES } from "@/lib/credit-engine";
 
 const CLES_PIPELINE: Record<string, string> = {
   RECEPTION: "banque:pipeline.RECEPTION", CONFORMITE: "banque:pipeline.CONFORMITE",
@@ -36,6 +37,11 @@ const CLES_DEFAUT: Record<string, string> = {
 };
 const CLES_MARITAL = ["single", "married", "cohabiting", "divorced", "widow"];
 const CLES_LOGEMENT = ["owner", "tenant", "free"];
+const CLES_DOC: Record<(typeof DOCUMENT_CODES)[number], string> = {
+  ID: "credit:documents.ID", INCOME_3M: "credit:documents.INCOME_3M", PROOF_ADDRESS: "credit:documents.PROOF_ADDRESS",
+  PROPERTY_VALUATION: "credit:documents.PROPERTY_VALUATION", BANK_STATEMENTS_3M: "credit:documents.BANK_STATEMENTS_3M",
+  TAX_RETURN_2Y: "credit:documents.TAX_RETURN_2Y", BUSINESS_PLAN: "credit:documents.BUSINESS_PLAN",
+};
 
 interface ClientOps {
   id: string; email: string; nom: string; creeA: string;
@@ -56,6 +62,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [msgCredit, setMsgCredit] = useState<"ok" | "err" | null>(null);
   const [texteChat, setTexteChat] = useState("");
   const [paiements, setPaiements] = useState<PaiementServeur[]>([]);
+  const [documents, setDocuments] = useState<DocumentServeur[]>([]);
   const [chargeType, setChargeType] = useState<TypePaiement>("FRAIS");
   const [chargeMontant, setChargeMontant] = useState("");
   const [chargeLibelle, setChargeLibelle] = useState("");
@@ -73,6 +80,18 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     const r = await apiGet<{ paiements: PaiementServeur[] }>(`${API.paiements}?compte=${encodeURIComponent(idCompte)}`);
     setPaiements(r.ok ? r.corps.paiements : []);
   };
+  /** Documents téléversés par le client : l'admin les ouvre, puis les approuve. */
+  const chargerDocuments = async (idCompte: string) => {
+    const r = await apiGet<{ documents: DocumentServeur[] }>(`${API.documents}?compte=${encodeURIComponent(idCompte)}`);
+    setDocuments(r.ok ? r.corps.documents : []);
+  };
+  const approuverDoc = async (documentId: string) => {
+    const r = await apiPost<{ document?: DocumentServeur }>(API.documents, { action: "approuver", documentId });
+    if (r.ok && r.corps.document) {
+      const neuf = r.corps.document;
+      setDocuments((prev) => prev.map((x) => (x.id === neuf.id ? neuf : x)));
+    }
+  };
   const rafraichir = () => {
     apiGet<{ clients: ClientOps[]; referentiel: Referentiel; surcharges: SurchargesReferentiel }>(API.banqueComptes).then((r) => {
       if (!r.ok) { setApiKo(true); setPret(true); return; }
@@ -85,7 +104,9 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   };
 
   useEffect(() => { rafraichir(); }, []);
-  useEffect(() => { if (choisi) { void chargerMessages(choisi); void chargerPaiements(choisi); } }, [choisi]);
+  useEffect(() => {
+    if (choisi) { void chargerMessages(choisi); void chargerPaiements(choisi); void chargerDocuments(choisi); }
+  }, [choisi]);
 
   if (!pret) return null;
   if (apiKo || !ref) {
@@ -497,6 +518,51 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                     {msgCharge === "ok" && <p role="status" className="mt-2 text-[12px] font-bold text-emerald-600">{tr("banque:ops.payCreated")}</p>}
                     {msgCharge === "err" && <p role="alert" className="mt-2 text-[12px] font-bold text-red-600">{tr("banque:ops.payErr")}</p>}
                   </div>
+                </div>
+
+                {/* Documents du client : lire la pièce déposée, puis l'approuver — le client
+                    est notifié et la mention « approuvé » apparaît dans son menu Documents. */}
+                <div className="bg-white rounded-[24px] shadow-card border p-6">
+                  <h4 className="font-display font-extrabold text-ink flex items-center gap-2"><FolderOpen className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.docsTitle")}</h4>
+                  {documents.length === 0 ? (
+                    <p className="mt-3 text-[13px] text-slate-500">{tr("banque:ops.docsNone")}</p>
+                  ) : (
+                    <ul className="mt-4 space-y-3">
+                      {[...documents].sort((a, b) => b.creeA.localeCompare(a.creeA)).map((doc) => (
+                        <li key={doc.id} className="rounded-2xl border border-slate-100 p-4 flex flex-wrap items-center gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[13px] font-extrabold text-ink">
+                              {(CLES_DOC as Record<string, string>)[doc.code] ? tr((CLES_DOC as Record<string, string>)[doc.code]) : doc.code} · {doc.nom}
+                            </div>
+                            <div className="text-[11px] text-slate-400 tabular-nums">
+                              {doc.demandeId} · {formatDateTime(doc.creeA, locale)} · {Math.max(1, Math.round(doc.taille / 1024))} Ko
+                            </div>
+                            {doc.statut === "APPROUVE" && doc.approuveA && (
+                              <div className="text-[11px] text-emerald-600 font-bold">
+                                {tr("documents.approvedBy", { nom: doc.approuvePar ?? "", date: formatDateTime(doc.approuveA, locale) })}
+                              </div>
+                            )}
+                          </div>
+                          <span className={cn("ml-auto text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full",
+                            doc.statut === "APPROUVE" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                            {tr(doc.statut === "APPROUVE" ? "documents.status.APPROVED" : "documents.status.PENDING")}
+                          </span>
+                          <div className="w-full flex flex-wrap items-center gap-2">
+                            <a href={doc.donnees} download={doc.nom} className={buttonClasses("outline-light", "sm")}>
+                              {tr("banque:ops.docsOpen")}
+                            </a>
+                            {doc.statut === "SOUMIS" ? (
+                              <button type="button" onClick={() => void approuverDoc(doc.id)} className={buttonClasses("primary", "sm")}>
+                                <BadgeCheck className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("banque:ops.docsApprove")}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">{tr("banque:ops.docsApproved")}</span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </>
             )}

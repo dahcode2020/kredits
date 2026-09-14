@@ -1,1 +1,19 @@
-{ "title": "Documents", "type.ID": "Identity card", "type.INCOME_3M": "3-month payslips", "type.PROOF_ADDRESS": "Proof of address", "status.VERIFIED": "Verified", "status.PENDING": "Pending", "status.REJECTED": "Rejected", "status.MISSING": "Missing", "upload.cta": "Upload", "scan.ok": "Scan OK" }
+{
+  "title": "Documents",
+  "type.ID": "Identity card",
+  "type.INCOME_3M": "3-month payslips",
+  "type.PROOF_ADDRESS": "Proof of address",
+  "status.VERIFIED": "Verified",
+  "status.PENDING": "Pending",
+  "status.REJECTED": "Rejected",
+  "status.MISSING": "Missing",
+  "upload.cta": "Upload",
+  "scan.ok": "Scan OK",
+  "status.APPROVED": "Approved",
+  "approvedBy": "Approved by {nom} on {date}",
+  "submittedNote": "Document received — being reviewed by the administration.",
+  "tooBig": "File too large: 5 MB maximum.",
+  "notify.approved": "Your document “{doc}” has been approved by the administration.",
+  "notifyTitle": "Messages from the administration",
+  "notifyEmpty": "No notifications yet."
+}

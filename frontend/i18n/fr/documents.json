@@ -1,1 +1,19 @@
-{ "title": "Documents", "type.ID": "Carte didentité", "type.INCOME_3M": "Fiches paie 3 mois", "type.PROOF_ADDRESS": "Justificatif domicile", "status.VERIFIED": "Vérifié", "status.PENDING": "En attente", "status.REJECTED": "Rejeté", "status.MISSING": "Manquant", "upload.cta": "Téléverser", "scan.ok": "Scan OK" }
+{
+  "title": "Documents",
+  "type.ID": "Carte didentité",
+  "type.INCOME_3M": "Fiches paie 3 mois",
+  "type.PROOF_ADDRESS": "Justificatif domicile",
+  "status.VERIFIED": "Vérifié",
+  "status.PENDING": "En attente",
+  "status.REJECTED": "Rejeté",
+  "status.MISSING": "Manquant",
+  "upload.cta": "Téléverser",
+  "scan.ok": "Scan OK",
+  "status.APPROVED": "Approuvé",
+  "approvedBy": "Approuvé par {nom} le {date}",
+  "submittedNote": "Document reçu — en cours de vérification par l'administration.",
+  "tooBig": "Fichier trop lourd : 5 Mo maximum.",
+  "notify.approved": "Votre document « {doc} » a été approuvé par l'administration.",
+  "notifyTitle": "Messages de l'administration",
+  "notifyEmpty": "Aucune notification pour l'instant."
+}

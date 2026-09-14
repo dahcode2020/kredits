@@ -158,5 +158,10 @@
   "ops.payCreated": "Charge créée — elle apparaît « en attente de paiement » chez le client.",
   "ops.payErr": "Création impossible : montant invalide ou champ manquant.",
   "ops.payConfirm": "Marquer payée",
-  "ops.payDeclared": "Le client a déclaré le paiement — confirmez-le."
+  "ops.payDeclared": "Le client a déclaré le paiement — confirmez-le.",
+  "ops.docsTitle": "Documents du client",
+  "ops.docsNone": "Aucun document téléversé par ce client.",
+  "ops.docsApprove": "Approuver",
+  "ops.docsOpen": "Ouvrir",
+  "ops.docsApproved": "Approuvé — aucune action requise."
 }

@@ -20,7 +20,7 @@ import {
 import Reveal from "@/components/motion/Reveal";
 import CountUp from "@/components/motion/CountUp";
 import { buttonClasses } from "@/components/ui/Button";
-import { formatDate, formatCurrency0, formatPercent } from "@/lib/formatters";
+import { formatDate, formatCurrency0, formatDateTime, formatPercent } from "@/lib/formatters";
 import { formatEUR2 } from "@/lib/utils";
 import { Locale, t, tSiCle } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -34,10 +34,10 @@ import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { API, apiGet, apiPost } from "@/lib/api";
 import type { BanqueCompte } from "@/lib/banque";
 import { lireDemandes, type DemandeLocale } from "@/lib/application";
-import type { DemandeServeur, PaiementServeur } from "@/lib/serveur";
+import type { DemandeServeur, DocumentServeur, NotificationServeur, PaiementServeur } from "@/lib/serveur";
 import { simulateCredit, DOCUMENT_CODES, type ProductCode } from "@/lib/credit-engine";
 import {
-  DEFAUT_PREFS, cleDoc, enregistrerPrefs, lireDocsFournis, lirePrefs, marquerDocFourni,
+  DEFAUT_PREFS, enregistrerPrefs, lirePrefs,
   mensualiteDe, moyenne, pointsCourbe, prochaineEcheance, type PrefsNotif,
 } from "@/lib/compte";
 
@@ -95,11 +95,13 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const [demandesServeur, setDemandesServeur] = useState<DemandeServeur[]>([]);
   const [paiements, setPaiements] = useState<PaiementServeur[]>([]);
   const [msgPaiement, setMsgPaiement] = useState(false);
+  const [docsServeur, setDocsServeur] = useState<DocumentServeur[]>([]);
+  const [notifs, setNotifs] = useState<NotificationServeur[]>([]);
+  const [erreurDepot, setErreurDepot] = useState<string | null>(null);
   const [onglet, setOnglet] = useState<Onglet>("apercu");
   const [ouverte, setOuverte] = useState<string | null>(null);
   const [choisie, setChoisie] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<PrefsNotif>(DEFAUT_PREFS);
-  const [docsFournis, setDocsFournis] = useState<string[]>([]);
   const [mdpActuel, setMdpActuel] = useState("");
   const [mdpNeuf, setMdpNeuf] = useState("");
   const [msgMdp, setMsgMdp] = useState<"ok" | "err" | null>(null);
@@ -124,9 +126,14 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
         apiGet<{ paiements: PaiementServeur[] }>(API.paiements).then((r) => {
           if (r.ok) setPaiements(r.corps.paiements);
         });
+        apiGet<{ documents: DocumentServeur[] }>(API.documents).then((r) => {
+          if (r.ok) setDocsServeur(r.corps.documents);
+        });
+        apiGet<{ notifications: NotificationServeur[] }>(API.notifications).then((r) => {
+          if (r.ok) setNotifs(r.corps.notifications);
+        });
       }
       setPrefs(lirePrefs());
-      setDocsFournis(lireDocsFournis());
       if (s.role === "CUSTOMER") {
         // La banque vit côté serveur (slice 11) : photo, IBAN et vérification en viennent.
         apiGet<{ compte: BanqueCompte }>(API.banque).then((r) => {
@@ -214,6 +221,30 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     } else {
       setMsgProfil("err");
     }
+  };
+
+  /** Téléversement d'un justificatif : lu en dataURL, plafonné côté client ET côté serveur,
+   *  déposé dans la table des documents — l'administration le lit et l'approuve ensuite. */
+  const televerserDoc = (demandeId: string, code: string, fichier: File | null) => {
+    setErreurDepot(null);
+    if (!fichier) return;
+    if (fichier.size > 5 * 1024 * 1024) { setErreurDepot("documents.tooBig"); return; }
+    const lecteur = new FileReader();
+    lecteur.onload = () => {
+      void apiPost<{ document?: DocumentServeur }>(API.documents, {
+        action: "deposer", demandeId, code, nom: fichier.name,
+        donnees: String(lecteur.result), taille: fichier.size,
+      }).then((r) => {
+        if (r.ok && r.corps.document) {
+          const neuf = r.corps.document;
+          setDocsServeur((prev) => {
+            const sans = prev.filter((x) => !(x.demandeId === neuf.demandeId && x.code === neuf.code));
+            return [...sans, neuf];
+          });
+        } else setErreurDepot("documents.tooBig");
+      });
+    };
+    lecteur.readAsDataURL(fichier);
   };
 
   /** Le client règle une charge : le serveur la passe en « paiement déclaré » ; c'est la
@@ -561,25 +592,36 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                     <div className="text-[11px] font-bold tracking-widest uppercase text-slate-400 tabular-nums">{d.id}</div>
                     <ul className="mt-2 grid md:grid-cols-2 gap-3">
                       {d.etat && sims.get(d.id)!.requiredDocuments.map((doc) => {
-                        const cle = cleDoc(d.id, doc.code);
-                        const fourni = docsFournis.includes(cle);
+                        // Le serveur fait foi : une pièce APPROUVÉE porte la mention et sa date,
+                        // une pièce SOUMISE est en vérification, sinon le client la téléverse.
+                        const piece = docsServeur.find((x) => x.demandeId === d.id && x.code === doc.code);
                         return (
                           <li key={doc.code} className="rounded-2xl border border-slate-100 bg-surface p-4 flex items-center justify-between gap-3">
-                            <div>
+                            <div className="min-w-0">
                               <div className="text-[13px] font-bold text-ink">{tr(CLES_DOC[doc.code as (typeof DOCUMENT_CODES)[number]])}</div>
-                              <div className={cn("mt-0.5 text-[11px] font-bold tracking-widest uppercase", fourni ? "text-amber-600" : "text-red-500")}>
-                                {fourni ? tr("documents.status.PENDING") : tr("documents.status.MISSING")}
+                              <div className={cn("mt-0.5 text-[11px] font-bold tracking-widest uppercase",
+                                piece?.statut === "APPROUVE" ? "text-emerald-600" : piece ? "text-amber-600" : "text-red-500")}>
+                                {piece?.statut === "APPROUVE"
+                                  ? tr("documents.status.APPROVED")
+                                  : piece ? tr("documents.status.PENDING") : tr("documents.status.MISSING")}
                               </div>
-                              {fourni && <div className="text-[11px] text-slate-400">{tr("dashboard.docsMarked")}</div>}
+                              {piece?.statut === "APPROUVE" && piece.approuveA && (
+                                <div className="mt-0.5 text-[11px] text-slate-400">
+                                  {tr("documents.approvedBy", { nom: piece.approuvePar ?? "", date: formatDate(piece.approuveA, locale) })}
+                                </div>
+                              )}
+                              {piece?.statut === "SOUMIS" && (
+                                <div className="mt-0.5 text-[11px] text-slate-400">{piece.nom} · {tr("documents.submittedNote")}</div>
+                              )}
                             </div>
-                            {!fourni && (
-                              <button
-                                type="button"
-                                onClick={() => setDocsFournis(marquerDocFourni(cle))}
-                                className={buttonClasses("outline-light", "sm")}
-                              >
+                            {(!piece || piece.statut === "SOUMIS") && (
+                              <label className={buttonClasses("outline-light", "sm", "cursor-pointer shrink-0")}>
                                 {tr("documents.upload.cta")}
-                              </button>
+                                <input
+                                  type="file" className="sr-only"
+                                  onChange={(e) => televerserDoc(d.id, doc.code, e.target.files?.[0] ?? null)}
+                                />
+                              </label>
                             )}
                           </li>
                         );
@@ -588,12 +630,35 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                   </div>
                 ))
               )}
+              {erreurDepot && <p role="alert" className="mt-4 text-[13px] font-bold text-red-600">{tr(erreurDepot)}</p>}
             </Reveal>
           )}
 
           {onglet === "notifications" && (
             <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
-              <h2 className="font-extrabold text-ink text-lg">{tr("notifications.preferences.title")}</h2>
+              {/* Messages de l'administration (ex. document approuvé) — le serveur les pose. */}
+              <h2 className="font-extrabold text-ink text-lg flex items-center gap-2">
+                <BellRing className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("documents.notifyTitle")}
+              </h2>
+              {notifs.length === 0 ? (
+                <p className="mt-3 text-sm text-slate-500">{tr("documents.notifyEmpty")}</p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {[...notifs].sort((a, b) => b.creeA.localeCompare(a.creeA)).map((n) => (
+                    <li key={n.id} className="rounded-2xl border border-slate-100 bg-surface p-4 flex items-start gap-3">
+                      <BadgeCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+                      <div>
+                        <div className="text-[13px] font-bold text-ink">
+                          {tr(n.cle, { doc: n.vars?.doc ? tSiCle(locale, n.vars.doc) : "" })}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-slate-400">{formatDateTime(n.creeA, locale)}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h2 className="mt-6 font-extrabold text-ink text-lg">{tr("notifications.preferences.title")}</h2>
               <ul className="mt-4 space-y-3">
                 {([
                   ["email", Mail, "notifications.channel.email"],

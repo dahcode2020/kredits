@@ -38,6 +38,8 @@ export const API = {
   simuler: "/api/simuler",
   demandes: "/api/demandes",
   paiements: "/api/paiements",
+  documents: "/api/documents",
+  notifications: "/api/notifications",
   banque: "/api/banque",
   banqueComptes: "/api/banque/comptes",
   banqueOperations: "/api/banque/operations",

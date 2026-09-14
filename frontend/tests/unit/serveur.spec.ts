@@ -14,12 +14,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, reglesDeEntree } from "@/lib/credit-engine";
 import {
-  DUREE_SESSION_JOURS, changerMotDePasse, confirmerPaiement, creerCompte, creerPaiement,
-  deposerDemandeServeur, demandesPour, ecrireMagasin, enregistrerVirementEntrant, grillePourApi,
-  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, nouveauSel, ouvrirSessionServeur,
-  paiementsPour, reglerPaiement, VERSION_MAGASIN, optionsCookie, revoquerSession,
-  simulerServeur, sondeGrillePourApi, trouverCompte, verifierMotDePasse, verifierSession,
-  type DemandeServeur,
+  DOCUMENT_MAX_OCTETS, DUREE_SESSION_JOURS, approuverDocument, changerMotDePasse,
+  confirmerPaiement, creerCompte, creerPaiement, deposerDemandeServeur, deposerDocument,
+  demandesPour, documentsPour, ecrireMagasin, enregistrerVirementEntrant, grillePourApi,
+  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, notificationsPour, nouveauSel,
+  ouvrirSessionServeur, paiementsPour, reglerPaiement, VERSION_MAGASIN, optionsCookie,
+  revoquerSession, simulerServeur, sondeGrillePourApi, trouverCompte, verifierMotDePasse,
+  verifierSession, type DemandeServeur,
 } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO } from "@/lib/serveur-demo";
 
@@ -261,6 +262,63 @@ describe("paiements & charges : semis, cycle de règlement, isolation par client
     expect(p.type).toBe("VIREMENT_ENTRANT");
     expect(p.statut).toBe("PAYE");
     expect(paiementsPour(magasin, "client@kredit.be").some((x) => x.id === p.id)).toBe(true);
+  });
+});
+
+describe("documents justificatifs : dépôt client, approbation admin, notification", () => {
+  it("le client démo reçoit deux pièces semées : une approuvée (avec notification) et une soumise", () => {
+    const magasin = lireMagasin(dossier);
+    const docs = documentsPour(magasin, "client@kredit.be");
+    expect(docs).toHaveLength(2);
+    const approuve = docs.find((d) => d.statut === "APPROUVE")!;
+    expect(approuve.code).toBe("ID");
+    expect(approuve.approuvePar).toBeTruthy();
+    const soumis = docs.find((d) => d.statut === "SOUMIS")!;
+    expect(soumis.code).toBe("INCOME_3M");
+    const notifs = notificationsPour(magasin, "client@kredit.be");
+    expect(notifs).toHaveLength(1);
+    expect(notifs[0].cle).toBe("documents.notify.approved");
+    expect(notifs[0].vars?.doc).toBe("credit:documents.ID");
+  });
+
+  it("chaque client ne voit que SES documents", () => {
+    const magasin = lireMagasin(dossier);
+    expect(documentsPour(magasin, "autre@exemple.be")).toHaveLength(0);
+  });
+
+  it("le dépôt crée une pièce SOUMISE ; un re-dépôt remplace la soumise ; l'approuvée est figée", () => {
+    const magasin = lireMagasin(dossier);
+    const base = { email: "client@kredit.be", demandeId: "KRD-2026-DEMOA1", nom: "piece.txt", donnees: "data:text/plain;base64,dGVzdA==", taille: 1234, maintenant: "2026-09-14T10:00:00.000Z" };
+    const r1 = deposerDocument(magasin, { ...base, code: "PROOF_ADDRESS" });
+    if (!r1.document) throw new Error("le dépôt devrait réussir");
+    expect(r1.document.statut).toBe("SOUMIS");
+    const r2 = deposerDocument(magasin, { ...base, code: "PROOF_ADDRESS", nom: "piece-v2.txt", maintenant: "2026-09-14T11:00:00.000Z" });
+    expect(r2.document?.id).toBe(r1.document.id); // remplacée, pas dupliquée
+    expect(r2.document?.nom).toBe("piece-v2.txt");
+    expect(documentsPour(magasin, "client@kredit.be").filter((d) => d.code === "PROOF_ADDRESS")).toHaveLength(1);
+    // La pièce ID est APPROUVÉE : impossible de la remplacer.
+    expect(deposerDocument(magasin, { ...base, code: "ID" }).erreur).toBe("code_invalide");
+    // Garde-fous : code hors référentiel, fichier invalide, fichier trop lourd.
+    expect(deposerDocument(magasin, { ...base, code: "HORS_REFERENTIEL" }).erreur).toBe("code_invalide");
+    expect(deposerDocument(magasin, { ...base, code: "ID", donnees: "pas-une-dataurl" }).erreur).toBe("fichier_invalide");
+    expect(deposerDocument(magasin, { ...base, code: "PROOF_ADDRESS", taille: DOCUMENT_MAX_OCTETS + 1 }).erreur).toBe("trop_lourd");
+  });
+
+  it("l'admin approuve : statut APPROUVE + notification au client ; rejeu refusé", () => {
+    const magasin = lireMagasin(dossier);
+    const soumis = documentsPour(magasin, "client@kredit.be").find((d) => d.statut === "SOUMIS")!;
+    const avant = notificationsPour(magasin, "client@kredit.be").length;
+    const r = approuverDocument(magasin, soumis.id, "Admin KREDIT", "2026-09-15T09:00:00.000Z");
+    expect(r.document?.statut).toBe("APPROUVE");
+    expect(r.document?.approuvePar).toBe("Admin KREDIT");
+    expect(r.document?.approuveA).toBe("2026-09-15T09:00:00.000Z");
+    const notifs = notificationsPour(magasin, "client@kredit.be");
+    expect(notifs).toHaveLength(avant + 1); // le client est notifié
+    expect(notifs[notifs.length - 1].vars?.doc).toBe(`credit:documents.${soumis.code}`);
+    expect(approuverDocument(magasin, soumis.id, "Admin KREDIT", "2026-09-15T10:00:00.000Z").erreur).toBe("etat_inchange");
+    expect(approuverDocument(magasin, "DOC-INEXISTANT", "Admin KREDIT", "2026-09-15T10:00:00.000Z").erreur).toBe("introuvable");
+    ecrireMagasin(magasin, dossier);
+    expect(documentsPour(lireMagasin(dossier), "client@kredit.be").find((d) => d.id === soumis.id)?.statut).toBe("APPROUVE");
   });
 });
 

@@ -158,5 +158,10 @@
   "ops.payCreated": "Gebühr angelegt — sie erscheint beim Kunden als „Zahlung ausstehend“.",
   "ops.payErr": "Anlegen nicht möglich: ungültiger Betrag oder fehlendes Feld.",
   "ops.payConfirm": "Als bezahlt markieren",
-  "ops.payDeclared": "Der Kunde hat die Zahlung gemeldet — bestätigen Sie sie."
+  "ops.payDeclared": "Der Kunde hat die Zahlung gemeldet — bestätigen Sie sie.",
+  "ops.docsTitle": "Dokumente des Kunden",
+  "ops.docsNone": "Keine von diesem Kunden hochgeladenen Dokumente.",
+  "ops.docsApprove": "Genehmigen",
+  "ops.docsOpen": "Öffnen",
+  "ops.docsApproved": "Genehmigt — keine Aktion nötig."
 }

@@ -158,5 +158,10 @@
   "ops.payCreated": "Kosten aangemaakt — de klant ziet ze als “in afwachting van betaling”.",
   "ops.payErr": "Aanmaken mislukt: ongeldig bedrag of ontbrekend veld.",
   "ops.payConfirm": "Als betaald markeren",
-  "ops.payDeclared": "De klant heeft de betaling gemeld — bevestig ze."
+  "ops.payDeclared": "De klant heeft de betaling gemeld — bevestig ze.",
+  "ops.docsTitle": "Documenten van de klant",
+  "ops.docsNone": "Geen documenten geüpload door deze klant.",
+  "ops.docsApprove": "Goedkeuren",
+  "ops.docsOpen": "Openen",
+  "ops.docsApproved": "Goedgekeurd — geen actie nodig."
 }
