@@ -45,9 +45,11 @@ const CLES_DEFAUT: Record<string, string> = {
   ORIGINE_FONDS: "banque:defaut.ORIGINE_FONDS", CAPACITE_INSUFFISANTE: "banque:defaut.CAPACITE_INSUFFISANTE",
 };
 
-/** Barre de progression par niveaux : segments du référentiel, état bloqué en rouge. */
-function BarrePipeline({ v, ref, tr }: { v: Virement; ref: Referentiel; tr: (k: string, vars?: Record<string, string | number>) => string }) {
-  const pct = progressionDe(v, ref);
+/** Barre de progression par niveaux : segments du référentiel, état bloqué en rouge.
+ *  NB : le prop s'appelle `referentiel` — `ref` est réservé par React (jamais transmis
+ *  à un composant fonction sans forwardRef) : l'écran plantait sur `ref.pipeline`. */
+export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel: Referentiel; tr: (k: string, vars?: Record<string, string | number>) => string }) {
+  const pct = progressionDe(v, referentiel);
   const bloque = v.statut === "BLOQUE";
   const fini = v.statut === "EXECUTE";
   let precedent = 0;
@@ -60,7 +62,7 @@ function BarrePipeline({ v, ref, tr }: { v: Virement; ref: Referentiel; tr: (k: 
         </span>
       </div>
       <div className="mt-2 flex h-2.5 gap-1" role="img" aria-label={tr("banque:vir.progress", { pct })}>
-        {ref.pipeline.map((niveau) => {
+        {referentiel.pipeline.map((niveau) => {
           const largeur = niveau.pct - precedent;
           precedent = niveau.pct;
           const fait = pct >= niveau.pct;
@@ -75,7 +77,7 @@ function BarrePipeline({ v, ref, tr }: { v: Virement; ref: Referentiel; tr: (k: 
         })}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-        {ref.pipeline.map((niveau) => (
+        {referentiel.pipeline.map((niveau) => (
           <span key={niveau.code} className={cn("text-[10px] font-bold uppercase tracking-wider", pct >= niveau.pct ? (bloque ? "text-red-500" : "text-primary") : "text-slate-400")}>
             {tr(CLES_PIPELINE[niveau.code] ?? "")} · {niveau.pct} %
           </span>
@@ -353,7 +355,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                     </div>
                     <span className={cn("ml-auto text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", COULEUR_STATUT[v.statut])}>{tr(CLES_STATUT[v.statut])}</span>
                   </div>
-                  <div className="mt-4"><BarrePipeline v={v} ref={ref} tr={tr} /></div>
+                  <div className="mt-4"><BarrePipeline v={v} referentiel={ref} tr={tr} /></div>
                   {blocageActif && (
                     <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 p-4 text-[13px] leading-6 text-red-700">
                       <div className="font-extrabold flex items-center gap-2"><ShieldAlert className="w-4 h-4" aria-hidden="true" /> {tr("banque:vir.blockedFor", { defaut: tr(CLES_DEFAUT[blocageActif.code] ?? "") })}</div>
