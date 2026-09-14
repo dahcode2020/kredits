@@ -423,7 +423,8 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
 
 ```bash
 npm run dev                # serveur de dev (0.0.0.0:3000, compile dans .next-dev)
-npm run build && npm run start
+npm run build && npm run start   # APERÇU : servi en PRODUCTION (chunks hashés par contenu :
+                                 # aucun cache périmé possible, pas d'écran d'erreur de dev)
 npm run check              # typecheck + hydration + copy + routes + règles (grille partagée)
 npm run check:assets       # serveur lancé: chaque ressource du HTML (accueil + simulateur + demande × 4 locales) est servie
 npm run check:state        # l'état du poste (pull arrivé, .next cohérent, chunks = disque)
