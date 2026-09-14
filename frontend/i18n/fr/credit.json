@@ -103,5 +103,6 @@
   "application.errName": "Indiquez votre nom.",
   "application.errEmail": "Adresse email invalide.",
   "application.errConsent": "Le consentement RGPD est requis.",
-  "application.afterBody": "La demande est conservée sur cet appareil. Le portail client (connexion, suivi) arrive à la prochaine étape — rien n'est envoyé tant qu'il n'existe pas."
+  "application.afterBody": "La demande est conservée sur cet appareil. Le portail client (connexion, suivi) arrive à la prochaine étape — rien n'est envoyé tant qu'il n'existe pas.",
+  "application.errSameProduct": "Vous avez déjà une demande de crédit en cours dans cette catégorie. Une nouvelle demande dans la même catégorie sera possible après son dénouement."
 }

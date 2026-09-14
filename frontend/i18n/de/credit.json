@@ -103,5 +103,6 @@
   "application.errName": "Bitte geben Sie Ihren Namen an.",
   "application.errEmail": "Ungültige E-Mail-Adresse.",
   "application.errConsent": "Die DSGVO-Einwilligung ist erforderlich.",
-  "application.afterBody": "Der Antrag bleibt auf diesem Gerät. Das Kundenportal (Login, Verlauf) kommt mit dem nächsten Schritt — nichts wird versendet, solange es nicht existiert."
+  "application.afterBody": "Der Antrag bleibt auf diesem Gerät. Das Kundenportal (Login, Verlauf) kommt mit dem nächsten Schritt — nichts wird versendet, solange es nicht existiert.",
+  "application.errSameProduct": "Sie haben bereits einen laufenden Kreditantrag in dieser Kategorie. Ein neuer Antrag in derselben Kategorie ist nach dessen Abwicklung möglich."
 }

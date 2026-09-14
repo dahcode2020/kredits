@@ -16,7 +16,7 @@ import { formatCurrency0, formatPercent } from "@/lib/formatters";
 import { formatEUR2 } from "@/lib/utils";
 import { Locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { ajouterDemande, nouvelleReference, queryDepuisEtat, type DemandeLocale, type EtatSimulation } from "@/lib/application";
+import { ajouterDemande, lireDemandes, nouvelleReference, queryDepuisEtat, type DemandeLocale, type EtatSimulation } from "@/lib/application";
 import {
   DOCUMENT_CODES, simulateCredit,
   type EmploymentStatus, type IncomeType, type LoanPurpose, type ProductCode,
@@ -71,7 +71,7 @@ export default function ApplyPage({ locale, initial }: { locale: Locale; initial
   const [email, setEmail] = useState("");
   const [telephone, setTelephone] = useState("");
   const [consent, setConsent] = useState(false);
-  const [erreurs, setErreurs] = useState<{ nom?: string; email?: string; consent?: string }>({});
+  const [erreurs, setErreurs] = useState<{ nom?: string; email?: string; consent?: string; produit?: string }>({});
   const [confirmee, setConfirmee] = useState<DemandeLocale | null>(null);
 
   const simulation = useMemo(
@@ -91,6 +91,9 @@ export default function ApplyPage({ locale, initial }: { locale: Locale; initial
     if (nom.trim().length < 2) e.nom = "credit:application.errName";
     if (!EMAIL_VALIDE.test(email.trim())) e.email = "credit:application.errEmail";
     if (!consent) e.consent = "credit:application.errConsent";
+    // Règle métier : un client ayant un prêt EN COURS dans une catégorie ne peut pas
+    // déposer une seconde demande dans la même catégorie.
+    if (lireDemandes().some((d) => d.etat.product === etat.product)) e.produit = "credit:application.errSameProduct";
     setErreurs(e);
     if (Object.keys(e).length) return;
     const demande: DemandeLocale = {
@@ -215,6 +218,7 @@ export default function ApplyPage({ locale, initial }: { locale: Locale; initial
                 <span>{tr("contact.consent")}</span>
               </label>
               {erreurs.consent && <p role="alert" className="mt-1 text-[12px] font-semibold text-red-600">{tr(erreurs.consent)}</p>}
+              {erreurs.produit && <p role="alert" className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3 text-[13px] font-bold text-amber-800">{tr(erreurs.produit)}</p>}
               <button type="button" onClick={deposer} className={buttonClasses("primary", "lg", "w-full mt-6")}>
                 {tr("credit:application.submit")}
               </button>

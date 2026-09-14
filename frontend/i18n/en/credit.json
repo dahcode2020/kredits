@@ -103,5 +103,6 @@
   "application.errName": "Please enter your name.",
   "application.errEmail": "Invalid email address.",
   "application.errConsent": "GDPR consent is required.",
-  "application.afterBody": "The application is kept on this device. The client portal (login, tracking) arrives with the next step — nothing is sent until it exists."
+  "application.afterBody": "The application is kept on this device. The client portal (login, tracking) arrives with the next step — nothing is sent until it exists.",
+  "application.errSameProduct": "You already have a credit application in progress in this category. A new application in the same category will be possible once it is settled."
 }

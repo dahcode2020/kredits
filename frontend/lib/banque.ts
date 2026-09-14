@@ -133,10 +133,17 @@ export function progressionDe(v: Virement, ref: Referentiel): number {
 }
 
 /* ——— Machine à états (pure : renvoie le nouvel état, n'écrit rien) ——— */
-let compteurId = 0;
-export function idVirement(maintenant: string): string {
-  compteurId = (compteurId + 1) % 1000;
-  return `VIR-${maintenant.slice(0, 10).replace(/-/g, "")}-${String(compteurId).padStart(3, "0")}`;
+/** Identifiant de virement : date + 4 caractères alphanumériques TIRÉS AU SORT, garantis uniques
+ *  dans le compte (l'ancien compteur module redémarrait à 0 à chaque processus : deux virements
+ *  pouvaient partager le même id — annuler l'un annulait alors l'autre). */
+const ALPHABET_ID = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+export function idVirement(maintenant: string, existants: string[] = []): string {
+  for (;;) {
+    let s = "";
+    for (let i = 0; i < 4; i++) s += ALPHABET_ID[Math.floor(Math.random() * ALPHABET_ID.length)];
+    const id = `VIR-${maintenant.slice(0, 10).replace(/-/g, "")}-${s}`;
+    if (!existants.includes(id)) return id;
+  }
 }
 
 export function initierVirement(
@@ -147,7 +154,7 @@ export function initierVirement(
   if (!ibanBEValide(beneficiaireIban)) return { compte, erreur: "iban_invalide" };
   if (!(montant > 0) || montant > disponibleDe(compte)) return { compte, erreur: "montant_invalide" };
   const v: Virement = {
-    id: idVirement(maintenant), beneficiaireNom, beneficiaireIban: beneficiaireIban.replace(/\s+/g, "").toUpperCase(),
+    id: idVirement(maintenant, compte.virements.map((x) => x.id)), beneficiaireNom, beneficiaireIban: beneficiaireIban.replace(/\s+/g, "").toUpperCase(),
     beneficiaireAdresse: coordonnees?.adresse?.trim() || undefined,
     beneficiaireBic: coordonnees?.bic?.replace(/\s+/g, "").toUpperCase() || undefined,
     montant, motif, creeA: maintenant, statut: "EN_COURS", niveau: 0, blocages: [],

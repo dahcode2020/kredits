@@ -103,5 +103,6 @@
   "application.errName": "Geef uw naam op.",
   "application.errEmail": "Ongeldig e-mailadres.",
   "application.errConsent": "AVG-toestemming is vereist.",
-  "application.afterBody": "De aanvraag blijft op dit apparaat bewaard. Het klantenportaal (login, opvolging) komt in de volgende stap — er wordt niets verzonden zolang het niet bestaat."
+  "application.afterBody": "De aanvraag blijft op dit apparaat bewaard. Het klantenportaal (login, opvolging) komt in de volgende stap — er wordt niets verzonden zolang het niet bestaat.",
+  "application.errSameProduct": "U heeft al een lopende kredietaanvraag in deze categorie. Een nieuwe aanvraag in dezelfde categorie is mogelijk nadat deze is afgewikkeld."
 }

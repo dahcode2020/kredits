@@ -244,13 +244,14 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
         <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-primary/20 blur-3xl" aria-hidden="true" />
         <div className="flex flex-wrap items-start gap-6 justify-between relative">
           <div>
-            {/* Solde affiché = total des fonds − virements en cours ou bloqués (définition métier). */}
+            {/* Solde affiché = montant RÉEL du compte (total des fonds) ; le disponible
+                (fonds − virements en cours ou bloqués) et le réservé restent détaillés dessous. */}
             <div className="text-[11px] font-bold tracking-widest uppercase text-white/50">{tr("banque:balance")}</div>
             <div className="mt-1 font-display font-extrabold text-[40px] leading-none tabular-nums">
-              <CountUp a={0} final={formatEUR2(disponible, locale)} format={(n) => formatEUR2(n, locale)} declencheur="montage" />
+              <CountUp a={0} final={formatEUR2(solde, locale)} format={(n) => formatEUR2(n, locale)} declencheur="montage" />
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[12px] text-white/70">
-              <span>{tr("banque:funds")} : <strong className="text-white tabular-nums">{formatEUR2(solde, locale)}</strong></span>
+              <span>{tr("banque:available")} : <strong className="text-white tabular-nums">{formatEUR2(disponible, locale)}</strong></span>
               <span>{tr("banque:reserved")} : <strong className="text-white tabular-nums">{formatEUR2(reserve, locale)}</strong> <span className="text-white/40">({tr("banque:reservedHint")})</span></span>
             </div>
           </div>

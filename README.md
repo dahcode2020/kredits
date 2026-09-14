@@ -349,7 +349,18 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   motif du paiement défini par l'administration — le compte du client raconte tout le parcours.
 - Verrous : création de champ (niveau inséré dans la barre, arrêt au pct créé, motif en
   transaction, pct manquant refusé), codes 12 caractères, dénouement en transactions séparées —
-  152 verrous au total.
+  154 verrous au total.
+
+### Correctifs (retours utilisateur) — annulation ciblée, solde réel, un prêt en cours par catégorie
+
+- **Annuler un virement n'annule que LUI** : les identifiants `VIR-…` étaient issus d'un compteur
+  qui redémarrait à 0 à chaque processus — après un redémarrage, deux virements pouvaient porter le
+  même id, et l'annulation (par id) touchait les deux. Désormais : date + 4 caractères tirés au
+  sort, **unicité garantie dans le compte** (verrou : annulation d'un seul, les autres intacts).
+- **Le grand solde est le montant RÉEL du compte** (total des fonds) ; le *disponible*
+  (fonds − virements en cours ou bloqués) et le *réservé* restent affichés en détail dessous.
+- **Un client avec un prêt en cours ne peut pas redemander dans la même catégorie** : le dépôt est
+  refusé avec explication (verrou jsdom) ; les autres catégories restent ouvertes.
 
 ### Ce que les pages ne montrent volontairement PAS
 
@@ -405,7 +416,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (152 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (154 verrous)
 ```
 
 ## Commandes
