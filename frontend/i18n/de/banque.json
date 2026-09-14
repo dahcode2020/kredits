@@ -124,5 +124,13 @@
   "send.previewNote": "Prüfen Sie den Auftrag vor der Bestätigung: danach geht er in die Prüfungsschleife.",
   "send.previewConfirm": "Auftrag bestätigen",
   "send.previewCancel": "Bearbeiten",
-  "funds": "Gesamtes Guthaben"
+  "funds": "Gesamtes Guthaben",
+  "profile.personal": "Persönliche Angaben",
+  "profile.contact": "Adresse & Telefon",
+  "profile.loans": "Angaben zu Krediten",
+  "profile.save": "Speichern",
+  "profile.saved": "Profil aktualisiert.",
+  "profile.saveErr": "Speichern nicht möglich — bitte erneut versuchen.",
+  "profile.email": "E-Mail-Adresse",
+  "profile.seeApplications": "Meine Anträge ansehen"
 }

@@ -124,5 +124,13 @@
   "send.previewNote": "Check the order before confirming: it will then enter the validation pipeline.",
   "send.previewConfirm": "Confirm order",
   "send.previewCancel": "Edit",
-  "funds": "Total funds"
+  "funds": "Total funds",
+  "profile.personal": "Personal information",
+  "profile.contact": "Address & phone",
+  "profile.loans": "Loan information",
+  "profile.save": "Save",
+  "profile.saved": "Profile updated.",
+  "profile.saveErr": "Unable to save — please try again.",
+  "profile.email": "Email address",
+  "profile.seeApplications": "See my applications"
 }

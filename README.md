@@ -6,7 +6,7 @@ Le matériel de départ (brief, dictionnaires, gardes, primitives de mouvement, 
 commit**, et n'en reprend pas les défauts (119 pages simulées, tokens fabriqués, statistiques
 inventées, liens morts).
 
-## Slices 1 à 13 — ce qui existe aujourd'hui
+## Slices 1 à 14 — ce qui existe aujourd'hui
 
 **Une page d'accueil irréprochable, un simulateur complet, une demande pré-remplie, un portail
 d'authentification, un tableau de bord client façon néo-banque, une PWA installable avec
@@ -19,7 +19,7 @@ autorité — en 4 langues, animés, sans une seule donnée fausse à l'écran.*
 - `/fr`, `/en`, `/nl`, `/de` : une même page rendue par le serveur dans la langue du segment ;
   la racine `/` détecte (cookie → Accept-Language → défaut `fr`) et redirige (`middleware.ts`).
 - Tout le texte passe par les dictionnaires `frontend/i18n/{fr,en,nl,de}/*.json` : 12 namespaces,
-  **955 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
+  **973 clés alignées au caractère près dans les 4 langues** (le brief annonçait « 706 » ; le
   matériel fourni en alignait 715, les slices 2-12 en ajoutent dans les 4 langues à la fois —
   la parité est verrouillée par
   `tests/unit/i18n-parity.spec.ts`, pas par un chiffre rond).
@@ -290,6 +290,26 @@ Corrections et compléments demandés sur captures, appliqués UI + serveur + ve
 - Verrous : `tests/unit/serveur-banque.spec.ts` (ordre incomplet refusé, BIC/adresse conservés,
   formes BIC valides/invalides) — 146 tests au total.
 
+### Slice 14 — un vrai menu Profil : adresse & téléphone éditables côté serveur, sécurité serveur
+
+Le menu Profil était surtout de la lecture. La slice 14 en fait un vrai menu profil : on peut y
+**modifier son adresse et son téléphone, enregistré côté serveur** ; le changement de mot de passe
+devient entièrement serveur.
+
+- **`POST /api/auth/profil`** : session requise, et **liste blanche** — seuls les champs éditables
+  par le client lui-même passent (rue/numéro/boîte, code postal, ville, pays, téléphone, situation
+  professionnelle, revenus, IBAN, crédits existants) ; les champs d'identité et les énumérations
+  admin (état civil, logement) sont **ignorés**, valeurs bornées à 200 caractères. Verrou :
+  `tests/unit/serveur.spec.ts` (le pirate ne change ni prénom ni nom ni naissance).
+- **Contact éditable** : bloc « Adresse & téléphone » (rue, numéro, boîte, code postal, ville,
+  pays, mobile) avec « Enregistrer » → API, confirmation visuelle, rechargement du miroir local.
+- **Profil complet** : identité (photo + nom, email, KYC, IBAN), informations personnelles en
+  lecture (naissance, nationalité, état civil, situation pro, logement, revenus), informations
+  liées au prêt (IBAN, prêts existants) avec lien vers les demandes.
+- **Changement de mot de passe serveur** : la carte Sécurité envoie `{actuel, nouveau}` à
+  `/api/auth/mdp` (contrôle scrypt du mot actuel) — plus aucune empreinte calculée côté client.
+- 4 clés `banque:profile.*` ajoutées ×4 pour la parité (973 clés au total).
+
 ### Ce que les pages ne montrent volontairement PAS
 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
@@ -344,7 +364,7 @@ Corrections et compléments demandés sur captures, appliqués UI + serveur + ve
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (146 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (148 verrous)
 ```
 
 ## Commandes
@@ -389,6 +409,8 @@ npm run fresh              # remise à zéro du dev (processus + .next-dev), san
 13. **Ordre de virement complet** — fait (adresse bénéficiaire + BIC/SWIFT exigés et validés côté
     serveur, aperçu de l'ordre avant initiation, solde affiché = fonds − encours/bloqués, pastille
     KYC client pilotée par la validation admin, miroir local périmé renvoyé vers l'auth).
+14. **Vrai menu Profil** — fait (adresse & téléphone éditables persistés serveur via liste blanche,
+    identité / situation / logement en lecture, sécurité : changement de mot de passe serveur).
     Prochaine passe : e2e Playwright sur /api, durcissement (rate-limit, rotation de sessions).
 4. Portail (connexion + inscription + second facteur) — les tests `auth-flow` du matériel arrivent là.
 5. Tableau de bord client. Puis PWA (le service worker v8 et ses contrôles `check:state`

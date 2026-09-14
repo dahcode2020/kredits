@@ -124,5 +124,13 @@
   "send.previewNote": "Vérifiez l'ordre avant confirmation : il partira ensuite dans le circuit de validation.",
   "send.previewConfirm": "Confirmer l'ordre",
   "send.previewCancel": "Modifier",
-  "funds": "Total des fonds"
+  "funds": "Total des fonds",
+  "profile.personal": "Informations personnelles",
+  "profile.contact": "Adresse & téléphone",
+  "profile.loans": "Informations liées au prêt",
+  "profile.save": "Enregistrer",
+  "profile.saved": "Profil mis à jour.",
+  "profile.saveErr": "Enregistrement impossible — réessayez.",
+  "profile.email": "Adresse e-mail",
+  "profile.seeApplications": "Voir mes demandes"
 }

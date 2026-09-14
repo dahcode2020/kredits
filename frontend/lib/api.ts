@@ -32,6 +32,7 @@ export const API = {
   deconnexion: "/api/auth/deconnexion",
   session: "/api/auth/session",
   mdp: "/api/auth/mdp",
+  profil: "/api/auth/profil",
   grille: "/api/grille",
   grilleSonde: (date: string) => `/api/grille/sonde?date=${date}`,
   simuler: "/api/simuler",

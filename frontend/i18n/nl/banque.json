@@ -124,5 +124,13 @@
   "send.previewNote": "Controleer de opdracht voor bevestiging: daarna gaat hij het validatiecircuit in.",
   "send.previewConfirm": "Opdracht bevestigen",
   "send.previewCancel": "Wijzigen",
-  "funds": "Totaal geld"
+  "funds": "Totaal geld",
+  "profile.personal": "Persoonlijke gegevens",
+  "profile.contact": "Adres & telefoon",
+  "profile.loans": "Leninggegevens",
+  "profile.save": "Opslaan",
+  "profile.saved": "Profiel bijgewerkt.",
+  "profile.saveErr": "Opslaan mislukt — probeer opnieuw.",
+  "profile.email": "E-mailadres",
+  "profile.seeApplications": "Mijn aanvragen bekijken"
 }

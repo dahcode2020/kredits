@@ -25,7 +25,7 @@ import { formatEUR2 } from "@/lib/utils";
 import { Locale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
-  comptePour, fermerSession, hacher, lireSession, mettreAJourCompte,
+  comptePour, fermerSession, lireSession,
   type Role, type Session,
 } from "@/lib/auth";
 import BankPortal from "@/components/auth/BankPortal";
@@ -41,6 +41,9 @@ import {
 } from "@/lib/compte";
 
 type Onglet = "apercu" | "demandes" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil" | "banque" | "operations" | "grille";
+
+const CLES_MARITAL_PROFIL = ["single", "married", "cohabiting", "divorced", "widow"];
+const CLES_LOGEMENT_PROFIL = ["owner", "tenant", "free"];
 
 const CLES_ROLE: Record<Role, string> = {
   CUSTOMER: "auth.role.customer", ADMIN: "auth.role.admin", SUPER_ADMIN: "auth.role.super",
@@ -99,6 +102,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const [banqueProfil, setBanqueProfil] = useState<BanqueCompte | null>(null);
   const [profilServeur, setProfilServeur] = useState<Record<string, string> | null>(null);
   const [creeAServeur, setCreeAServeur] = useState<string | null>(null);
+  const [formContact, setFormContact] = useState<Record<string, string> | null>(null);
+  const [msgProfil, setMsgProfil] = useState<"ok" | "err" | null>(null);
   const [erreurPhoto, setErreurPhoto] = useState(false);
 
   useEffect(() => {
@@ -120,8 +125,10 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
       apiGet<{ session: { profil?: Record<string, string> | null; creeA?: string } | null }>(API.session).then((r) => {
         if (r.ok && !r.corps.session) { fermerSession(); setSession(null); return; }
         if (r.ok && r.corps.session) {
-          setProfilServeur(r.corps.session.profil ?? null);
+          const p = r.corps.session.profil ?? null;
+          setProfilServeur(p);
           setCreeAServeur(r.corps.session.creeA ?? null);
+          if (p) setFormContact((prev) => prev ?? { ...p });
         }
       });
     }
@@ -163,12 +170,38 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const demandeCourante = demandes.find((d) => d.id === (choisie ?? demandes[0]?.id)) ?? null;
 
   const changerMdp = async () => {
-    const compte = comptePour(session.email, session.role);
-    if (!compte || (await hacher(mdpActuel)) !== compte.hash) { setMsgMdp("err"); return; }
+    setMsgMdp(null);
     if (mdpNeuf.length < 8) { setMsgMdp("err"); return; }
-    mettreAJourCompte(session.email, session.role, { hash: await hacher(mdpNeuf) });
-    setMsgMdp("ok"); setMdpActuel(""); setMdpNeuf("");
+    // Le serveur fait foi : scrypt salé, ancien mot de passe exigé (POST /api/auth/mdp).
+    const r = await apiPost<{ ok?: boolean }>(API.mdp, { actuel: mdpActuel, nouveau: mdpNeuf });
+    if (r.ok) { setMsgMdp("ok"); setMdpActuel(""); setMdpNeuf(""); } else { setMsgMdp("err"); }
   };
+
+  /** Menu Profil : adresse & téléphone éditables, enregistrés côté serveur (liste blanche). */
+  const enregistrerProfil = async () => {
+    if (!formContact) return;
+    setMsgProfil(null);
+    const r = await apiPost<{ profil?: Record<string, string> }>(API.profil, formContact);
+    if (r.ok && r.corps.profil) {
+      setProfilServeur(r.corps.profil);
+      setFormContact({ ...r.corps.profil });
+      setMsgProfil("ok");
+    } else {
+      setMsgProfil("err");
+    }
+  };
+
+  /** Champ éditable du bloc « Adresse & téléphone » (menu Profil). */
+  const champContact = (key: string, cleLabel: string) => (
+    <label className="block">
+      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr(cleLabel)}</span>
+      <input
+        value={formContact?.[key] ?? ""}
+        onChange={(e) => setFormContact((p) => ({ ...(p ?? {}), [key]: e.target.value }))}
+        className="mt-1 w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+    </label>
+  );
 
   const regle = (k: keyof PrefsNotif) => {
     const p = { ...prefs, [k]: !prefs[k] };
@@ -520,99 +553,152 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
 
           {onglet === "profil" && (
             <div className="grid lg:grid-cols-2 gap-6 items-start">
-              <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
-                <h2 className="font-extrabold text-ink text-lg">{tr("banque:profile.title")}</h2>
-                {(() => {
-                  const compte = comptePour(session.email, session.role);
-                  const profil = profilServeur ?? compte?.profil;
-                  if (!profil) return <p className="mt-3 text-sm text-slate-500">{tr("banque:profile.none")}</p>;
-                  const champs: Array<[string, string]> = [
-                    ["auth.lastName", profil.nom], ["auth.firstName", profil.prenom],
-                    ["auth.birthDate", formatDate(profil.naissance, locale)],
-                    ["auth.nationality", profil.nationalite || "—"],
-                    ["auth.maritalLabel", tr(`auth.marital.${profil.marital}` as string)],
-                    ["auth.street", [profil.rue, profil.numero, profil.boite].filter(Boolean).join(" ") || "—"],
-                    ["auth.postalCode", profil.codePostal || "—"], ["auth.city", profil.ville || "—"],
-                    ["auth.country", profil.pays || "—"], ["auth.phoneMobile", profil.telephone || "—"],
-                    ["auth.employer", profil.employeur || "—"], ["auth.jobTitle", profil.profession || "—"],
-                    ["auth.seniority", profil.anciennete || "—"],
-                    ["auth.companyName", profil.entreprise || "—"], ["auth.vatNumber", profil.tva || "—"],
-                    ["auth.sector", profil.secteur || "—"],
-                    ["auth.monthlyIncomeNet", profil.revenusNets || "—"],
-                    ["auth.housingLabel", tr(`auth.housing.${profil.logement}` as string)],
-                    ["auth.housingCost", profil.chargeLogement || "—"],
-                    ["auth.iban", profil.iban || "—"],
-                    ["auth.existingDebts", profil.creditsExistants || "—"],
-                  ];
-                  return (
-                    <>
-                      <div className="mt-4 flex items-center gap-4 rounded-2xl bg-surface border p-4">
-                        {banqueProfil?.photo
-                          ? // eslint-disable-next-line @next/next/no-img-element
-                            <img src={banqueProfil.photo} alt={session.nom} className="w-16 h-16 rounded-2xl object-cover border" />
-                          : <span className="w-16 h-16 rounded-2xl bg-primary-light text-primary grid place-items-center"><Camera className="w-7 h-7" aria-hidden="true" /></span>}
-                        <div className="min-w-0">
-                          <div className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{tr("banque:photo")}</div>
-                          <div className="mt-1.5 flex flex-wrap gap-2">
-                            <label className={buttonClasses("outline-light", "sm", "cursor-pointer")}>
-                              {tr(banqueProfil?.photo ? "banque:photoChange" : "banque:photoAdd")}
-                              <input type="file" accept="image/*" className="sr-only" onChange={(e) => choisirPhoto(e.target.files?.[0] ?? null)} />
-                            </label>
-                            {banqueProfil?.photo && (
-                              <button type="button" onClick={retirerPhoto} className={buttonClasses("outline-light", "sm")}>{tr("banque:photoRemove")}</button>
-                            )}
-                          </div>
-                          {erreurPhoto && <p role="alert" className="mt-1.5 text-[11px] font-bold text-red-600">{tr("banque:photoTooBig")}</p>}
+              {/* ——— Colonne gauche : identité + photo + infos personnelles ——— */}
+              <div className="space-y-6">
+                <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
+                  <h2 className="font-extrabold text-ink text-lg">{tr("banque:profile.title")}</h2>
+                  <div className="mt-4 flex flex-wrap items-center gap-4">
+                    {banqueProfil?.photo
+                      ? // eslint-disable-next-line @next/next/no-img-element
+                        <img src={banqueProfil.photo} alt={session.nom} className="w-20 h-20 rounded-2xl object-cover border" />
+                      : <span className="w-20 h-20 rounded-2xl bg-primary-light text-primary grid place-items-center"><Camera className="w-9 h-9" aria-hidden="true" /></span>}
+                    <div className="min-w-0">
+                      <div className="font-extrabold text-ink text-lg leading-tight">{session.nom}</div>
+                      <div className="text-[12px] text-slate-400">{tr("banque:profile.email")} : {session.email}</div>
+                      <div className="mt-1 text-[11px] text-slate-400">{tr("banque:profile.memberSince", { date: formatDate(creeAServeur ?? session.ouverteA, locale) })}</div>
+                      {session.role === "CUSTOMER" && (
+                        <span className={cn("mt-2 inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", banqueProfil?.verifie ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
+                          {banqueProfil?.verifie ? <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" /> : <Lock className="w-3.5 h-3.5" aria-hidden="true" />}
+                          {tr(banqueProfil?.verifie ? "banque:verified" : "banque:unverified")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <label className={buttonClasses("outline-light", "sm", "cursor-pointer")}>
+                      {tr(banqueProfil?.photo ? "banque:photoChange" : "banque:photoAdd")}
+                      <input type="file" accept="image/*" className="sr-only" onChange={(e) => choisirPhoto(e.target.files?.[0] ?? null)} />
+                    </label>
+                    {banqueProfil?.photo && (
+                      <button type="button" onClick={retirerPhoto} className={buttonClasses("outline-light", "sm")}>{tr("banque:photoRemove")}</button>
+                    )}
+                    {erreurPhoto && <p role="alert" className="text-[11px] font-bold text-red-600">{tr("banque:photoTooBig")}</p>}
+                  </div>
+                  {banqueProfil && (
+                    <div className="mt-4 rounded-2xl bg-ink text-white p-4">
+                      <div className="text-[10px] font-bold tracking-widest uppercase text-white/40">{tr("banque:iban")} — {tr("banque:ibanNote")}</div>
+                      <div className="mt-1 font-mono text-[15px] tracking-wider">{banqueProfil.iban}</div>
+                    </div>
+                  )}
+                </Reveal>
+
+                <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
+                  <h3 className="font-extrabold text-ink text-base">{tr("banque:profile.personal")}</h3>
+                  {profilServeur ? (
+                    <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                      {([
+                        ["auth.lastName", profilServeur.nom || "—"],
+                        ["auth.firstName", profilServeur.prenom || "—"],
+                        ["auth.birthDate", profilServeur.naissance ? formatDate(profilServeur.naissance, locale) : "—"],
+                        ["auth.nationality", profilServeur.nationalite || "—"],
+                        ["auth.maritalLabel", CLES_MARITAL_PROFIL.includes(profilServeur.marital) ? tr(`auth.marital.${profilServeur.marital}`) : "—"],
+                      ] as Array<[string, string]>).map(([cle, val]) => (
+                        <div key={cle}>
+                          <dt className="text-[10px] font-bold tracking-widest uppercase text-slate-400">{tr(cle)}</dt>
+                          <dd className="font-bold text-ink mt-0.5">{val}</dd>
                         </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">{tr("banque:profile.none")}</p>
+                  )}
+                </Reveal>
+              </div>
+
+              {/* ——— Colonne droite : contact éditable, prêt, sécurité ——— */}
+              <div className="space-y-6">
+                <Reveal as="div" variant="left" retard={80} className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
+                  <h3 className="font-extrabold text-ink text-base">{tr("banque:profile.contact")}</h3>
+                  {formContact ? (
+                    <div className="mt-4 space-y-3">
+                      {champContact("rue", "auth.street")}
+                      <div className="grid grid-cols-2 gap-3">
+                        {champContact("numero", "auth.houseNumber")}
+                        {champContact("boite", "auth.box")}
                       </div>
-                      {compte && (
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                          <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", banqueProfil?.verifie ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600")}>
-                            {banqueProfil?.verifie ? <BadgeCheck className="w-3.5 h-3.5" aria-hidden="true" /> : <Lock className="w-3.5 h-3.5" aria-hidden="true" />}
-                            {tr(banqueProfil?.verifie ? "banque:verified" : "banque:unverified")}
-                          </span>
-                          <span className="text-[11px] text-slate-400">{tr("banque:profile.memberSince", { date: formatDate(compte.creeA, locale) })}</span>
-                        </div>
-                      )}
-                      {banqueProfil && (
-                        <div className="mt-4 rounded-2xl bg-ink text-white p-4">
-                          <div className="text-[10px] font-bold tracking-widest uppercase text-white/40">{tr("banque:iban")} — {tr("banque:ibanNote")}</div>
-                          <div className="mt-1 font-mono text-[15px] tracking-wider">{banqueProfil.iban}</div>
-                        </div>
-                      )}
+                      <div className="grid grid-cols-2 gap-3">
+                        {champContact("codePostal", "auth.postalCode")}
+                        {champContact("ville", "auth.city")}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {champContact("pays", "auth.country")}
+                        {champContact("telephone", "auth.phoneMobile")}
+                      </div>
+                      {msgProfil === "ok" && <p role="status" className="text-[12px] font-bold text-emerald-600">{tr("banque:profile.saved")}</p>}
+                      {msgProfil === "err" && <p role="alert" className="text-[12px] font-bold text-red-600">{tr("banque:profile.saveErr")}</p>}
+                      <button type="button" onClick={() => void enregistrerProfil()} className={buttonClasses("primary", "md", "w-full")}>
+                        {tr("banque:profile.save")}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">{tr("banque:profile.none")}</p>
+                  )}
+                </Reveal>
+
+                <Reveal as="div" variant="left" retard={120} className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
+                  <h3 className="font-extrabold text-ink text-base">{tr("banque:profile.loans")}</h3>
+                  {profilServeur ? (
+                    <>
                       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                        {champs.map(([cle, val]) => (
+                        {([
+                          ["auth.employer", profilServeur.employeur || "—"],
+                          ["auth.jobTitle", profilServeur.profession || "—"],
+                          ["auth.seniority", profilServeur.anciennete || "—"],
+                          ["auth.companyName", profilServeur.entreprise || "—"],
+                          ["auth.vatNumber", profilServeur.tva || "—"],
+                          ["auth.sector", profilServeur.secteur || "—"],
+                          ["auth.monthlyIncomeNet", profilServeur.revenusNets ? `${profilServeur.revenusNets} €` : "—"],
+                          ["auth.housingLabel", CLES_LOGEMENT_PROFIL.includes(profilServeur.logement) ? tr(`auth.housing.${profilServeur.logement}`) : "—"],
+                          ["auth.housingCost", profilServeur.chargeLogement ? `${profilServeur.chargeLogement} €` : "—"],
+                          ["auth.existingDebts", profilServeur.creditsExistants || "—"],
+                        ] as Array<[string, string]>).map(([cle, val]) => (
                           <div key={cle}>
                             <dt className="text-[10px] font-bold tracking-widest uppercase text-slate-400">{tr(cle)}</dt>
                             <dd className="font-bold text-ink mt-0.5">{val}</dd>
                           </div>
                         ))}
                       </dl>
+                      <button type="button" onClick={() => setOnglet("demandes")} className={buttonClasses("outline-light", "sm", "mt-4")}>
+                        {tr("banque:profile.seeApplications")}
+                      </button>
                     </>
-                  );
-                })()}
-              </Reveal>
-              <Reveal as="div" variant="left" retard={100} className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
-                <h2 className="font-extrabold text-ink text-lg flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-primary" aria-hidden="true" /> {tr("dashboard.tab.security")}
-                </h2>
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <label htmlFor="mdp-actuel" className="text-[12px] font-bold tracking-widest uppercase text-slate-500">{tr("dashboard.currentPassword")}</label>
-                    <input id="mdp-actuel" type="password" value={mdpActuel} onChange={(e) => setMdpActuel(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">{tr("banque:profile.none")}</p>
+                  )}
+                </Reveal>
+
+                <Reveal as="div" variant="left" retard={160} className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
+                  <h2 className="font-extrabold text-ink text-lg flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-primary" aria-hidden="true" /> {tr("dashboard.tab.security")}
+                  </h2>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label htmlFor="mdp-actuel" className="text-[12px] font-bold tracking-widest uppercase text-slate-500">{tr("dashboard.currentPassword")}</label>
+                      <input id="mdp-actuel" type="password" value={mdpActuel} onChange={(e) => setMdpActuel(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
+                    </div>
+                    <div>
+                      <label htmlFor="mdp-neuf" className="text-[12px] font-bold tracking-widest uppercase text-slate-500">{tr("dashboard.newPassword")}</label>
+                      <input id="mdp-neuf" type="password" value={mdpNeuf} onChange={(e) => setMdpNeuf(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
+                    </div>
+                    {msgMdp === "ok" && <p role="status" className="text-[12px] font-semibold text-emerald-600">{tr("dashboard.passwordUpdated")}</p>}
+                    {msgMdp === "err" && <p role="alert" className="text-[12px] font-semibold text-red-600">{tr("dashboard.errCurrent")}</p>}
+                    <button type="button" onClick={() => void changerMdp()} className={buttonClasses("primary", "md", "w-full")}>
+                      {tr("dashboard.changePassword")}
+                    </button>
+                    <p className="text-[11px] text-slate-400">{tr("account.demoBanner")}</p>
                   </div>
-                  <div>
-                    <label htmlFor="mdp-neuf" className="text-[12px] font-bold tracking-widest uppercase text-slate-500">{tr("dashboard.newPassword")}</label>
-                    <input id="mdp-neuf" type="password" value={mdpNeuf} onChange={(e) => setMdpNeuf(e.target.value)} className="mt-2 w-full h-11 rounded-xl border border-slate-200 px-3 font-semibold text-ink focus:outline-none focus:border-primary" />
-                  </div>
-                  {msgMdp === "ok" && <p role="status" className="text-[12px] font-semibold text-emerald-600">{tr("dashboard.passwordUpdated")}</p>}
-                  {msgMdp === "err" && <p role="alert" className="text-[12px] font-semibold text-red-600">{tr("dashboard.errCurrent")}</p>}
-                  <button type="button" onClick={changerMdp} className={buttonClasses("primary", "md", "w-full")}>
-                    {tr("dashboard.changePassword")}
-                  </button>
-                  <p className="text-[11px] text-slate-400">{tr("account.demoBanner")}</p>
-                </div>
-              </Reveal>
+                </Reveal>
+              </div>
             </div>
           )}
         </div>

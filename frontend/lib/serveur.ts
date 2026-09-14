@@ -108,6 +108,26 @@ export function creerCompte(
   magasin.comptes.push(compte);
   return compte;
 }
+/** Champs du profil que le client peut éditer lui-même (menu Profil) ; tout le reste (nom,
+ *  naissance, KYC…) passe par l'administration. Valeurs chaînes bornées, rien d'autre. */
+export const CHAMPS_PROFIL_EDITABLES = [
+  "rue", "numero", "boite", "codePostal", "ville", "pays", "telephone",
+  "employeur", "profession", "anciennete", "entreprise", "tva", "secteur",
+  "revenusNets", "chargeLogement", "iban", "creditsExistants",
+] as const;
+export function mettreAJourProfilServeur(
+  magasin: Magasin, session: SessionServeur, patch: Record<string, unknown>,
+): Record<string, string> | null {
+  const compte = trouverCompte(magasin, session.email, session.role);
+  if (!compte) return null;
+  const profil = { ...(compte.profil ?? {}) };
+  for (const champ of CHAMPS_PROFIL_EDITABLES) {
+    const v = patch[champ];
+    if (typeof v === "string") profil[champ] = v.slice(0, 200);
+  }
+  compte.profil = profil;
+  return profil;
+}
 export function changerMotDePasse(magasin: Magasin, email: string, role: RoleServeur, actuel: string, neuf: string): boolean {
   const compte = trouverCompte(magasin, email, role);
   if (!compte || neuf.length < 8) return false;

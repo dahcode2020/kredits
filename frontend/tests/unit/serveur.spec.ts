@@ -15,9 +15,9 @@ import { join } from "node:path";
 import { GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, reglesDeEntree } from "@/lib/credit-engine";
 import {
   DUREE_SESSION_JOURS, changerMotDePasse, creerCompte, ecrireMagasin, grillePourApi,
-  hacherMotDePasse, lireMagasin, nouveauSel, ouvrirSessionServeur, optionsCookie,
-  revoquerSession, simulerServeur, sondeGrillePourApi, trouverCompte, verifierMotDePasse,
-  verifierSession,
+  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, nouveauSel, ouvrirSessionServeur,
+  optionsCookie, revoquerSession, simulerServeur, sondeGrillePourApi, trouverCompte,
+  verifierMotDePasse, verifierSession,
 } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO } from "@/lib/serveur-demo";
 
@@ -128,5 +128,25 @@ describe("simulation côté serveur : même moteur, mêmes scellements", () => {
     expect(out.simulation.monthlyPayment).toBeCloseTo(328.71, 2);
     expect(out.simulation.meta.rateRuleId).toBe("rate_BE_PERSONAL_1500_50000");
     expect(out.simulation.meta.grilleVersion).toBe(GRILLE_VERSION);
+  });
+});
+
+describe("menu profil : le client édite SES champs (liste blanche serveur)", () => {
+  it("applique les champs éditables, ignore les autres, borne la longueur", () => {
+    const magasin = lireMagasin(dossier);
+    const demo = magasin.comptes.find((c) => c.email === "client@kredit.be")!;
+    const session = ouvrirSessionServeur(magasin, demo);
+    const avant = { ...(demo.profil ?? {}) };
+    const profil = mettreAJourProfilServeur(magasin, session, {
+      ville: "Namur", telephone: "+32 81 00 00 00",
+      prenom: "Pirate", nom: "Pirate", naissance: "1900-01-01", // non éditables
+      rue: "X".repeat(500), // trop long -> borné à 200
+    })!;
+    expect(profil.ville).toBe("Namur");
+    expect(profil.telephone).toBe("+32 81 00 00 00");
+    expect(profil.prenom).toBe(avant.prenom); // identité protégée
+    expect(profil.nom).toBe(avant.nom);
+    expect(profil.naissance).toBe(avant.naissance);
+    expect(profil.rue).toHaveLength(200);
   });
 });
