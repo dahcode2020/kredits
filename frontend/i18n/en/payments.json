@@ -22,5 +22,7 @@
   "paidOn": "Paid on {date}",
   "confirmedOn": "Confirmed on {date}",
   "seed.dossierFee": "File fee — application KRD-2026-DEMOA1",
-  "seed.monthlyOne": "Instalment no. 1 — application KRD-2026-DEMOA1"
+  "seed.monthlyOne": "Instalment no. 1 — application KRD-2026-DEMOA1",
+  "notify.confirmed": "Your payment “{libelle}” has been confirmed by the administration.",
+  "notify.charge": "A new charge “{libelle}” of {montant} is awaiting payment in your Payments menu."
 }

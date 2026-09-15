@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  NOM_COOKIE, confirmerPaiement, creerPaiement, ecrireMagasin, lireMagasin, paiementsPour,
-  reglerPaiement, verifierSession, type TypePaiement,
+  NOM_COOKIE, confirmerPaiement, creerPaiement, ecrireMagasin, lireMagasin, notifierClient,
+  paiementsPour, reglerPaiement, verifierSession, type TypePaiement,
 } from "@/lib/serveur";
 
 export const runtime = "nodejs";
@@ -62,6 +62,11 @@ export async function POST(req: Request) {
       demandeId: typeof corps.demandeId === "string" ? corps.demandeId : undefined,
     });
     if ("erreur" in r) return NextResponse.json({ erreur: r.erreur }, { status: 400 });
+    // Notification IMPORTANTE : une nouvelle charge est à régler (site + e-mail + WhatsApp).
+    await notifierClient(magasin, {
+      email: r.email, cle: "payments.notify.charge",
+      vars: { libelle: r.libelle, montant: `${r.montant.toFixed(2)} €` }, maintenant,
+    });
     ecrireMagasin(magasin);
     return NextResponse.json({ paiement: r }, { status: 201 });
   }
@@ -69,6 +74,11 @@ export async function POST(req: Request) {
   if (corps.action === "confirmer") {
     const r = confirmerPaiement(magasin, String(corps.paiementId ?? ""), maintenant);
     if (!r.paiement) return NextResponse.json({ erreur: r.erreur }, { status: 400 });
+    // Notification IMPORTANTE : le règlement du client est confirmé (site + e-mail + WhatsApp).
+    await notifierClient(magasin, {
+      email: r.paiement.email, cle: "payments.notify.confirmed",
+      vars: { libelle: r.paiement.libelle }, maintenant,
+    });
     ecrireMagasin(magasin);
     return NextResponse.json({ paiement: r.paiement });
   }

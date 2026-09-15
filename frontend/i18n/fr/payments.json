@@ -22,5 +22,7 @@
   "paidOn": "Réglé le {date}",
   "confirmedOn": "Confirmé le {date}",
   "seed.dossierFee": "Frais de dossier — demande KRD-2026-DEMOA1",
-  "seed.monthlyOne": "Mensualité n° 1 — demande KRD-2026-DEMOA1"
+  "seed.monthlyOne": "Mensualité n° 1 — demande KRD-2026-DEMOA1",
+  "notify.confirmed": "Votre paiement « {libelle} » a été confirmé par l'administration.",
+  "notify.charge": "Une nouvelle charge « {libelle} » de {montant} est en attente de paiement dans votre menu Paiements."
 }

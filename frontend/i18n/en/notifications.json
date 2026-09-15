@@ -9,5 +9,19 @@
   "event.ACCOUNT_CREATED": "Account created",
   "event.APPLICATION_APPROVED": "Application approved",
   "event.PAYMENT_DUE": "Payment due",
-  "empty": "No notifications."
+  "empty": "No notifications.",
+  "delivery": "Delivery",
+  "canal.site": "Site",
+  "statut.envoye": "Sent",
+  "statut.echec": "Failed",
+  "statut.nonConfigure": "Not configured",
+  "statut.desactive": "Disabled",
+  "real.title": "Real delivery (email & WhatsApp)",
+  "real.email": "Receive important notifications by email ({email})",
+  "real.whatsapp": "Receive important notifications by WhatsApp ({numero})",
+  "real.whatsappSansNumero": "Receive by WhatsApp (add a phone number in your profile)",
+  "real.saved": "Delivery preferences saved.",
+  "real.note": "Email: Resend (free, 3,000 emails/month). WhatsApp: Meta Cloud API (free, 1,000 service conversations/month). Server-side keys: KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Without keys, sends are marked “not configured” — never faked.",
+  "testCta": "Send a test notification",
+  "testBody": "This is a test notification from the KREDIT platform: your delivery channels are working as configured."
 }

@@ -22,5 +22,7 @@
   "paidOn": "Betaald op {date}",
   "confirmedOn": "Bevestigd op {date}",
   "seed.dossierFee": "Dossierkosten — aanvraag KRD-2026-DEMOA1",
-  "seed.monthlyOne": "Maandtermijn nr. 1 — aanvraag KRD-2026-DEMOA1"
+  "seed.monthlyOne": "Maandtermijn nr. 1 — aanvraag KRD-2026-DEMOA1",
+  "notify.confirmed": "Uw betaling “{libelle}” is door de administratie bevestigd.",
+  "notify.charge": "Er staan nieuwe kosten “{libelle}” van {montant} te betalen in uw menu Betalingen."
 }

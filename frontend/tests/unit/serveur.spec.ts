@@ -17,10 +17,10 @@ import {
   DOCUMENT_MAX_OCTETS, DUREE_SESSION_JOURS, approuverDocument, changerMotDePasse,
   confirmerPaiement, creerCompte, creerPaiement, deposerDemandeServeur, deposerDocument,
   demandesPour, documentsPour, ecrireMagasin, enregistrerVirementEntrant, grillePourApi,
-  hacherMotDePasse, lireMagasin, mettreAJourProfilServeur, notificationsPour, nouveauSel,
-  ouvrirSessionServeur, paiementsPour, reglerPaiement, VERSION_MAGASIN, optionsCookie,
-  revoquerSession, simulerServeur, sondeGrillePourApi, trouverCompte, verifierMotDePasse,
-  verifierSession, type DemandeServeur,
+  hacherMotDePasse, lireMagasin, mettreAJourPrefsNotif, mettreAJourProfilServeur,
+  notificationsPour, notifierClient, nouveauSel, ouvrirSessionServeur, paiementsPour,
+  reglerPaiement, VERSION_MAGASIN, optionsCookie, revoquerSession, simulerServeur,
+  sondeGrillePourApi, trouverCompte, verifierMotDePasse, verifierSession, type DemandeServeur,
 } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO } from "@/lib/serveur-demo";
 
@@ -304,21 +304,67 @@ describe("documents justificatifs : dépôt client, approbation admin, notificat
     expect(deposerDocument(magasin, { ...base, code: "PROOF_ADDRESS", taille: DOCUMENT_MAX_OCTETS + 1 }).erreur).toBe("trop_lourd");
   });
 
-  it("l'admin approuve : statut APPROUVE + notification au client ; rejeu refusé", () => {
+  it("l'admin approuve : statut APPROUVE ; rejeu refusé", () => {
     const magasin = lireMagasin(dossier);
     const soumis = documentsPour(magasin, "client@kredit.be").find((d) => d.statut === "SOUMIS")!;
-    const avant = notificationsPour(magasin, "client@kredit.be").length;
     const r = approuverDocument(magasin, soumis.id, "Admin KREDIT", "2026-09-15T09:00:00.000Z");
     expect(r.document?.statut).toBe("APPROUVE");
     expect(r.document?.approuvePar).toBe("Admin KREDIT");
     expect(r.document?.approuveA).toBe("2026-09-15T09:00:00.000Z");
-    const notifs = notificationsPour(magasin, "client@kredit.be");
-    expect(notifs).toHaveLength(avant + 1); // le client est notifié
-    expect(notifs[notifs.length - 1].vars?.doc).toBe(`credit:documents.${soumis.code}`);
     expect(approuverDocument(magasin, soumis.id, "Admin KREDIT", "2026-09-15T10:00:00.000Z").erreur).toBe("etat_inchange");
     expect(approuverDocument(magasin, "DOC-INEXISTANT", "Admin KREDIT", "2026-09-15T10:00:00.000Z").erreur).toBe("introuvable");
     ecrireMagasin(magasin, dossier);
     expect(documentsPour(lireMagasin(dossier), "client@kredit.be").find((d) => d.id === soumis.id)?.statut).toBe("APPROUVE");
+  });
+});
+
+describe("centre de notification : site + e-mail (Resend) + WhatsApp (API Cloud Meta)", () => {
+  const FAUX_FETCH_OK = async () => ({ ok: true, status: 200 });
+  const FAUX_FETCH_500 = async () => ({ ok: false, status: 500 });
+  const CFG = { resend: { cle: "re_test", de: "KREDIT <notifications@kredit.example>" }, whatsapp: { jeton: "wa_test", idTelephone: "123456" } };
+
+  it("sans fournisseur configuré : la notification sur site part, les canaux sont « non configuré »", async () => {
+    const magasin = lireMagasin(dossier);
+    const n = await notifierClient(magasin, { email: "client@kredit.be", cle: "documents.notify.approved", vars: { doc: "credit:documents.ID" }, maintenant: "2026-09-15T09:00:00.000Z" }, { config: {}, fetchImpl: FAUX_FETCH_OK });
+    expect(n.canaux?.email).toBe("non_configure");
+    expect(n.canaux?.whatsapp).toBe("non_configure");
+    expect(notificationsPour(magasin, "client@kredit.be").some((x) => x.id === n.id)).toBe(true); // site : toujours
+  });
+
+  it("fournisseurs configurés + préférences actives : e-mail et WhatsApp ENVOYÉS", async () => {
+    const magasin = lireMagasin(dossier);
+    const n = await notifierClient(magasin, { email: "client@kredit.be", cle: "payments.notify.confirmed", vars: { libelle: "Frais de dossier" }, maintenant: "2026-09-15T09:00:00.000Z" }, { config: CFG, fetchImpl: FAUX_FETCH_OK });
+    expect(n.canaux?.email).toBe("envoye");
+    expect(n.canaux?.whatsapp).toBe("envoye"); // le n° du profil est normalisé +32470123456
+  });
+
+  it("préférences coupées : canaux « désactivé », AUCUN appel réseau", async () => {
+    const magasin = lireMagasin(dossier);
+    const demo = magasin.comptes.find((c) => c.email === "client@kredit.be")!;
+    demo.prefsNotif = { email: false, whatsapp: false };
+    let appels = 0;
+    const n = await notifierClient(magasin, { email: "client@kredit.be", cle: "banque.notify.credit", vars: { montant: "500,00 €" }, maintenant: "2026-09-15T09:00:00.000Z" }, { config: CFG, fetchImpl: async () => { appels += 1; return { ok: true, status: 200 }; } });
+    expect(n.canaux?.email).toBe("desactive");
+    expect(n.canaux?.whatsapp).toBe("desactive");
+    expect(appels).toBe(0); // désactivé = pas d'envoi
+  });
+
+  it("erreur du fournisseur : canal « échec », la notification sur site existe quand même", async () => {
+    const magasin = lireMagasin(dossier);
+    const n = await notifierClient(magasin, { email: "client@kredit.be", cle: "payments.notify.charge", vars: { libelle: "x", montant: "1 €" }, maintenant: "2026-09-15T09:00:00.000Z" }, { config: CFG, fetchImpl: FAUX_FETCH_500 });
+    expect(n.canaux?.email).toBe("echec");
+    expect(n.canaux?.whatsapp).toBe("echec");
+    expect(notificationsPour(magasin, "client@kredit.be").some((x) => x.id === n.id)).toBe(true);
+  });
+
+  it("le client règle ses préférences de distribution (liste blanche : email/whatsapp uniquement)", () => {
+    const magasin = lireMagasin(dossier);
+    const demo = magasin.comptes.find((c) => c.email === "client@kredit.be")!;
+    const session = ouvrirSessionServeur(magasin, demo);
+    const prefs = mettreAJourPrefsNotif(magasin, session, { email: false, whatsapp: true, role: "SUPER_ADMIN" });
+    expect(prefs).toEqual({ email: false, whatsapp: true }); // l'intrus est ignoré
+    ecrireMagasin(magasin, dossier);
+    expect(lireMagasin(dossier).comptes.find((c) => c.email === "client@kredit.be")?.prefsNotif).toEqual({ email: false, whatsapp: true });
   });
 });
 

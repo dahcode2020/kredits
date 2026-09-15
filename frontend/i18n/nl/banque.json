@@ -163,5 +163,6 @@
   "ops.docsNone": "Geen documenten geüpload door deze klant.",
   "ops.docsApprove": "Goedkeuren",
   "ops.docsOpen": "Openen",
-  "ops.docsApproved": "Goedgekeurd — geen actie nodig."
+  "ops.docsApproved": "Goedgekeurd — geen actie nodig.",
+  "notify.credit": "Een inkomende overschrijving van {montant} is op uw rekening bijgeschreven."
 }

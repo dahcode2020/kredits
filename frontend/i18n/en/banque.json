@@ -163,5 +163,6 @@
   "ops.docsNone": "No documents uploaded by this client.",
   "ops.docsApprove": "Approve",
   "ops.docsOpen": "Open",
-  "ops.docsApproved": "Approved — no action needed."
+  "ops.docsApproved": "Approved — no action needed.",
+  "notify.credit": "An incoming transfer of {montant} has been credited to your account."
 }

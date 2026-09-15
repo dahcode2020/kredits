@@ -22,5 +22,7 @@
   "paidOn": "Bezahlt am {date}",
   "confirmedOn": "Bestätigt am {date}",
   "seed.dossierFee": "Bearbeitungsgebühr — Antrag KRD-2026-DEMOA1",
-  "seed.monthlyOne": "Rate Nr. 1 — Antrag KRD-2026-DEMOA1"
+  "seed.monthlyOne": "Rate Nr. 1 — Antrag KRD-2026-DEMOA1",
+  "notify.confirmed": "Ihre Zahlung „{libelle}“ wurde von der Verwaltung bestätigt.",
+  "notify.charge": "Eine neue Gebühr „{libelle}“ über {montant} ist in Ihrem Menü Zahlungen zahlungsfällig."
 }

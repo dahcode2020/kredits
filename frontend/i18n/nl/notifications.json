@@ -9,5 +9,19 @@
   "event.ACCOUNT_CREATED": "Account aangemaakt",
   "event.APPLICATION_APPROVED": "Aanvraag goedgekeurd",
   "event.PAYMENT_DUE": "Betaling vervalt",
-  "empty": "Geen meldingen."
+  "empty": "Geen meldingen.",
+  "delivery": "Bezorging",
+  "canal.site": "Site",
+  "statut.envoye": "Verzonden",
+  "statut.echec": "Mislukt",
+  "statut.nonConfigure": "Niet geconfigureerd",
+  "statut.desactive": "Uitgeschakeld",
+  "real.title": "Echte bezorging (e-mail & WhatsApp)",
+  "real.email": "Belangrijke meldingen per e-mail ontvangen ({email})",
+  "real.whatsapp": "Belangrijke meldingen per WhatsApp ontvangen ({numero})",
+  "real.whatsappSansNumero": "Ontvangen via WhatsApp (voeg een telefoonnummer toe in uw profiel)",
+  "real.saved": "Bezorgvoorkeuren opgeslagen.",
+  "real.note": "E-mail: Resend (gratis, 3.000 e-mails/maand). WhatsApp: Cloud-API van Meta (gratis, 1.000 servicegesprekken/maand). Sleutels serverzijde: KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Zonder sleutels worden verzendingen als “niet geconfigureerd” gemarkeerd — nooit gesimuleerd.",
+  "testCta": "Een testmelding verzenden",
+  "testBody": "Dit is een testmelding van het KREDIT-platform: uw bezorgkanalen werken zoals geconfigureerd."
 }

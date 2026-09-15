@@ -349,7 +349,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   motif du paiement défini par l'administration — le compte du client raconte tout le parcours.
 - Verrous : création de champ (niveau inséré dans la barre, arrêt au pct créé, motif en
   transaction, pct manquant refusé), codes 12 caractères, dénouement en transactions séparées —
-  184 verrous au total.
+  197 verrous au total.
 
 ### Correctifs (retours utilisateur) — annulation ciblée, solde réel, un prêt en cours par catégorie
 
@@ -383,6 +383,16 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   l'administration les LIT dans le dossier client (ouverture du fichier déposé) et les approuve ;
   l'approbation notifie le client (onglet Notifications) et la pièce passe à la mention
   « Approuvé » avec auteur et date dans son menu Documents.
+- **Distribution réelle des notifications** (`lib/notifier.ts`, centre `notifierClient`) : chaque
+  notification importante (document approuvé, nouvelle charge, paiement confirmé, virement entrant
+  crédité) part sur TROIS canaux — **le site** (toujours), **l'e-mail via Resend** (gratuit :
+  3 000 e-mails/mois) et **WhatsApp via l'API Cloud officielle de Meta** (gratuit : 1 000
+  conversations de service/mois), selon les préférences du client (réglées dans son menu
+  Notifications, source serveur). Honnêteté : sans clés configurées, les canaux sont marqués
+  « non configuré » à l'écran — jamais simulés ; erreur → « échec » ; préférence coupée →
+  « désactivé » et AUCUN appel réseau. Variables : `KREDIT_RESEND_KEY`, `KREDIT_EMAIL_FROM`,
+  `KREDIT_WHATSAPP_TOKEN`, `KREDIT_WHATSAPP_PHONE_ID`. Verrous : transports sur fetch injecté,
+  configuration, normalisation du numéro, statuts par scénario (13 nouveaux).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -451,7 +461,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (184 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (197 verrous)
 ```
 
 ## Commandes

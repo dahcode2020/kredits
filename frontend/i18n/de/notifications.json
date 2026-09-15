@@ -9,5 +9,19 @@
   "event.ACCOUNT_CREATED": "Konto erstellt",
   "event.APPLICATION_APPROVED": "Antrag genehmigt",
   "event.PAYMENT_DUE": "Zahlung fällig",
-  "empty": "Keine Benachrichtigungen."
+  "empty": "Keine Benachrichtigungen.",
+  "delivery": "Zustellung",
+  "canal.site": "Website",
+  "statut.envoye": "Gesendet",
+  "statut.echec": "Fehlgeschlagen",
+  "statut.nonConfigure": "Nicht konfiguriert",
+  "statut.desactive": "Deaktiviert",
+  "real.title": "Echte Zustellung (E-Mail & WhatsApp)",
+  "real.email": "Wichtige Benachrichtigungen per E-Mail erhalten ({email})",
+  "real.whatsapp": "Wichtige Benachrichtigungen per WhatsApp erhalten ({numero})",
+  "real.whatsappSansNumero": "Per WhatsApp erhalten (fügen Sie eine Telefonnummer in Ihrem Profil hinzu)",
+  "real.saved": "Zustellungseinstellungen gespeichert.",
+  "real.note": "E-Mail: Resend (kostenlos, 3.000 E-Mails/Monat). WhatsApp: Cloud-API von Meta (kostenlos, 1.000 Service-Gespräche/Monat). Schlüssel serverseitig: KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Ohne Schlüssel werden Sendungen als „nicht konfiguriert“ markiert — nie simuliert.",
+  "testCta": "Eine Testbenachrichtigung senden",
+  "testBody": "Dies ist eine Testbenachrichtigung der KREDIT-Plattform: Ihre Zustellkanäle funktionieren wie konfiguriert."
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   NOM_COOKIE, approuverDocument, deposerDocument, documentsPour, ecrireMagasin, lireMagasin,
-  verifierSession,
+  notifierClient, verifierSession,
 } from "@/lib/serveur";
 
 export const runtime = "nodejs";
@@ -58,6 +58,11 @@ export async function POST(req: Request) {
   if (corps.action === "approuver") {
     const r = approuverDocument(magasin, String(corps.documentId ?? ""), session.nom, maintenant);
     if (!r.document) return NextResponse.json({ erreur: r.erreur }, { status: 400 });
+    // Notification IMPORTANTE : site + e-mail + WhatsApp en un seul geste (statuts enregistrés).
+    await notifierClient(magasin, {
+      email: r.document.email, cle: "documents.notify.approved",
+      vars: { doc: `credit:documents.${r.document.code}` }, maintenant,
+    });
     ecrireMagasin(magasin);
     return NextResponse.json({ document: r.document });
   }

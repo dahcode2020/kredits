@@ -23,8 +23,13 @@ import {
 import { COMPTES_PORTE_DEMO, type RoleServeur } from "@/lib/serveur-demo";
 import type { BanqueCompte, MessageChat, SurchargesReferentiel } from "@/lib/banque";
 import type { EtatSimulation } from "@/lib/application";
-export type { RoleServeur };
-export { COMPTES_PORTE_DEMO };
+import { t, tSiCle, type Locale } from "@/lib/i18n";
+import {
+  configNotifDepuisEnv, envoyerEmailResend, envoyerWhatsAppMeta, numeroInternational,
+  type ConfigNotif, type FetchImpl, type StatutEnvoi,
+} from "@/lib/notifier";
+export type { ConfigNotif, FetchImpl, RoleServeur, StatutEnvoi };
+export { COMPTES_PORTE_DEMO, configNotifDepuisEnv, numeroInternational };
 
 /** Demande de crédit côté serveur : un seul endroit par valeur — le navigateur ne garde qu'un
  *  miroir local de courtoisie, l'espace client lit CETTE table (voir /api/demandes). */
@@ -60,10 +65,15 @@ export interface DocumentServeur {
 }
 
 /** Notification au client (ex. document approuvé) : une clé i18n + ses variables, jamais de
- *  texte en dur. */
+ *  texte en dur. `canaux` raconte honnêtement la distribution réelle (site + e-mail + WhatsApp) :
+ *  rien n'est « envoyé » en silence. */
 export interface NotificationServeur {
   id: string; email: string; cle: string; vars?: Record<string, string>; creeA: string;
+  canaux?: { email?: StatutEnvoi; whatsapp?: StatutEnvoi };
 }
+
+/** Préférences de distribution réelle du client (source de vérité : le serveur). */
+export interface PrefsNotifServeur { email: boolean; whatsapp: boolean }
 
 /** Taille maximale d'un document téléversé (dataURL comprise) — même plafond que la photo. */
 export const DOCUMENT_MAX_OCTETS = 5 * 1024 * 1024;
@@ -71,6 +81,7 @@ export const DOCUMENT_MAX_OCTETS = 5 * 1024 * 1024;
 export interface CompteServeur {
   email: string; role: RoleServeur; nom: string; creeA: string;
   sel: string; hash: string; profil?: Record<string, string>;
+  prefsNotif?: PrefsNotifServeur;
 }
 export interface SessionServeur {
   jeton: string; email: string; role: RoleServeur; nom: string; ouverteA: string; expireA: string;
@@ -90,7 +101,7 @@ export interface Magasin {
 }
 
 /** À incrémenter à chaque changement de forme des données du magasin. */
-export const VERSION_MAGASIN = 5;
+export const VERSION_MAGASIN = 6;
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";
@@ -128,6 +139,10 @@ export function lireMagasin(dossier: string = dossierDonnees()): Magasin {
   if (!magasin.demandes) semerDemandesDemo(magasin);
   if (!magasin.paiements) semerPaiementsDemo(magasin);
   if (!magasin.documents) semerDocumentsDemo(magasin);
+  if (!magasin.comptes.find((c) => c.email === COMPTES_PORTE_DEMO[0].email)?.prefsNotif) {
+    const demo = magasin.comptes.find((c) => c.email === COMPTES_PORTE_DEMO[0].email);
+    if (demo) demo.prefsNotif = { email: true, whatsapp: true };
+  }
   return magasin;
 }
 export function ecrireMagasin(magasin: Magasin, dossier: string = dossierDonnees()): void {
@@ -227,6 +242,7 @@ function semerDocumentsDemo(magasin: Magasin): void {
     {
       id: "NOTIF-2026-DEMOA1", email: "client@kredit.be", cle: "documents.notify.approved",
       vars: { doc: "credit:documents.ID" }, creeA: "2026-09-11T09:30:00.000Z",
+      canaux: { email: "non_configure", whatsapp: "non_configure" },
     },
   ];
 }
@@ -267,8 +283,8 @@ export function deposerDocument(
     : [...(magasin.documents ?? []), document];
   return { document };
 }
-/** L'administration approuve une pièce soumise : le statut change ET le client est notifié
- *  (il le constate dans son menu Documents et dans ses notifications). */
+/** L'administration approuve une pièce soumise (transition pure) ; la NOTIFICATION au client
+ *  est émise par `notifierClient` dans la route — site + e-mail + WhatsApp en un seul geste. */
 export function approuverDocument(
   magasin: Magasin, documentId: string, par: string, maintenant: string,
 ): { document?: DocumentServeur; erreur?: "introuvable" | "etat_inchange" } {
@@ -276,11 +292,67 @@ export function approuverDocument(
   if (!doc) return { erreur: "introuvable" };
   if (doc.statut === "APPROUVE") return { erreur: "etat_inchange" };
   doc.statut = "APPROUVE"; doc.approuveA = maintenant; doc.approuvePar = par;
-  magasin.notifications = [...(magasin.notifications ?? []), {
-    id: `NOTIF-${documentId}-${maintenant.replace(/[^0-9]/g, "").slice(-8)}`,
-    email: doc.email, cle: "documents.notify.approved", vars: { doc: `credit:documents.${doc.code}` }, creeA: maintenant,
-  }];
   return { document: doc };
+}
+
+/* ——— Centre de notification : site + e-mail (Resend) + WhatsApp (API Cloud Meta), GRATUITS ——— */
+let compteurNotification = 0;
+export function idNotification(maintenant: string, existants: string[]): string {
+  for (;;) {
+    compteurNotification += 1;
+    const id = `NOTIF-${maintenant.slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 46_656).toString(36).toUpperCase().padStart(3, "0")}${(compteurNotification % 36).toString(36).toUpperCase()}`;
+    if (!existants.includes(id)) return id;
+  }
+}
+/** Notification sur site (toujours créée) — les canaux e-mail/WhatsApp s'y ajoutent. */
+export function deposerNotification(
+  magasin: Magasin, n: { email: string; cle: string; vars?: Record<string, string>; maintenant: string },
+): NotificationServeur {
+  const notif: NotificationServeur = {
+    id: idNotification(n.maintenant, (magasin.notifications ?? []).map((x) => x.id)),
+    email: n.email.trim().toLowerCase(), cle: n.cle, vars: n.vars, creeA: n.maintenant,
+  };
+  magasin.notifications = [...(magasin.notifications ?? []), notif];
+  return notif;
+}
+export function mettreAJourPrefsNotif(magasin: Magasin, session: SessionServeur, patch: Record<string, unknown>): PrefsNotifServeur | null {
+  const compte = trouverCompte(magasin, session.email, session.role);
+  if (!compte) return null;
+  const actuelles: PrefsNotifServeur = compte.prefsNotif ?? { email: true, whatsapp: false };
+  compte.prefsNotif = {
+    email: typeof patch.email === "boolean" ? patch.email : actuelles.email,
+    whatsapp: typeof patch.whatsapp === "boolean" ? patch.whatsapp : actuelles.whatsapp,
+  };
+  return compte.prefsNotif;
+}
+/** Le geste complet : notification sur site PUIS distribution réelle selon les préférences du
+ *  client et la configuration des fournisseurs (e-mail du compte, numéro du profil). Les statuts
+ *  d'envoi sont enregistrés sur la notification — l'UI les montre, rien n'est simulé. */
+export async function notifierClient(
+  magasin: Magasin,
+  evt: { email: string; cle: string; vars?: Record<string, string>; maintenant: string },
+  options?: { config?: ConfigNotif; fetchImpl?: FetchImpl; locale?: Locale },
+): Promise<NotificationServeur> {
+  const notif = deposerNotification(magasin, evt);
+  const compte = magasin.comptes.find((c) => c.email === notif.email);
+  const prefs: PrefsNotifServeur = compte?.prefsNotif ?? { email: true, whatsapp: false };
+  const config = options?.config ?? configNotifDepuisEnv(process.env as Record<string, string | undefined>);
+  const fetchImpl = options?.fetchImpl ?? (fetch as unknown as FetchImpl);
+  const locale: Locale = options?.locale ?? "fr";
+  // Texte concret pour l'e-mail / WhatsApp : les variables-clés (ex. « credit:documents.ID »)
+  // sont résolues, le reste passe tel quel. Le sujet = le message (une seule ligne).
+  const varsResolues: Record<string, string> = {};
+  for (const [k, v] of Object.entries(evt.vars ?? {})) varsResolues[k] = tSiCle(locale, v);
+  const texte = t(locale, evt.cle, varsResolues);
+  notif.canaux = {};
+  notif.canaux.email = prefs.email
+    ? await envoyerEmailResend(config.resend, notif.email, `KREDIT — ${texte}`, texte, fetchImpl)
+    : "desactive";
+  const numero = compte?.profil?.telephone ? numeroInternational(compte.profil.telephone) : null;
+  notif.canaux.whatsapp = prefs.whatsapp
+    ? (numero ? await envoyerWhatsAppMeta(config.whatsapp, numero, texte, fetchImpl) : "echec")
+    : "desactive";
+  return notif;
 }
 export function notificationsPour(magasin: Magasin, email: string): NotificationServeur[] {
   const e = email.trim().toLowerCase();

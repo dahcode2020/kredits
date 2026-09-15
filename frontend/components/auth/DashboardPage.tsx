@@ -59,6 +59,21 @@ const CLES_DOC: Record<(typeof DOCUMENT_CODES)[number], string> = {
   TAX_RETURN_2Y: "credit:documents.TAX_RETURN_2Y", BUSINESS_PLAN: "credit:documents.BUSINESS_PLAN",
 };
 
+const CLES_STATUT_ENVOI: Record<string, string> = {
+  envoye: "notifications.statut.envoye", echec: "notifications.statut.echec",
+  desactive: "notifications.statut.desactive", non_configure: "notifications.statut.nonConfigure",
+};
+/** Badge de distribution d'une notification : l'état RÉEL du canal (rien n'est simulé). */
+function BadgeCanal({ libelle, statut, tr }: { libelle: string; statut: string; tr: (k: string) => string }) {
+  const couleur = statut === "envoye" ? "bg-emerald-50 text-emerald-600"
+    : statut === "echec" ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-500";
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full", couleur)}>
+      {libelle} · {tr(CLES_STATUT_ENVOI[statut] ?? CLES_STATUT_ENVOI.non_configure)}
+    </span>
+  );
+}
+
 /* ——— Courbe d'amortissement SVG : le restant dû mois par mois, calculé, jamais décoratif. ——— */
 function CourbeAmortissement({ points, formatY }: { points: Array<[number, number]>; formatY: (n: number) => string }) {
   const id = useId();
@@ -98,6 +113,8 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
   const [docsServeur, setDocsServeur] = useState<DocumentServeur[]>([]);
   const [notifs, setNotifs] = useState<NotificationServeur[]>([]);
   const [erreurDepot, setErreurDepot] = useState<string | null>(null);
+  const [prefsReelles, setPrefsReelles] = useState<{ email: boolean; whatsapp: boolean; numeroWhatsapp: string | null } | null>(null);
+  const [msgPrefsReelles, setMsgPrefsReelles] = useState(false);
   const [onglet, setOnglet] = useState<Onglet>("apercu");
   const [ouverte, setOuverte] = useState<string | null>(null);
   const [choisie, setChoisie] = useState<string | null>(null);
@@ -129,8 +146,11 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
         apiGet<{ documents: DocumentServeur[] }>(API.documents).then((r) => {
           if (r.ok) setDocsServeur(r.corps.documents);
         });
-        apiGet<{ notifications: NotificationServeur[] }>(API.notifications).then((r) => {
-          if (r.ok) setNotifs(r.corps.notifications);
+        apiGet<{ notifications: NotificationServeur[]; prefs?: { email: boolean; whatsapp: boolean; numeroWhatsapp: string | null } }>(API.notifications).then((r) => {
+          if (r.ok) {
+            setNotifs(r.corps.notifications);
+            if (r.corps.prefs) setPrefsReelles(r.corps.prefs);
+          }
         });
       }
       setPrefs(lirePrefs());
@@ -221,6 +241,22 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     } else {
       setMsgProfil("err");
     }
+  };
+
+  /** Préférences de distribution RÉELLE (source : le serveur) — e-mail du compte, WhatsApp au
+   *  numéro du profil. Les canaux non configurés côté serveur sont montrés comme tels. */
+  const changerPrefReelle = async (k: "email" | "whatsapp", v: boolean) => {
+    setPrefsReelles((p) => (p ? { ...p, [k]: v } : p));
+    const r = await apiPost<{ prefs?: { email: boolean; whatsapp: boolean } }>(API.notifications, { action: "prefs", [k]: v });
+    if (r.ok && r.corps.prefs) {
+      setPrefsReelles((p) => (p ? { ...p, ...r.corps.prefs } : p));
+      setMsgPrefsReelles(true);
+    }
+  };
+  /** Une vraie notification de test part sur les canaux configurés — la preuve du câblage. */
+  const envoyerNotifTest = async () => {
+    const r = await apiPost<{ notification?: NotificationServeur }>(API.notifications, { action: "tester" });
+    if (r.ok && r.corps.notification) setNotifs((prev) => [...prev, r.corps.notification!]);
   };
 
   /** Téléversement d'un justificatif : lu en dataURL, plafonné côté client ET côté serveur,
@@ -644,26 +680,76 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
                 <p className="mt-3 text-sm text-slate-500">{tr("documents.notifyEmpty")}</p>
               ) : (
                 <ul className="mt-3 space-y-2">
-                  {[...notifs].sort((a, b) => b.creeA.localeCompare(a.creeA)).map((n) => (
-                    <li key={n.id} className="rounded-2xl border border-slate-100 bg-surface p-4 flex items-start gap-3">
-                      <BadgeCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
-                      <div>
-                        <div className="text-[13px] font-bold text-ink">
-                          {tr(n.cle, { doc: n.vars?.doc ? tSiCle(locale, n.vars.doc) : "" })}
+                  {[...notifs].sort((a, b) => b.creeA.localeCompare(a.creeA)).map((n) => {
+                    const varsResolues: Record<string, string> = {};
+                    for (const [k, v] of Object.entries(n.vars ?? {})) varsResolues[k] = tSiCle(locale, v);
+                    return (
+                      <li key={n.id} className="rounded-2xl border border-slate-100 bg-surface p-4 flex items-start gap-3">
+                        <BadgeCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+                        <div className="min-w-0">
+                          <div className="text-[13px] font-bold text-ink">{tr(n.cle, varsResolues)}</div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">{formatDateTime(n.creeA, locale)}</div>
+                          {/* Distribution honnête : le site toujours servi ; e-mail / WhatsApp
+                              selon l'envoi RÉEL (envoyé, échec, non configuré, désactivé). */}
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            <BadgeCanal libelle={tr("notifications.canal.site")} statut="envoye" tr={tr} />
+                            <BadgeCanal libelle={tr("notifications.channel.email")} statut={n.canaux?.email ?? "non_configure"} tr={tr} />
+                            <BadgeCanal libelle={tr("notifications.channel.whatsapp")} statut={n.canaux?.whatsapp ?? "non_configure"} tr={tr} />
+                          </div>
                         </div>
-                        <div className="mt-0.5 text-[11px] text-slate-400">{formatDateTime(n.creeA, locale)}</div>
-                      </div>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
+              )}
+
+              {/* ——— Distribution réelle : e-mail (Resend) + WhatsApp (API Cloud Meta) ——— */}
+              {session.role === "CUSTOMER" && prefsReelles && (
+                <div className="mt-6 rounded-2xl border p-5">
+                  <h3 className="font-extrabold text-ink text-base flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-primary" aria-hidden="true" /> {tr("notifications.real.title")}
+                  </h3>
+                  <ul className="mt-3 space-y-3">
+                    <li className="flex items-center justify-between gap-3">
+                      <span className="text-[13px] font-bold text-ink">{tr("notifications.real.email", { email: session.email })}</span>
+                      <button
+                        type="button" role="switch" aria-checked={prefsReelles.email} aria-label={tr("notifications.channel.email")}
+                        onClick={() => void changerPrefReelle("email", !prefsReelles.email)}
+                        className={cn("w-12 h-7 rounded-full transition relative shrink-0", prefsReelles.email ? "bg-primary" : "bg-slate-200")}
+                      >
+                        <span className={cn("absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all", prefsReelles.email ? "left-6" : "left-1")} />
+                      </button>
+                    </li>
+                    <li className="flex items-center justify-between gap-3">
+                      <span className="text-[13px] font-bold text-ink">
+                        <MessageCircle className="w-4 h-4 inline mr-1.5 -mt-0.5 text-primary" aria-hidden="true" />
+                        {prefsReelles.numeroWhatsapp
+                          ? tr("notifications.real.whatsapp", { numero: prefsReelles.numeroWhatsapp })
+                          : tr("notifications.real.whatsappSansNumero")}
+                      </span>
+                      <button
+                        type="button" role="switch" aria-checked={prefsReelles.whatsapp} aria-label={tr("notifications.channel.whatsapp")}
+                        onClick={() => void changerPrefReelle("whatsapp", !prefsReelles.whatsapp)}
+                        className={cn("w-12 h-7 rounded-full transition relative shrink-0", prefsReelles.whatsapp ? "bg-primary" : "bg-slate-200")}
+                      >
+                        <span className={cn("absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all", prefsReelles.whatsapp ? "left-6" : "left-1")} />
+                      </button>
+                    </li>
+                  </ul>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => void envoyerNotifTest()} className={buttonClasses("outline-light", "sm")}>
+                      <BellRing className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("notifications.testCta")}</span>
+                    </button>
+                    {msgPrefsReelles && <p role="status" className="text-[12px] font-bold text-emerald-600">{tr("notifications.real.saved")}</p>}
+                  </div>
+                  <p className="mt-3 text-[11px] leading-4 text-slate-400">{tr("notifications.real.note")}</p>
+                </div>
               )}
 
               <h2 className="mt-6 font-extrabold text-ink text-lg">{tr("notifications.preferences.title")}</h2>
               <ul className="mt-4 space-y-3">
                 {([
-                  ["email", Mail, "notifications.channel.email"],
                   ["sms", Smartphone, "notifications.channel.sms"],
-                  ["whatsapp", MessageCircle, "notifications.channel.whatsapp"],
                   ["push", BellRing, "notifications.channel.push"],
                 ] as Array<[keyof PrefsNotif, typeof Mail, string]>).map(([k, Ic, cle]) => (
                   <li key={k} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-surface p-4">
