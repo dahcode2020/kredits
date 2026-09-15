@@ -416,6 +416,25 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   carte des documents pour les lire et les approuver en temps réel. Le rappel
   « examinez et approuvez d'abord les pièces » s'affiche tant qu'il en reste (verrous :
   `docsEnAttente` et `chatNonLu` remontés par `listeComptesClients`).
+- **Compte admin : « Contrats » remplace « Mes demandes » du côté du personnel.** Le menu Demandes
+  reste l'apanage du client ; à sa place, l'administration établit les contrats de ses clients
+  (`POST /api/contrats`, table `contrats` du magasin) : objet, montant, durée, taux annuel et
+  mentions libres (≤ 12, bornées), avec la **mensualité calculée par le serveur** (annuité
+  constante, taux nul = division simple) affichée en direct puis verrouillée au contrat. Un contrat
+  se met à jour (recalcul + `majA`), s'aperçoit dans un panneau fidèle au document et se
+  **télécharge en HTML autonome**. « Notifier le client » le passe en NOTIFIE et le transmet sur
+  les canaux réels (site + e-mail + WhatsApp selon préférences) : première transmission →
+  `dashboard.contracts.notify.new`, re-notification après mise à jour → `.updated`. Le compte
+  démo reçoit un contrat semé aligné sur sa demande (même montant/durée, taux de la grille
+  converti en pourcentage). Verrous : mensualité (annuité, taux nul, entrées invalides), CRUD
+  borné (compte/montant/durée/taux/objet/mentions), maj conserve les champs absents, notifier
+  date la transmission, semis — 6 nouveaux.
+- **Compte admin : « Échéanciers » par client.** Le menu Échéanciers du personnel laisse choisir un
+  client et remonte TOUS ses échéanciers en parallèle — demandes de crédit (calendrier du
+  simulateur) et contrats (annuité recalculée) : pour chaque mois, la date de règlement
+  (`créé le + n mois`), la mensualité, le capital restant dû et le statut échu/à venir ; une
+  pastille signale la prochaine échéance, et le volet « Règlements déclarés » liste les paiements
+  MENSUALITE du client avec leur statut (en attente / déclaré / payé).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -484,7 +503,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (205 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (211 verrous)
 ```
 
 ## Commandes

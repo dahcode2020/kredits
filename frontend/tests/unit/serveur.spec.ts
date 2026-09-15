@@ -15,9 +15,11 @@ import { join } from "node:path";
 import { GRILLE, GRILLE_VERSION, HISTORIQUE_GRILLES, reglesDeEntree } from "@/lib/credit-engine";
 import {
   DOCUMENT_MAX_OCTETS, DUREE_SESSION_JOURS, approuverDocument, changerMotDePasse,
-  confirmerPaiement, creerCompte, creerPaiement, deposerDemandeServeur, deposerDocument,
+  confirmerPaiement, contratsPour, creerCompte, creerContrat, creerPaiement,
+  deposerDemandeServeur, deposerDocument,
   demandesPour, documentsPour, ecrireMagasin, enregistrerVirementEntrant, grillePourApi,
-  hacherMotDePasse, lireMagasin, mettreAJourPrefsNotif, mettreAJourProfilServeur,
+  hacherMotDePasse, lireMagasin, majContrat, mettreAJourPrefsNotif, mettreAJourProfilServeur,
+  mensualiteContrat, notifierContrat,
   notificationsPour, notifierClient, notifierStaff, nouveauSel, ouvrirSessionServeur, paiementsPour,
   reglerPaiement, VERSION_MAGASIN, optionsCookie, revoquerSession, simulerServeur,
   sondeGrillePourApi, trouverCompte, verifierMotDePasse, verifierSession, type DemandeServeur,
@@ -407,5 +409,79 @@ describe("magasin versionné : un vieux format est re-semé, jamais réutilisé"
     expect(magasin.comptes.some((c) => c.role === "ADMIN")).toBe(true); // personnel re-semé
     ecrireMagasin(magasin, dossier);
     expect(lireMagasin(dossier).versionMagasin).toBe(VERSION_MAGASIN);
+  });
+});
+
+describe("contrats : mensualité calculée, CRUD borné, notification (slice 23)", () => {
+  const MAINTENANT = "2026-09-15T10:00:00.000Z";
+  it("mensualiteContrat : annuité constante, taux nul = division simple, entrées invalides = 0", () => {
+    // 10 000 € / 12 mois / 12 % annuel → r = 1 %/mois, annuité ≈ 888,49 €.
+    expect(mensualiteContrat(10_000, 12, 12)).toBeCloseTo(888.49, 1);
+    expect(mensualiteContrat(12_000, 12, 0)).toBe(1000); // taux nul
+    expect(mensualiteContrat(0, 12, 5)).toBe(0);
+    expect(mensualiteContrat(10_000, 0, 5)).toBe(0);
+    expect(mensualiteContrat(10_000, 12, -1)).toBe(0);
+  });
+
+  it("creerContrat valide, calcule la mensualité et borne les mentions", () => {
+    const magasin = lireMagasin(dossier); // sème client@kredit.be
+    const r = creerContrat(magasin, {
+      email: "client@kredit.be", objet: "Prêt véhicule", montant: 10_000, dureeMois: 12, tauxAnnuel: 12,
+      mentions: ["Assurance solde restant dû", "   ", "Mention bornée"], maintenant: MAINTENANT,
+    });
+    expect(r.contrat).toBeDefined();
+    const c = r.contrat!;
+    expect(c.statut).toBe("BROUILLON");
+    expect(c.mensualite).toBeCloseTo(888.49, 1);
+    expect(c.mentions).toEqual(["Assurance solde restant dû", "Mention bornée"]); // vides retirées
+    expect(contratsPour(magasin, "client@kredit.be")).toHaveLength(2); // semé + créé
+  });
+
+  it("creerContrat rejette un compte inconnu et des valeurs hors bornes", () => {
+    const magasin = lireMagasin(dossier);
+    const base = { email: "client@kredit.be", objet: "x", montant: 10_000, dureeMois: 12, tauxAnnuel: 5, maintenant: MAINTENANT };
+    expect(creerContrat(magasin, { ...base, email: "personne@exemple.be" }).erreur).toBe("compte_introuvable");
+    expect(creerContrat(magasin, { ...base, montant: 0 }).erreur).toBe("montant_invalide");
+    expect(creerContrat(magasin, { ...base, dureeMois: 0 }).erreur).toBe("duree_invalide");
+    expect(creerContrat(magasin, { ...base, dureeMois: 12.5 }).erreur).toBe("duree_invalide");
+    expect(creerContrat(magasin, { ...base, tauxAnnuel: 99 }).erreur).toBe("taux_invalide");
+    expect(creerContrat(magasin, { ...base, objet: "" }).erreur).toBe("objet_invalide");
+    expect(creerContrat(magasin, { ...base, mentions: new Array(13).fill("m") }).erreur).toBe("mentions_invalides");
+    expect(creerContrat(magasin, { ...base, mentions: [42] }).erreur).toBe("mentions_invalides");
+  });
+
+  it("majContrat recalcule la mensualité, garde les champs absents et borne", () => {
+    const magasin = lireMagasin(dossier);
+    const c = creerContrat(magasin, {
+      email: "client@kredit.be", objet: "Prêt", montant: 10_000, dureeMois: 12, tauxAnnuel: 12, maintenant: MAINTENANT,
+    }).contrat!;
+    const r = majContrat(magasin, c.id, "2026-09-16T10:00:00.000Z", { montant: 20_000 });
+    expect(r.contrat!.mensualite).toBeCloseTo(2 * 888.49, 0); // proportionnel au capital doublé
+    expect(r.contrat!.objet).toBe("Prêt"); // champ absent conservé
+    expect(r.contrat!.majA).toBe("2026-09-16T10:00:00.000Z");
+    expect(majContrat(magasin, c.id, MAINTENANT, { tauxAnnuel: 99 }).erreur).toBe("taux_invalide");
+    expect(majContrat(magasin, "INCONNU", MAINTENANT, {}).erreur).toBe("introuvable");
+  });
+
+  it("notifierContrat passe le contrat en NOTIFIE et date la transmission", () => {
+    const magasin = lireMagasin(dossier);
+    const c = creerContrat(magasin, {
+      email: "client@kredit.be", objet: "Prêt", montant: 10_000, dureeMois: 12, tauxAnnuel: 5, maintenant: MAINTENANT,
+    }).contrat!;
+    const r = notifierContrat(magasin, c.id, "2026-09-16T12:00:00.000Z");
+    expect(r.contrat!.statut).toBe("NOTIFIE");
+    expect(r.contrat!.notifieA).toBe("2026-09-16T12:00:00.000Z");
+    expect(notifierContrat(magasin, "INCONNU", MAINTENANT).erreur).toBe("introuvable");
+  });
+
+  it("un contrat de démonstration est semé pour le client vitrine, taux en pourcentage", () => {
+    const magasin = lireMagasin(dossier);
+    const semes = contratsPour(magasin, "client@kredit.be");
+    expect(semes.length).toBeGreaterThan(0);
+    expect(semes[0].statut).toBe("BROUILLON");
+    expect(semes[0].tauxAnnuel).toBeGreaterThan(1); // fraction de grille convertie en %, pas 0.025
+    expect(semes[0].mensualite).toBeGreaterThan(0);
+    // Cohérence : mensualité recalculée depuis les champs stockés (convention %).
+    expect(semes[0].mensualite).toBeCloseTo(mensualiteContrat(semes[0].montant, semes[0].dureeMois, semes[0].tauxAnnuel), 2);
   });
 });

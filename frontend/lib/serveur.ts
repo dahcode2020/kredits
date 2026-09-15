@@ -75,6 +75,28 @@ export interface NotificationServeur {
 /** Préférences de distribution réelle du client (source de vérité : le serveur). */
 export interface PrefsNotifServeur { email: boolean; whatsapp: boolean }
 
+/** Contrat de crédit établi par l'administration pour un client (menu Contrats, slice 23) :
+ *  conditions + mentions libres, aperçu et téléchargement, puis notification au client par
+ *  e-mail / WhatsApp. BROUILLON tant qu'il n'a pas été notifié ; la mensualité est TOUJOURS
+ *  recalculée par le serveur (jamais saisie à la main). */
+export type StatutContrat = "BROUILLON" | "NOTIFIE";
+export interface ContratServeur {
+  id: string; email: string; demandeId?: string; objet: string;
+  montant: number; dureeMois: number; tauxAnnuel: number; mensualite: number;
+  mentions: string[];
+  statut: StatutContrat; creeA: string; majA: string; notifieA?: string;
+}
+/** Mensualité constante (amortissement annuité) : P·r / (1 − (1+r)^−n), r = taux annuel / 12.
+ *  Taux nul → simple division. Arrondi au centime. Fonction PURE, testable sans magasin. */
+export function mensualiteContrat(montant: number, dureeMois: number, tauxAnnuel: number): number {
+  if (!Number.isFinite(montant) || montant <= 0) return 0;
+  if (!Number.isInteger(dureeMois) || dureeMois <= 0) return 0;
+  if (!Number.isFinite(tauxAnnuel) || tauxAnnuel < 0) return 0;
+  const r = tauxAnnuel / 100 / 12;
+  const brute = r === 0 ? montant / dureeMois : (montant * r) / (1 - Math.pow(1 + r, -dureeMois));
+  return Math.round(brute * 100) / 100;
+}
+
 /** Taille maximale d'un document téléversé (dataURL comprise) — même plafond que la photo. */
 export const DOCUMENT_MAX_OCTETS = 5 * 1024 * 1024;
 
@@ -94,6 +116,7 @@ export interface Magasin {
   demandes?: DemandeServeur[];
   paiements?: PaiementServeur[];
   documents?: DocumentServeur[];
+  contrats?: ContratServeur[];
   notifications?: NotificationServeur[];
   /** Version du format de données : un magasin d'une autre version est re-semé, jamais migré à
    *  l'aveugle — aucun vieux fichier ne peut produire des comportements fantômes après un déploiement. */
@@ -101,7 +124,7 @@ export interface Magasin {
 }
 
 /** À incrémenter à chaque changement de forme des données du magasin. */
-export const VERSION_MAGASIN = 6;
+export const VERSION_MAGASIN = 7;
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";
@@ -139,6 +162,7 @@ export function lireMagasin(dossier: string = dossierDonnees()): Magasin {
   if (!magasin.demandes) semerDemandesDemo(magasin);
   if (!magasin.paiements) semerPaiementsDemo(magasin);
   if (!magasin.documents) semerDocumentsDemo(magasin);
+  if (!magasin.contrats) semerContratsDemo(magasin);
   if (!magasin.comptes.find((c) => c.email === COMPTES_PORTE_DEMO[0].email)?.prefsNotif) {
     const demo = magasin.comptes.find((c) => c.email === COMPTES_PORTE_DEMO[0].email);
     if (demo) demo.prefsNotif = { email: true, whatsapp: true };
@@ -443,6 +467,130 @@ export function confirmerPaiement(magasin: Magasin, paiementId: string, maintena
   p.statut = "PAYE"; p.confirmeA = maintenant;
   if (!p.regleA) p.regleA = maintenant;
   return { paiement: p };
+}
+
+/* ——— Contrats : établis par l'administration, notifiés au client (slice 23) ——— */
+/** Contrat de démonstration du client vitrine : les conditions de la demande PERSONAL,
+ *  mensualité calculée par LE moteur (jamais un montant écrit à la main), une mention semée. */
+function semerContratsDemo(magasin: Magasin): void {
+  const demande = (magasin.demandes ?? []).find((d) => d.id === "KRD-2026-DEMOA1");
+  if (!demande) { magasin.contrats = []; return; }
+  const sim = simulateCredit({
+    amount: demande.etat.amount, termMonths: demande.etat.term, monthlyIncome: demande.etat.income,
+    monthlyCharges: demande.etat.charges, incomeType: demande.etat.incomeType,
+    employmentStatus: demande.etat.employment, loanPurpose: demande.etat.purpose,
+    existingCreditsMonthly: demande.etat.existing, country: "BE", productType: demande.etat.product,
+  });
+  // La grille stocke le taux en FRACTION (0.025 = 2,5 %), le contrat en POURCENTAGE (2.5) :
+  // conversion pour que mensualité et affichage restent fidèles à la simulation.
+  const tauxPct = Math.round(sim.simulation.annualRate * 10000) / 100;
+  magasin.contrats = [{
+    id: "CTR-2026-DEMOA1", email: "client@kredit.be", demandeId: demande.id,
+    objet: "dashboard.contracts.seed.objet",
+    montant: demande.etat.amount, dureeMois: demande.etat.term,
+    tauxAnnuel: tauxPct,
+    mensualite: mensualiteContrat(demande.etat.amount, demande.etat.term, tauxPct),
+    mentions: ["dashboard.contracts.seed.mention"],
+    statut: "BROUILLON", creeA: "2026-09-13T10:00:00.000Z", majA: "2026-09-13T10:00:00.000Z",
+  }];
+}
+
+let compteurContrat = 0;
+export function idContrat(maintenant: string, existants: string[]): string {
+  for (;;) {
+    compteurContrat += 1;
+    const id = `CTR-${maintenant.slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 46_656).toString(36).toUpperCase().padStart(3, "0")}${(compteurContrat % 36).toString(36).toUpperCase()}`;
+    if (!existants.includes(id)) return id;
+  }
+}
+export function contratsPour(magasin: Magasin, email: string): ContratServeur[] {
+  const e = email.trim().toLowerCase();
+  return (magasin.contrats ?? []).filter((c) => c.email === e);
+}
+function mentionsValides(brutes: unknown): string[] | null {
+  if (!Array.isArray(brutes)) return [];
+  if (brutes.length > 12) return null;
+  const propres: string[] = [];
+  for (const m of brutes) {
+    if (typeof m !== "string") return null;
+    const t = m.trim();
+    if (t.length > 300) return null;
+    if (t) propres.push(t);
+  }
+  return propres;
+}
+/** L'administration établit un contrat pour un client. La mensualité est calculée ici. */
+export function creerContrat(
+  magasin: Magasin,
+  d: { email: string; objet: string; montant: number; dureeMois: number; tauxAnnuel: number; mentions?: unknown; demandeId?: string; maintenant: string },
+): { contrat?: ContratServeur; erreur?: "compte_introuvable" | "montant_invalide" | "duree_invalide" | "taux_invalide" | "objet_invalide" | "mentions_invalides" } {
+  const email = d.email.trim().toLowerCase();
+  if (!magasin.comptes.some((c) => c.email === email && c.role === "CUSTOMER")) return { erreur: "compte_introuvable" };
+  if (!Number.isFinite(d.montant) || d.montant <= 0 || d.montant > 10_000_000) return { erreur: "montant_invalide" };
+  if (!Number.isInteger(d.dureeMois) || d.dureeMois < 1 || d.dureeMois > 600) return { erreur: "duree_invalide" };
+  if (!Number.isFinite(d.tauxAnnuel) || d.tauxAnnuel < 0 || d.tauxAnnuel > 30) return { erreur: "taux_invalide" };
+  const objet = d.objet.trim();
+  if (!objet || objet.length > 160) return { erreur: "objet_invalide" };
+  const mentions = mentionsValides(d.mentions ?? []);
+  if (mentions === null) return { erreur: "mentions_invalides" };
+  const contrat: ContratServeur = {
+    id: idContrat(d.maintenant, (magasin.contrats ?? []).map((c) => c.id)),
+    email, demandeId: d.demandeId?.trim() || undefined, objet: objet.slice(0, 160),
+    montant: Math.round(d.montant * 100) / 100, dureeMois: d.dureeMois,
+    tauxAnnuel: Math.round(d.tauxAnnuel * 100) / 100,
+    mensualite: mensualiteContrat(d.montant, d.dureeMois, d.tauxAnnuel),
+    mentions, statut: "BROUILLON", creeA: d.maintenant, majA: d.maintenant,
+  };
+  magasin.contrats = [...(magasin.contrats ?? []), contrat];
+  return { contrat };
+}
+/** Mise à jour d'un contrat (objet, conditions, mentions) : la mensualité est recalculée,
+ *  `majA` bouge. Les champs absents du patch sont conservés tels quels. */
+export function majContrat(
+  magasin: Magasin, contratId: string, maintenant: string,
+  patch: { objet?: unknown; montant?: unknown; dureeMois?: unknown; tauxAnnuel?: unknown; mentions?: unknown },
+): { contrat?: ContratServeur; erreur?: "introuvable" | "montant_invalide" | "duree_invalide" | "taux_invalide" | "objet_invalide" | "mentions_invalides" } {
+  const contrat = (magasin.contrats ?? []).find((c) => c.id === contratId);
+  if (!contrat) return { erreur: "introuvable" };
+  let { objet, montant, dureeMois, tauxAnnuel } = contrat;
+  if (patch.objet !== undefined) {
+    if (typeof patch.objet !== "string" || !patch.objet.trim() || patch.objet.trim().length > 160) return { erreur: "objet_invalide" };
+    objet = patch.objet.trim().slice(0, 160);
+  }
+  if (patch.montant !== undefined) {
+    const m = Number(patch.montant);
+    if (!Number.isFinite(m) || m <= 0 || m > 10_000_000) return { erreur: "montant_invalide" };
+    montant = Math.round(m * 100) / 100;
+  }
+  if (patch.dureeMois !== undefined) {
+    const n = Number(patch.dureeMois);
+    if (!Number.isInteger(n) || n < 1 || n > 600) return { erreur: "duree_invalide" };
+    dureeMois = n;
+  }
+  if (patch.tauxAnnuel !== undefined) {
+    const t = Number(patch.tauxAnnuel);
+    if (!Number.isFinite(t) || t < 0 || t > 30) return { erreur: "taux_invalide" };
+    tauxAnnuel = Math.round(t * 100) / 100;
+  }
+  let mentions = contrat.mentions;
+  if (patch.mentions !== undefined) {
+    const propres = mentionsValides(patch.mentions);
+    if (propres === null) return { erreur: "mentions_invalides" };
+    mentions = propres;
+  }
+  contrat.objet = objet; contrat.montant = montant; contrat.dureeMois = dureeMois;
+  contrat.tauxAnnuel = tauxAnnuel; contrat.mentions = mentions;
+  contrat.mensualite = mensualiteContrat(montant, dureeMois, tauxAnnuel);
+  contrat.majA = maintenant;
+  return { contrat };
+}
+/** Transition pure : le contrat passe NOTIFIE (l'envoi réel e-mail/WhatsApp est fait par la
+ *  route via `notifierClient`). */
+export function notifierContrat(magasin: Magasin, contratId: string, maintenant: string): { contrat?: ContratServeur; erreur?: "introuvable" } {
+  const contrat = (magasin.contrats ?? []).find((c) => c.id === contratId);
+  if (!contrat) return { erreur: "introuvable" };
+  contrat.statut = "NOTIFIE"; contrat.notifieA = maintenant;
+  return { contrat };
 }
 
 /* ——— Demandes de crédit : chaque client ne voit que les siennes ——— */

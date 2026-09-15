@@ -40,6 +40,7 @@ export const API = {
   paiements: "/api/paiements",
   documents: "/api/documents",
   notifications: "/api/notifications",
+  contrats: "/api/contrats",
   banque: "/api/banque",
   banqueComptes: "/api/banque/comptes",
   banqueOperations: "/api/banque/operations",

@@ -14,7 +14,7 @@ import { useEffect, useMemo, useId, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownLeft, ArrowRight, BadgeCheck, Bell, BellRing, CalendarClock, Camera, ChevronDown,
-  CreditCard, FileText, Fingerprint, Landmark, LayoutDashboard, Lock, LogOut, Mail,
+  CreditCard, FileSignature, FileText, Fingerprint, Landmark, LayoutDashboard, Lock, LogOut, Mail,
   MessageCircle, Receipt, ScrollText, ShieldAlert, Smartphone, UserRound, Wallet,
 } from "lucide-react";
 import Reveal from "@/components/motion/Reveal";
@@ -31,6 +31,8 @@ import {
 import BankPortal from "@/components/auth/BankPortal";
 import OpsPortal from "@/components/auth/OpsPortal";
 import AdminOverview from "@/components/auth/AdminOverview";
+import ContratsAdmin from "@/components/auth/ContratsAdmin";
+import EcheanciersAdmin from "@/components/auth/EcheanciersAdmin";
 import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { API, apiGet, apiPost } from "@/lib/api";
 import type { BanqueCompte } from "@/lib/banque";
@@ -42,7 +44,7 @@ import {
   mensualiteDe, moyenne, pointsCourbe, prochaineEcheance, type PrefsNotif,
 } from "@/lib/compte";
 
-type Onglet = "apercu" | "demandes" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil" | "banque" | "operations" | "grille";
+type Onglet = "apercu" | "demandes" | "contrats" | "echeanciers" | "paiements" | "documents" | "notifications" | "profil" | "banque" | "operations" | "grille";
 
 const CLES_MARITAL_PROFIL = ["single", "married", "cohabiting", "divorced", "widow"];
 const CLES_LOGEMENT_PROFIL = ["owner", "tenant", "free"];
@@ -351,8 +353,10 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     ...(session.role === "CUSTOMER" ? [{ id: "banque" as Onglet, icone: Landmark, cle: "banque:tab" }] : []),
     ...(session.role !== "CUSTOMER" ? [{ id: "operations" as Onglet, icone: ShieldAlert, cle: "banque:opsTab" }] : []),
     ...(session.role === "SUPER_ADMIN" ? [{ id: "grille" as Onglet, icone: ScrollText, cle: "admin.grille.tab" }] : []),
-    { id: "demandes", icone: FileText, cle: "dashboard.applications.title" },
-    { id: "echeanciers", icone: CalendarClock, cle: "nav.repayments" },
+    // Le client garde « Mes demandes » ; l'administration gère des CONTRATS à la place (slice 23).
+    ...(session.role === "CUSTOMER" ? [{ id: "demandes" as Onglet, icone: FileText, cle: "dashboard.applications.title" }] : []),
+    ...(session.role !== "CUSTOMER" ? [{ id: "contrats" as Onglet, icone: FileSignature, cle: "dashboard.contracts.title" }] : []),
+    { id: "echeanciers", icone: CalendarClock, cle: session.role === "CUSTOMER" ? "nav.repayments" : "dashboard.ech.title" },
     { id: "paiements", icone: Wallet, cle: "payments.title" },
     { id: "documents", icone: Fingerprint, cle: "documents.title" },
     { id: "notifications", icone: Bell, cle: "notifications.title" },
@@ -477,7 +481,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
             </>
           )}
 
-          {onglet === "demandes" && (
+          {onglet === "demandes" && session.role === "CUSTOMER" && (
             <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="font-extrabold text-ink text-lg">{tr("dashboard.applications.title")}</h2>
@@ -528,7 +532,15 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
             </Reveal>
           )}
 
-          {onglet === "echeanciers" && (
+          {/* Slice 23 : l'administration gère les contrats de ses clients (établis, mentionnés,
+              mis à jour, téléchargés puis notifiés par e-mail / WhatsApp). */}
+          {onglet === "contrats" && session.role !== "CUSTOMER" && <ContratsAdmin locale={locale} />}
+
+          {/* Slice 23 : l'échéancier de l'administration est PAR CLIENT (dates de règlement,
+              capital restant dû, règlements déclarés). */}
+          {onglet === "echeanciers" && session.role !== "CUSTOMER" && <EcheanciersAdmin locale={locale} />}
+
+          {onglet === "echeanciers" && session.role === "CUSTOMER" && (
             <Reveal as="div" variant="fade" className="bg-ink text-white rounded-[24px] p-6 md:p-8 relative overflow-hidden shadow-card">
               <div className="maillage opacity-40" aria-hidden="true" />
               <div className="relative">
