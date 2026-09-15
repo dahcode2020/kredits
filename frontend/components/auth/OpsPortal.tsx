@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import {
-  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, FolderOpen, Landmark,
+  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, Bell, FolderOpen, Landmark,
   Lock, MessageCircle, Send, ServerOff, ShieldAlert, ShieldX, UserRound, Users,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
@@ -24,7 +24,7 @@ import {
   disponibleDe, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel, type Transaction,
 } from "@/lib/banque";
-import type { DocumentServeur, PaiementServeur, TypePaiement } from "@/lib/serveur";
+import type { DocumentServeur, NotificationServeur, PaiementServeur, TypePaiement } from "@/lib/serveur";
 import type { DOCUMENT_CODES } from "@/lib/credit-engine";
 
 const CLES_PIPELINE: Record<string, string> = {
@@ -47,7 +47,7 @@ interface ClientOps {
   id: string; email: string; nom: string; creeA: string;
   profil: Record<string, string> | null; compte: BanqueCompte;
 }
-type OngletOps = "clients" | "dossier" | "transactions" | "referentiel";
+type OngletOps = "clients" | "dossier" | "transactions" | "referentiel" | "notifications";
 
 export default function OpsPortal({ locale, session }: { locale: Locale; session: Session }) {
   const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
@@ -70,6 +70,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [msgCharge, setMsgCharge] = useState<"ok" | "err" | null>(null);
   const [pret, setPret] = useState(false);
   const [apiKo, setApiKo] = useState(false);
+  const [notifsStaff, setNotifsStaff] = useState<NotificationServeur[]>([]);
 
   const chargerMessages = async (idCompte: string) => {
     const r = await apiGet<{ messages: MessageChat[] }>(API.banqueChat(idCompte));
@@ -102,11 +103,22 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
       setPret(true);
     });
   };
+  /** Réponses des clients dans le chat : chaque membre du personnel a sa propre liste. */
+  const chargerNotifs = () => {
+    apiGet<{ notifications: NotificationServeur[] }>(API.notifications).then((r) => {
+      if (!r.ok) return;
+      setNotifsStaff([...r.corps.notifications].sort((a, b) => b.creeA.localeCompare(a.creeA)));
+    });
+  };
 
-  useEffect(() => { rafraichir(); }, []);
+  useEffect(() => { rafraichir(); chargerNotifs(); }, []);
   useEffect(() => {
     if (choisi) { void chargerMessages(choisi); void chargerPaiements(choisi); void chargerDocuments(choisi); }
   }, [choisi]);
+  useEffect(() => {
+    // L'onglet Notifications se recharge à chaque ouverture (les réponses clients arrivent en direct).
+    if (onglet === "notifications") chargerNotifs();
+  }, [onglet]);
 
   if (!pret) return null;
   if (apiKo || !ref) {
@@ -264,6 +276,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     { id: "dossier", cle: "banque:ops.tabDossier", icone: FolderOpen },
     { id: "transactions", cle: "banque:ops.tabTransactions", icone: ArrowLeftRight },
     { id: "referentiel", cle: "banque:ops.tabReferentiel", icone: Landmark },
+    { id: "notifications", cle: "banque:ops.tabNotifications", icone: Bell },
   ];
 
   return (
@@ -280,6 +293,9 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
               className={cn("inline-flex items-center gap-2 h-10 px-4 rounded-full text-[12px] font-extrabold uppercase tracking-wider border transition-colors",
                 onglet === o.id ? "bg-ink text-white border-ink" : "bg-white text-slate-500 border-slate-200 hover:border-ink/40")}>
               <o.icone className="w-4 h-4" aria-hidden="true" /> {tr(o.cle)}
+              {o.id === "notifications" && notifsStaff.length > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-white text-[10px] tabular-nums" aria-label={String(notifsStaff.length)}>{notifsStaff.length}</span>
+              )}
             </button>
           ))}
         </div>
@@ -414,6 +430,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
 
                     <div className="bg-white rounded-[24px] shadow-card border p-6">
                       <h4 className="font-display font-extrabold text-ink flex items-center gap-2"><MessageCircle className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.chat")}</h4>
+                      <p className="mt-1 text-[11px] text-slate-400">{tr("banque:chat.retention")}</p>
                       <div className="mt-4 rounded-2xl bg-surface border p-4 h-44 overflow-y-auto space-y-3">
                         {messages.length === 0 && <p className="text-[13px] text-slate-400">{tr("banque:chat.empty")}</p>}
                         {messages.map((m) => (
@@ -678,6 +695,26 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
             </ol>
           </div>
           <p className="mt-3 text-[11px] text-slate-400">{tr("banque:ops.refNote")}</p>
+        </div>
+      )}
+
+      {/* ——— Notifications du personnel (réponses des clients dans le chat) ——— */}
+      {onglet === "notifications" && (
+        <div className="bg-white rounded-[24px] shadow-card border p-6">
+          <h3 className="font-display font-extrabold text-ink flex items-center gap-2"><Bell className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.tabNotifications")}</h3>
+          {notifsStaff.length === 0 && <p className="mt-4 text-[13px] text-slate-400">{tr("notifications:empty")}</p>}
+          <ul className="mt-4 space-y-2">
+            {notifsStaff.map((n) => {
+              const varsResolues: Record<string, string> = {};
+              for (const [k, v] of Object.entries(n.vars ?? {})) varsResolues[k] = tSiCle(locale, v);
+              return (
+                <li key={n.id} className="rounded-2xl bg-surface border p-4">
+                  <div className="text-[13px] font-semibold text-ink">{t(locale, n.cle, varsResolues)}</div>
+                  <div className="mt-1 text-[11px] text-slate-400 tabular-nums">{formatDateTime(n.creeA, locale)}</div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

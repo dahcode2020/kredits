@@ -164,5 +164,7 @@
   "ops.docsApprove": "Approve",
   "ops.docsOpen": "Open",
   "ops.docsApproved": "Approved — no action needed.",
-  "notify.credit": "An incoming transfer of {montant} has been credited to your account."
+  "notify.credit": "An incoming transfer of {montant} has been credited to your account.",
+  "chat.retention": "Conversations are kept for 7 days, then deleted automatically.",
+  "ops.tabNotifications": "Notifications"
 }

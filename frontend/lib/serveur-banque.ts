@@ -19,6 +19,15 @@ import {
 
 export const PHOTO_MAX_OCTETS = 5 * 1024 * 1024;
 
+/** Rétention du chat : une conversation ne vit jamais plus d'UNE SEMAINE. Tout message plus vieux
+ *  que 7 jours est effacé automatiquement (gain d'espace) — à chaque lecture et à chaque écriture. */
+export const DUREE_CONVERSATION_MS = 7 * 24 * 60 * 60 * 1000;
+/** Purge pure : ne garde que les messages de la dernière semaine. */
+export function purgerMessagesChat(messages: MessageChat[], maintenant: string): MessageChat[] {
+  const limite = new Date(maintenant).getTime() - DUREE_CONVERSATION_MS;
+  return messages.filter((m) => new Date(m.ts).getTime() > limite);
+}
+
 /** Code de déblocage d'un niveau d'arrêt : généré automatiquement, 12 caractères alphanumériques
  *  non ambigus, émis par le serveur à chaque arrêt (jamais servi au client). */
 const ALPHABET_CODE = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
@@ -65,7 +74,7 @@ export function ouvrirBanquePour(magasin: Magasin, email: string, role: string, 
     // Le compte de démonstration arrive « vitrine » : vérifié, avec historique et chat, pour que
     // chaque état du pipeline soit illustré d'un coup d'œil (données fictives étiquetées démo).
     if (role === "CUSTOMER" && email.trim().toLowerCase() === COMPTES_PORTE_DEMO[0].email) {
-      const vitrine = banqueDemoIllustrative();
+      const vitrine = banqueDemoIllustrative(maintenant);
       magasin.banques[cle] = vitrine.compte;
       magasin.chats = magasin.chats ?? {};
       if (!magasin.chats[cle] || magasin.chats[cle].length === 0) magasin.chats[cle] = vitrine.chat;
@@ -131,8 +140,9 @@ export function actionClient(
     if (!texte) return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
     const cle = cleBanque(session.email, session.role);
     magasin.chats = magasin.chats ?? {};
+    // Rétention 7 jours : la purge précède chaque nouveau message.
     const message: MessageChat = { id: `MSG-${Date.now()}-${Math.floor(Math.random() * 1e4)}`, de: "client", auteur: session.nom, texte, ts: maintenant };
-    magasin.chats[cle] = [...(magasin.chats[cle] ?? []), message];
+    magasin.chats[cle] = [...purgerMessagesChat(magasin.chats[cle] ?? [], maintenant), message];
     return { statut: 200, corps: { messages: magasin.chats[cle] }, modifie: true };
   }
   if (corps.action === "photo") {
@@ -219,20 +229,26 @@ export function actionAdmin(
     const texte = String(corps.texte ?? "").trim();
     if (!compteId || !texte) return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
     magasin.chats = magasin.chats ?? {};
+    // Rétention 7 jours : la purge précède chaque nouveau message.
     const message: MessageChat = { id: `MSG-${Date.now()}-${Math.floor(Math.random() * 1e4)}`, de: "support", auteur: session.nom, texte, ts: maintenant };
-    magasin.chats[compteId] = [...(magasin.chats[compteId] ?? []), message];
+    magasin.chats[compteId] = [...purgerMessagesChat(magasin.chats[compteId] ?? [], maintenant), message];
     return { statut: 200, corps: { messages: magasin.chats[compteId] }, modifie: true };
   }
   return { statut: 400, corps: { erreur: "action_inconnue" }, modifie: false };
 }
 
-/* ——— Chat : lecture (client → le sien ; staff → celui du compte demandé) ——— */
-export function chatPour(magasin: Magasin, session: SessionServeur, compteId?: string): { messages: MessageChat[] } | { erreur: string; statut: number } {
-  if (session.role === "CUSTOMER") {
-    return { messages: magasin.chats?.[cleBanque(session.email, session.role)] ?? [] };
-  }
-  if (typeof compteId !== "string" || !compteId) return { erreur: "champs_manquants", statut: 400 };
-  return { messages: magasin.chats?.[compteId] ?? [] };
+/* ——— Chat : lecture (client → le sien ; staff → celui du compte demandé). La purge 7 jours
+ *  s'applique à CHAQUE lecture : une conversation ne survit jamais plus d'une semaine, même sans
+ *  nouvelle écriture. `purge` indique si des messages ont été effacés (l'API persiste alors). ——— */
+export function chatPour(magasin: Magasin, session: SessionServeur, compteId?: string, maintenant?: string): { messages: MessageChat[]; purge: boolean } | { erreur: string; statut: number } {
+  const cle = session.role === "CUSTOMER" ? cleBanque(session.email, session.role) : compteId;
+  if (session.role !== "CUSTOMER" && (typeof cle !== "string" || !cle)) return { erreur: "champs_manquants", statut: 400 };
+  maintenant = maintenant ?? new Date().toISOString();
+  const bruts = magasin.chats?.[cle as string] ?? [];
+  const messages = purgerMessagesChat(bruts, maintenant);
+  const purge = messages.length !== bruts.length;
+  if (purge) { magasin.chats = magasin.chats ?? {}; magasin.chats[cle as string] = messages; }
+  return { messages, purge };
 }
 
 /* ——— Référentiel : lecture + surcharges réservées à l'administration ——— */

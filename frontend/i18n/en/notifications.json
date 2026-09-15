@@ -23,5 +23,7 @@
   "real.saved": "Delivery preferences saved.",
   "real.note": "Email: Resend (free, 3,000 emails/month). WhatsApp: Meta Cloud API (free, 1,000 service conversations/month). Server-side keys: KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Without keys, sends are marked “not configured” — never faked.",
   "testCta": "Send a test notification",
-  "testBody": "This is a test notification from the KREDIT platform: your delivery channels are working as configured."
+  "testBody": "This is a test notification from the KREDIT platform: your delivery channels are working as configured.",
+  "chat.fromSupport": "New message from {auteur} in your bank chat",
+  "chat.fromClient": "{client} replied in the bank chat"
 }

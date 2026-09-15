@@ -23,5 +23,7 @@
   "real.saved": "Bezorgvoorkeuren opgeslagen.",
   "real.note": "E-mail: Resend (gratis, 3.000 e-mails/maand). WhatsApp: Cloud-API van Meta (gratis, 1.000 servicegesprekken/maand). Sleutels serverzijde: KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Zonder sleutels worden verzendingen als “niet geconfigureerd” gemarkeerd — nooit gesimuleerd.",
   "testCta": "Een testmelding verzenden",
-  "testBody": "Dit is een testmelding van het KREDIT-platform: uw bezorgkanalen werken zoals geconfigureerd."
+  "testBody": "Dit is een testmelding van het KREDIT-platform: uw bezorgkanalen werken zoals geconfigureerd.",
+  "chat.fromSupport": "Nieuw bericht van {auteur} in uw bankchat",
+  "chat.fromClient": "{client} heeft geantwoord in de bankchat"
 }

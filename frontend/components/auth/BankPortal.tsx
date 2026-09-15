@@ -458,6 +458,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
       {/* ——— Messagerie support ——— */}
       <div className="bg-white rounded-[24px] shadow-card border p-6">
         <h3 className="font-display font-extrabold text-ink flex items-center gap-2"><MessageCircle className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:chat.title")}</h3>
+        <p className="mt-1 text-[11px] text-slate-400">{tr("banque:chat.retention")}</p>
         <div className="mt-4 rounded-2xl bg-surface border p-4 h-56 overflow-y-auto space-y-3">
           {messages.length === 0 && <p className="text-[13px] text-slate-400">{tr("banque:chat.empty")}</p>}
           {messages.map((m) => (

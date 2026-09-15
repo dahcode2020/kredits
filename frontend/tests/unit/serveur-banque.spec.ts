@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   MONTANT_DEMO, REFERENTIEL_CANONIQUE, bicValide, disponibleDe, ibanBEValide, soldeDe,
-  type BanqueCompte, type Referentiel,
+  type BanqueCompte, type MessageChat, type Referentiel,
 } from "@/lib/banque";
 import {
   creerCompte, lireMagasin, ouvrirSessionServeur, type Magasin, type SessionServeur,
@@ -26,8 +26,8 @@ import {
 
 const cleDemo = "client@kredit.be::CUSTOMER";
 import {
-  PHOTO_MAX_OCTETS, actionAdmin, actionClient, banqueDeSession, chatPour, listeComptesClients,
-  ouvrirBanquePour, referentielPourApi, surchargerReferentiel,
+  DUREE_CONVERSATION_MS, PHOTO_MAX_OCTETS, actionAdmin, actionClient, banqueDeSession, chatPour,
+  listeComptesClients, ouvrirBanquePour, purgerMessagesChat, referentielPourApi, surchargerReferentiel,
 } from "@/lib/serveur-banque";
 
 let dossier: string;
@@ -295,7 +295,7 @@ describe("chat, photo et référentiel", () => {
     actionAdmin(magasin, admin, { action: "chat", compteId: cle, texte: "Support KREDIT, à vous" });
     const vuClient = chatPour(magasin, session);
     const vuAdmin = chatPour(magasin, admin, cle);
-    expect(vuClient).toEqual({ messages: expect.any(Array) });
+    expect(vuClient).toEqual({ messages: expect.any(Array), purge: false });
     expect((vuClient as { messages: Array<{ texte: string; de: string }> }).messages.map((m) => `${m.de}:${m.texte}`))
       .toEqual(["client:Bonjour", "support:Support KREDIT, à vous"]);
     expect(vuAdmin).toEqual(vuClient);
@@ -363,5 +363,56 @@ describe("chat, photo et référentiel", () => {
     const final = d.corps.compte as BanqueCompte;
     expect(final.transactions.find((t) => t.motifLibre === "Frais de notaire")).toMatchObject({ sens: "sortant", montant: 80 });
     expect(soldeDe(final)).toBe(MONTANT_DEMO - 400 - 25 - 80 - 150);
+  });
+});
+
+describe("rétention du chat : une conversation ne vit jamais plus d'une semaine", () => {
+  const msg = (id: string, ts: string): MessageChat => ({ id, de: "client", auteur: "X", texte: "t", ts });
+  const MAINTENANT = "2026-09-15T12:00:00.000Z";
+
+  it("purge pure : les messages de plus de 7 jours sont effacés, les récents restent", () => {
+    // La frontière exacte est MAINTENANT − 7 j = 2026-09-08T12:00:00Z : strictement plus récent = gardé.
+    const tropVieux = msg("V1", "2026-09-08T11:59:59.000Z"); // 1 s trop ancien
+    const justeBon = msg("V2", "2026-09-08T12:00:01.000Z"); // 1 s dans la fenêtre
+    const recent = msg("R1", "2026-09-14T12:00:00.000Z");
+    expect(purgerMessagesChat([tropVieux, justeBon, recent], MAINTENANT)).toEqual([justeBon, recent]);
+    expect(DUREE_CONVERSATION_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+
+  it("lecture : la purge s'applique à chaque GET, même sans nouvelle écriture", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin);
+    magasin.chats = { [cle]: [msg("V1", "2026-09-01T10:00:00.000Z"), msg("R1", "2026-09-14T10:00:00.000Z")] };
+    const r = chatPour(magasin, session, undefined, MAINTENANT);
+    expect(r).toEqual({ messages: [expect.objectContaining({ id: "R1" })], purge: true });
+    expect(magasin.chats?.[cle]).toHaveLength(1); // l'état en mémoire est nettoyé (l'API persiste)
+    // Deuxième lecture : plus rien à purger.
+    const relire = chatPour(magasin, session, undefined, MAINTENANT);
+    if ("erreur" in relire) throw new Error("lecture attendue");
+    expect(relire.purge).toBe(false);
+  });
+
+  it("écriture : client comme support purgent avant d'ajouter le nouveau message", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin);
+    const admin = sessionAdmin(magasin);
+    magasin.chats = { [cle]: [msg("V1", "2026-09-01T10:00:00.000Z")] };
+    const rc = actionClient(magasin, session, { action: "chat", texte: "Bonjour" });
+    expect(rc.statut).toBe(200);
+    expect((rc.corps as { messages: MessageChat[] }).messages.map((m) => m.id)).not.toContain("V1");
+    magasin.chats![cle] = [msg("V2", "2026-09-01T10:00:00.000Z")];
+    const ra = actionAdmin(magasin, admin, { action: "chat", compteId: cle, texte: "Support, à vous" });
+    expect((ra.corps as { messages: MessageChat[] }).messages.map((m) => m.id)).not.toContain("V2");
+  });
+
+  it("le staff lit le chat purgé du compte demandé", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin);
+    const admin = sessionAdmin(magasin);
+    magasin.chats = { [cle]: [msg("V1", "2026-09-01T10:00:00.000Z"), msg("R1", "2026-09-14T10:00:00.000Z")] };
+    const r = chatPour(magasin, admin, cle, MAINTENANT) as { messages: MessageChat[]; purge: boolean };
+    expect(r.purge).toBe(true);
+    expect(r.messages.map((m) => m.id)).toEqual(["R1"]);
+    void session;
   });
 });

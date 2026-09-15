@@ -23,5 +23,7 @@
   "real.saved": "Zustellungseinstellungen gespeichert.",
   "real.note": "E-Mail: Resend (kostenlos, 3.000 E-Mails/Monat). WhatsApp: Cloud-API von Meta (kostenlos, 1.000 Service-Gespräche/Monat). Schlüssel serverseitig: KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Ohne Schlüssel werden Sendungen als „nicht konfiguriert“ markiert — nie simuliert.",
   "testCta": "Eine Testbenachrichtigung senden",
-  "testBody": "Dies ist eine Testbenachrichtigung der KREDIT-Plattform: Ihre Zustellkanäle funktionieren wie konfiguriert."
+  "testBody": "Dies ist eine Testbenachrichtigung der KREDIT-Plattform: Ihre Zustellkanäle funktionieren wie konfiguriert.",
+  "chat.fromSupport": "Neue Nachricht von {auteur} in Ihrem Bank-Chat",
+  "chat.fromClient": "{client} hat im Bank-Chat geantwortet"
 }

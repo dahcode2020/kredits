@@ -12,16 +12,16 @@ function jetonDe(req: Request): string | undefined {
 }
 
 /** GET /api/notifications — les notifications du client connecté (avec l'état réel de chaque
- *  canal de distribution) + ses préférences de distribution ; l'administration peut lire celles
- *  d'un compte (?compte=email::ROLE). */
+ *  canal de distribution) + ses préférences de distribution. Le personnel lit les siennes
+ *  (réponses des clients dans le chat), ou celles d'un compte précis (?compte=email::ROLE). */
 export async function GET(req: Request) {
   const magasin = lireMagasin();
   const session = verifierSession(magasin, jetonDe(req));
   if (!session) return NextResponse.json({ erreur: "session" }, { status: 401 });
   if (session.role !== "CUSTOMER") {
     const compte = new URL(req.url).searchParams.get("compte");
-    if (!compte) return NextResponse.json({ erreur: "champs_manquants" }, { status: 400 });
-    return NextResponse.json({ notifications: notificationsPour(magasin, compte.split("::")[0]) });
+    const cible = compte ? compte.split("::")[0] : session.email;
+    return NextResponse.json({ notifications: notificationsPour(magasin, cible) });
   }
   const compte = magasin.comptes.find((c) => c.email === session.email && c.role === session.role);
   const numero = compte?.profil?.telephone ? numeroInternational(compte.profil.telephone) : null;

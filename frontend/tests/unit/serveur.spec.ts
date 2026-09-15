@@ -18,7 +18,7 @@ import {
   confirmerPaiement, creerCompte, creerPaiement, deposerDemandeServeur, deposerDocument,
   demandesPour, documentsPour, ecrireMagasin, enregistrerVirementEntrant, grillePourApi,
   hacherMotDePasse, lireMagasin, mettreAJourPrefsNotif, mettreAJourProfilServeur,
-  notificationsPour, notifierClient, nouveauSel, ouvrirSessionServeur, paiementsPour,
+  notificationsPour, notifierClient, notifierStaff, nouveauSel, ouvrirSessionServeur, paiementsPour,
   reglerPaiement, VERSION_MAGASIN, optionsCookie, revoquerSession, simulerServeur,
   sondeGrillePourApi, trouverCompte, verifierMotDePasse, verifierSession, type DemandeServeur,
 } from "@/lib/serveur";
@@ -365,6 +365,30 @@ describe("centre de notification : site + e-mail (Resend) + WhatsApp (API Cloud 
     expect(prefs).toEqual({ email: false, whatsapp: true }); // l'intrus est ignoré
     ecrireMagasin(magasin, dossier);
     expect(lireMagasin(dossier).comptes.find((c) => c.email === "client@kredit.be")?.prefsNotif).toEqual({ email: false, whatsapp: true });
+  });
+});
+
+describe("chat : le client qui répond notifie le personnel (site + e-mail réel, pas de WhatsApp)", () => {
+  const FAUX_FETCH_OK = async () => ({ ok: true, status: 200 });
+  const CFG = { resend: { cle: "re_test", de: "KREDIT <notifications@kredit.example>" }, whatsapp: { jeton: "wa_test", idTelephone: "123456" } };
+
+  it("chaque membre du personnel reçoit SA notification sur site + e-mail", async () => {
+    const magasin = lireMagasin(dossier);
+    const notifs = await notifierStaff(magasin, { cle: "notifications.chat.fromClient", vars: { client: "Client KREDIT" }, maintenant: "2026-09-15T09:00:00.000Z" }, { config: CFG, fetchImpl: FAUX_FETCH_OK });
+    // ADMIN + SUPER_ADMIN semés : une notification chacun, jamais le compte client.
+    expect(notifs.map((n) => n.email).sort()).toEqual(["admin@kredit.be", "super@kredit.be"]);
+    for (const n of notifs) {
+      expect(n.canaux?.email).toBe("envoye");
+      expect(n.canaux?.whatsapp).toBeUndefined(); // le personnel n'a pas de numéro au dossier
+      expect(notificationsPour(magasin, n.email).some((x) => x.id === n.id)).toBe(true);
+    }
+  });
+
+  it("sans fournisseur configuré : le canal e-mail est « non configuré », la notification sur site part", async () => {
+    const magasin = lireMagasin(dossier);
+    const notifs = await notifierStaff(magasin, { cle: "notifications.chat.fromClient", vars: { client: "X" }, maintenant: "2026-09-15T09:00:00.000Z" }, { config: {}, fetchImpl: FAUX_FETCH_OK });
+    expect(notifs.length).toBeGreaterThan(0);
+    for (const n of notifs) expect(n.canaux?.email).toBe("non_configure");
   });
 });
 

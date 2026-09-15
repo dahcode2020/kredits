@@ -354,6 +354,30 @@ export async function notifierClient(
     : "desactive";
   return notif;
 }
+/** Le même geste pour l'équipe (ADMIN / SUPER_ADMIN) : quand un client répond dans le chat,
+ *  chaque membre du personnel reçoit une notification sur site + un e-mail réel si le
+ *  fournisseur est configuré. Pas de WhatsApp : le personnel n'a pas de numéro au dossier. */
+export async function notifierStaff(
+  magasin: Magasin,
+  evt: { cle: string; vars?: Record<string, string>; maintenant: string },
+  options?: { config?: ConfigNotif; fetchImpl?: FetchImpl; locale?: Locale },
+): Promise<NotificationServeur[]> {
+  const staff = magasin.comptes.filter((c) => c.role !== "CUSTOMER");
+  if (staff.length === 0) return [];
+  const config = options?.config ?? configNotifDepuisEnv(process.env as Record<string, string | undefined>);
+  const fetchImpl = options?.fetchImpl ?? (fetch as unknown as FetchImpl);
+  const locale: Locale = options?.locale ?? "fr";
+  const varsResolues: Record<string, string> = {};
+  for (const [k, v] of Object.entries(evt.vars ?? {})) varsResolues[k] = tSiCle(locale, v);
+  const texte = t(locale, evt.cle, varsResolues);
+  const notifs: NotificationServeur[] = [];
+  for (const membre of staff) {
+    const notif = deposerNotification(magasin, { email: membre.email, cle: evt.cle, vars: evt.vars, maintenant: evt.maintenant });
+    notif.canaux = { email: await envoyerEmailResend(config.resend, membre.email, `KREDIT — ${texte}`, texte, fetchImpl) };
+    notifs.push(notif);
+  }
+  return notifs;
+}
 export function notificationsPour(magasin: Magasin, email: string): NotificationServeur[] {
   const e = email.trim().toLowerCase();
   return (magasin.notifications ?? []).filter((n) => n.email === e);

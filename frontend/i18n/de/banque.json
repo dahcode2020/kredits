@@ -164,5 +164,7 @@
   "ops.docsApprove": "Genehmigen",
   "ops.docsOpen": "Öffnen",
   "ops.docsApproved": "Genehmigt — keine Aktion nötig.",
-  "notify.credit": "Eine eingehende Überweisung über {montant} wurde Ihrem Konto gutgeschrieben."
+  "notify.credit": "Eine eingehende Überweisung über {montant} wurde Ihrem Konto gutgeschrieben.",
+  "chat.retention": "Gespräche werden 7 Tage aufbewahrt und anschließend automatisch gelöscht.",
+  "ops.tabNotifications": "Benachrichtigungen"
 }

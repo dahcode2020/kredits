@@ -20,6 +20,13 @@ export async function POST(req: Request) {
       vars: { montant: `${Number(corps.montant).toFixed(2)} €` }, maintenant: new Date().toISOString(),
     });
   }
+  // Le support écrit dans le chat → le client est prévenu (site + e-mail + WhatsApp selon préférences).
+  if (r.modifie && corps.action === "chat" && typeof corps.compteId === "string") {
+    await notifierClient(magasin, {
+      email: corps.compteId.split("::")[0], cle: "notifications.chat.fromSupport",
+      vars: { auteur: session.nom }, maintenant: new Date().toISOString(),
+    });
+  }
   if (r.modifie) ecrireMagasin(magasin);
   return NextResponse.json(r.corps, { status: r.statut });
 }

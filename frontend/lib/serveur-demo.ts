@@ -36,7 +36,7 @@ import {
  * appliquant la machine à états pure : soldes et réserves restent cohérents. Les motifs et le chat
  * portent des CLÉS i18n (résolues par `tSiCle` à l'affichage), jamais de français codé ici.
  */
-export function banqueDemoIllustrative(): { compte: BanqueCompte; chat: MessageChat[] } {
+export function banqueDemoIllustrative(maintenant?: string): { compte: BanqueCompte; chat: MessageChat[] } {
   const ref = referentielEffectif();
   let compte = ouvrirBanqueClient("client@kredit.be", "CUSTOMER", "2026-09-01T08:30:00.000Z");
   const salaire: Transaction = {
@@ -67,11 +67,15 @@ export function banqueDemoIllustrative(): { compte: BanqueCompte; chat: MessageC
   compte = debloquerParCode(compte, id3, "TMP30BDEMO26", "2026-09-13T15:00:00.000Z").compte;
   compte = evolutionVirement(compte, id3, ref, "DEMO60AB2026", "2026-09-13T16:00:00.000Z");
 
+  // Rétention 7 jours du chat : les messages semés datent de la DERNIÈRE semaine relativement au
+  // semis (jamais d'horodatage fixe qui serait aussitôt purgé).
+  const baseChat = new Date(maintenant ?? new Date().toISOString()).getTime();
+  const ilYa = (jours: number, heures = 0) => new Date(baseChat - jours * 86_400_000 - heures * 3_600_000).toISOString();
   const chat: MessageChat[] = [
-    { id: "MSG-DEMO-1", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoWelcome", ts: "2026-09-05T09:10:00.000Z" },
-    { id: "MSG-DEMO-2", de: "client", auteur: "Client KREDIT", texte: "banque.chat.demoQuestion", ts: "2026-09-13T16:20:00.000Z" },
-    { id: "MSG-DEMO-3", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoAnswer", ts: "2026-09-13T17:05:00.000Z" },
-    { id: "MSG-DEMO-4", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoCode", ts: "2026-09-13T17:40:00.000Z" },
+    { id: "MSG-DEMO-1", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoWelcome", ts: ilYa(6) },
+    { id: "MSG-DEMO-2", de: "client", auteur: "Client KREDIT", texte: "banque.chat.demoQuestion", ts: ilYa(1, 4) },
+    { id: "MSG-DEMO-3", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoAnswer", ts: ilYa(1, 3) },
+    { id: "MSG-DEMO-4", de: "support", auteur: "Support KREDIT", texte: "banque.chat.demoCode", ts: ilYa(1, 2) },
   ];
   return { compte, chat };
 }

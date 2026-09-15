@@ -23,5 +23,7 @@
   "real.saved": "Préférences de distribution enregistrées.",
   "real.note": "E-mail : Resend (gratuit, 3 000 e-mails/mois). WhatsApp : API Cloud de Meta (gratuit, 1 000 conversations de service/mois). Clés à poser côté serveur : KREDIT_RESEND_KEY, KREDIT_EMAIL_FROM, KREDIT_WHATSAPP_TOKEN, KREDIT_WHATSAPP_PHONE_ID. Sans clés, les envois sont marqués « non configuré » — jamais simulés.",
   "testCta": "Envoyer une notification de test",
-  "testBody": "Ceci est une notification de test de la plateforme KREDIT : vos canaux de distribution fonctionnent comme configuré."
+  "testBody": "Ceci est une notification de test de la plateforme KREDIT : vos canaux de distribution fonctionnent comme configuré.",
+  "chat.fromSupport": "Nouveau message de {auteur} dans votre chat bancaire",
+  "chat.fromClient": "{client} a répondu dans le chat bancaire"
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ecrireMagasin, lireMagasin } from "@/lib/serveur";
+import { ecrireMagasin, lireMagasin, notifierStaff } from "@/lib/serveur";
 import { actionClient, banqueDeSession, sessionDeRequete } from "@/lib/serveur-banque";
 
 export const runtime = "nodejs";
@@ -24,6 +24,10 @@ export async function POST(req: Request) {
   const session = sessionDeRequete(req, magasin);
   if (!session) return NextResponse.json({ erreur: "session" }, { status: 401 });
   const r = actionClient(magasin, session, corps);
+  // Réponse du client dans le chat → l'équipe est prévenue (site + e-mail réel).
+  if (r.modifie && corps.action === "chat") {
+    await notifierStaff(magasin, { cle: "notifications.chat.fromClient", vars: { client: session.nom }, maintenant: new Date().toISOString() });
+  }
   if (r.modifie) ecrireMagasin(magasin);
   return NextResponse.json(r.corps, { status: r.statut });
 }
