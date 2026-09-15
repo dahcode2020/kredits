@@ -30,6 +30,7 @@ import {
 } from "@/lib/auth";
 import BankPortal from "@/components/auth/BankPortal";
 import OpsPortal from "@/components/auth/OpsPortal";
+import AdminOverview from "@/components/auth/AdminOverview";
 import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { API, apiGet, apiPost } from "@/lib/api";
 import type { BanqueCompte } from "@/lib/banque";
@@ -399,7 +400,11 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
 
         {/* ——— Contenu ——— */}
         <div className="space-y-6 min-w-0">
-          {onglet === "apercu" && (
+          {/* Slice 22 : pour l'administration, l'Aperçu devient « l'œil de la plateforme » —
+              totaux et activité en temps réel servis par /api/activite. */}
+          {onglet === "apercu" && session.role !== "CUSTOMER" && <AdminOverview locale={locale} />}
+
+          {onglet === "apercu" && session.role === "CUSTOMER" && (
             <>
               <Reveal as="div" variant="fade" className="relative rounded-[28px] overflow-hidden bg-ink text-white p-6 md:p-8 shadow-card">
                 <div className="maillage opacity-50" aria-hidden="true" />

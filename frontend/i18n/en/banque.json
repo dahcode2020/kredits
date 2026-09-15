@@ -166,5 +166,9 @@
   "ops.docsApproved": "Approved — no action needed.",
   "notify.credit": "An incoming transfer of {montant} has been credited to your account.",
   "chat.retention": "Conversations are kept for 7 days, then deleted automatically.",
-  "ops.tabNotifications": "Notifications"
+  "ops.tabNotifications": "Notifications",
+  "ops.docsPending": "{n} to approve",
+  "ops.docsCta": "Client documents",
+  "ops.chatNonLu": "Unanswered client message",
+  "ops.kycDocsHint": "To validate KYC, first review and approve the documents provided by the client."
 }

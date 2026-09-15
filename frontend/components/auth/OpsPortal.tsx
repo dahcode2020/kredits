@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import {
-  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, Bell, FolderOpen, Landmark,
+  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, Bell, FileCheck2, FolderOpen, Landmark,
   Lock, MessageCircle, Send, ServerOff, ShieldAlert, ShieldX, UserRound, Users,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
@@ -46,6 +46,8 @@ const CLES_DOC: Record<(typeof DOCUMENT_CODES)[number], string> = {
 interface ClientOps {
   id: string; email: string; nom: string; creeA: string;
   profil: Record<string, string> | null; compte: BanqueCompte;
+  /** Le KYC se valide dossier en mains : pièces encore à approuver, dernier mot du chat au client. */
+  docsEnAttente: number; chatNonLu: boolean;
 }
 type OngletOps = "clients" | "dossier" | "transactions" | "referentiel" | "notifications";
 
@@ -61,6 +63,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [motifCredit, setMotifCredit] = useState("");
   const [msgCredit, setMsgCredit] = useState<"ok" | "err" | null>(null);
   const [texteChat, setTexteChat] = useState("");
+  const [focusDocs, setFocusDocs] = useState(false);
   const [paiements, setPaiements] = useState<PaiementServeur[]>([]);
   const [documents, setDocuments] = useState<DocumentServeur[]>([]);
   const [chargeType, setChargeType] = useState<TypePaiement>("FRAIS");
@@ -115,6 +118,17 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   useEffect(() => {
     if (choisi) { void chargerMessages(choisi); void chargerPaiements(choisi); void chargerDocuments(choisi); }
   }, [choisi]);
+  // Le bouton « Pièces du client » amène directement à la carte des documents du dossier ouvert :
+  // l'approbation KYC se fait dossier en mains, sans changer d'écran.
+  useEffect(() => {
+    if (focusDocs && onglet === "dossier" && choisi) {
+      const t = window.setTimeout(() => {
+        document.getElementById("dossier-docs")?.scrollIntoView({ behavior: "auto", block: "start" });
+        setFocusDocs(false);
+      }, 80);
+      return () => window.clearTimeout(t);
+    }
+  }, [focusDocs, onglet, choisi]);
   useEffect(() => {
     // L'onglet Notifications se recharge à chaque ouverture (les réponses clients arrivent en direct).
     if (onglet === "notifications") chargerNotifs();
@@ -323,10 +337,28 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                 {clients.map((c) => (
                   <tr key={c.id}>
                     <td className="py-3 pr-3">
-                      <div className="font-extrabold text-ink">{c.nom}</div>
+                      <div className="font-extrabold text-ink flex items-center gap-2">
+                        {c.nom}
+                        {/* Le dernier mot du chat revient au client : signalé pour répondre vite. */}
+                        {c.chatNonLu && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-primary bg-primary-light px-2 py-0.5 rounded-full" title={tr("banque:ops.chatNonLu")}>
+                            <MessageCircle className="w-3 h-3" aria-hidden="true" /> {tr("banque:ops.chatNonLu")}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-slate-400">{c.email} · <span className="font-mono">{c.compte.iban}</span></div>
                     </td>
-                    <td className="py-3 pr-3">{badgeKyc(c.compte.verifie)}</td>
+                    <td className="py-3 pr-3">
+                      <div className="flex flex-col items-start gap-1.5">
+                        {badgeKyc(c.compte.verifie)}
+                        {/* Le KYC se valide dossier en mains : pièces restant à approuver. */}
+                        <span className={cn("inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full",
+                          c.docsEnAttente > 0 ? "bg-amber-50 text-amber-600" : "bg-slate-50 text-slate-400")}>
+                          <FileCheck2 className="w-3 h-3" aria-hidden="true" />
+                          {c.docsEnAttente > 0 ? tr("banque:ops.docsPending", { n: c.docsEnAttente }) : tr("banque:ops.docsNone")}
+                        </span>
+                      </div>
+                    </td>
                     <td className="py-3 pr-3 text-right font-bold tabular-nums">{formatEUR2(soldeDe(c.compte), locale)}</td>
                     <td className="py-3 pr-3 text-right">
                       {aTraiter(c.compte).length > 0
@@ -339,6 +371,11 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                         className={buttonClasses(c.compte.verifie ? "outline-light" : "primary", "sm")}>
                         {c.compte.verifie ? <ShieldX className="w-4 h-4" aria-hidden="true" /> : <BadgeCheck className="w-4 h-4" aria-hidden="true" />}
                         <span className="ml-2">{tr(c.compte.verifie ? "banque:ops.kycRevoke" : "banque:ops.kycValidate")}</span>
+                      </button>
+                      {/* Accès direct aux pièces fournies par le client : approbation en temps réel. */}
+                      <button type="button" onClick={() => { setChoisi(c.id); setOnglet("dossier"); setFocusDocs(true); }} className={cn(buttonClasses("outline-light", "sm"), "ml-2")}>
+                        <FileCheck2 className="w-4 h-4" aria-hidden="true" />
+                        <span className="ml-2">{tr("banque:ops.docsCta")}</span>
                       </button>
                       <button type="button" onClick={() => { setChoisi(c.id); setOnglet("dossier"); }} className={cn(buttonClasses("outline-light", "sm"), "ml-2")}>
                         <FolderOpen className="w-4 h-4" aria-hidden="true" />
@@ -368,7 +405,19 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                   </select>
                 </label>
                 {cible && badgeKyc(cible.compte.verifie)}
+                {/* Le KYC se valide dossier en mains : lien direct vers les pièces du client. */}
+                {cible && cible.docsEnAttente > 0 && (
+                  <button type="button" onClick={() => setFocusDocs(true)}
+                    className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-full hover:bg-amber-100 transition-colors"
+                    title={tr("banque:ops.kycDocsHint")}>
+                    <FileCheck2 className="w-4 h-4" aria-hidden="true" />
+                    {tr("banque:ops.docsPending", { n: cible.docsEnAttente })}
+                  </button>
+                )}
               </div>
+              {cible && cible.docsEnAttente > 0 && (
+                <p className="mt-3 text-[12px] leading-5 text-slate-500">{tr("banque:ops.kycDocsHint")}</p>
+              )}
             </div>
 
             {cible && (
@@ -539,8 +588,8 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
 
                 {/* Documents du client : lire la pièce déposée, puis l'approuver — le client
                     est notifié et la mention « approuvé » apparaît dans son menu Documents. */}
-                <div className="bg-white rounded-[24px] shadow-card border p-6">
-                  <h4 className="font-display font-extrabold text-ink flex items-center gap-2"><FolderOpen className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.docsTitle")}</h4>
+                <div id="dossier-docs" className="bg-white rounded-[24px] shadow-card border p-6 scroll-mt-24">
+                  <h4 className="font-display font-extrabold text-ink flex items-center gap-2"><FileCheck2 className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.docsTitle")}</h4>
                   {documents.length === 0 ? (
                     <p className="mt-3 text-[13px] text-slate-500">{tr("banque:ops.docsNone")}</p>
                   ) : (

@@ -43,6 +43,7 @@ export const API = {
   banque: "/api/banque",
   banqueComptes: "/api/banque/comptes",
   banqueOperations: "/api/banque/operations",
+  activite: "/api/activite",
   banqueChat: (compte?: string) => (compte ? `/api/banque/chat?compte=${encodeURIComponent(compte)}` : "/api/banque/chat"),
   banqueReferentiel: "/api/banque/referentiel",
 } as const;

@@ -13,7 +13,7 @@ import { NOM_COOKIE, enregistrerVirementEntrant, verifierSession, type Magasin, 
 import { COMPTES_PORTE_DEMO, banqueDemoIllustrative } from "@/lib/serveur-demo";
 import {
   annulerVirement, bicValide, cleBanque, debloquerParCode, denouer, evolutionVirement, initierVirement,
-  leverBlocage, ouvrirBanqueClient, referentielEffectif, refuserVirement,
+  leverBlocage, ouvrirBanqueClient, referentielEffectif, refuserVirement, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel,
 } from "@/lib/banque";
 
@@ -159,15 +159,27 @@ export function actionClient(
 /* ——— Vue de l'administration : tous les comptes clients (dossier complet : profil + KYC) ——— */
 export function listeComptesClients(magasin: Magasin): Array<{
   id: string; email: string; nom: string; creeA: string; profil: Record<string, string> | null; compte: BanqueCompte;
+  docsEnAttente: number; chatNonLu: boolean;
 }> {
   ouvrirToutesLesBanques(magasin);
+  const maintenant = new Date().toISOString();
   return magasin.comptes
     .filter((c) => c.role === "CUSTOMER")
-    .map((c) => ({
-      id: cleBanque(c.email, c.role), email: c.email, nom: c.nom, creeA: c.creeA,
-      profil: c.profil ?? null,
-      compte: magasin.banques![cleBanque(c.email, c.role)],
-    }))
+    .map((c) => {
+      const id = cleBanque(c.email, c.role);
+      // Le KYC se valide DOSSIER EN MAINS : on remonte le nombre de pièces encore à approuver,
+      // et si le dernier mot du chat revient au client (message resté sans réponse).
+      const messages = purgerMessagesChat(magasin.chats?.[id] ?? [], maintenant);
+      const dernierClient = [...messages].reverse().find((m) => m.de === "client");
+      const dernierSupport = [...messages].reverse().find((m) => m.de === "support");
+      return {
+        id, email: c.email, nom: c.nom, creeA: c.creeA,
+        profil: c.profil ?? null,
+        compte: magasin.banques![id],
+        docsEnAttente: (magasin.documents ?? []).filter((d) => d.email === c.email && d.statut === "SOUMIS").length,
+        chatNonLu: Boolean(dernierClient && (!dernierSupport || dernierClient.ts > dernierSupport.ts)),
+      };
+    })
     .filter((x) => x.compte);
 }
 function ouvrirToutesLesBanques(magasin: Magasin): void {
@@ -286,3 +298,61 @@ export function surchargerReferentiel(
 }
 
 export type { SurchargesReferentiel };
+
+/* ——— « L'œil de l'administrateur » : l'Aperçu exhaustif de la plateforme, en temps réel ——— */
+/** Une ligne du fil d'activité : qui, quoi, quand. Le type pilote l'icône et le verbe à l'écran. */
+export interface EvenementPlateforme {
+  ts: string; type: "credit" | "debit" | "chat" | "kyc" | "virement";
+  email: string; nom: string; montant?: number; detail?: string;
+}
+export interface ApercuPlateforme {
+  totaux: {
+    clients: number; kycVerifies: number; kycEnAttente: number;
+    transactions: number; volumeEntrant: number; volumeSortant: number; soldeCumule: number;
+    virementsActifs: number; messagesChat: number;
+  };
+  recent: EvenementPlateforme[];
+}
+export function apercuPlateforme(magasin: Magasin): ApercuPlateforme {
+  ouvrirToutesLesBanques(magasin);
+  const maintenant = new Date().toISOString();
+  const clients = magasin.comptes.filter((c) => c.role === "CUSTOMER");
+  const dossiers = clients
+    .map((c) => ({ client: c, compte: magasin.banques![cleBanque(c.email, c.role)] }))
+    .filter((x): x is { client: (typeof clients)[number]; compte: BanqueCompte } => Boolean(x.compte));
+  let volumeEntrant = 0, volumeSortant = 0, transactions = 0, virementsActifs = 0, soldeCumule = 0;
+  const recent: EvenementPlateforme[] = [];
+  for (const { client, compte } of dossiers) {
+    const email = client.email.toLowerCase();
+    soldeCumule += soldeDe(compte);
+    for (const t of compte.transactions) {
+      transactions += 1;
+      if (t.sens === "entrant") volumeEntrant += t.montant; else volumeSortant += t.montant;
+      recent.push({ ts: t.date, type: t.sens === "entrant" ? "credit" : "debit", email, nom: client.nom, montant: t.montant, detail: t.contrepartie });
+    }
+    for (const v of compte.virements) {
+      if (v.statut === "EN_COURS" || v.statut === "BLOQUE") virementsActifs += 1;
+      recent.push({ ts: v.creeA, type: "virement", email, nom: client.nom, montant: v.montant, detail: v.beneficiaireNom });
+    }
+    recent.push({
+      ts: client.creeA, type: "kyc", email, nom: client.nom,
+      detail: compte.verifie ? "verifie" : "attente",
+    });
+  }
+  for (const [cle, messages] of Object.entries(magasin.chats ?? {})) {
+    const email = cle.split("::")[0];
+    const nom = dossiers.find((d) => d.client.email.toLowerCase() === email)?.client.nom ?? email;
+    for (const m of purgerMessagesChat(messages, maintenant)) {
+      recent.push({ ts: m.ts, type: "chat", email, nom, detail: m.texte.slice(0, 90) });
+    }
+  }
+  const kycVerifies = dossiers.filter((d) => d.compte.verifie).length;
+  return {
+    totaux: {
+      clients: clients.length, kycVerifies, kycEnAttente: clients.length - kycVerifies,
+      transactions, volumeEntrant, volumeSortant, soldeCumule, virementsActifs,
+      messagesChat: Object.values(magasin.chats ?? {}).reduce((s, m) => s + purgerMessagesChat(m, maintenant).length, 0),
+    },
+    recent: recent.sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 30),
+  };
+}

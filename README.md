@@ -403,6 +403,19 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   chaque lecture comme à chaque écriture (`purgerMessagesChat` + purge en lecture persistée), et
   les deux messageries affichent la règle (verrous : frontière 7 j exacte, purge en lecture et en
   écriture côté client et staff, notifications du personnel sur fetch injecté — 6 nouveaux).
+- **Compte admin : l'Aperçu devient « l'œil de la plateforme ».** Le menu Aperçu montre à
+  l'administrateur, en temps réel (rafraîchi toutes les 15 s + bouton manuel), une vue
+  EXHAUSTIVE servie par `GET /api/activite` : total des transactions effectuées mis en avant,
+  volumes entrant/sortant, encours cumulé, clients, KYC vérifiés/en attente, virements actifs,
+  messages du chat (bornés à une semaine), pièces à approuver, charges en attente, plus un fil
+  d'activité récent trié du plus récent (verrous : agrégation + tri du fil, frontière des rôles
+  CUSTOMER refusé — `/api/activite` jamais servi à un client).
+- **Compte admin : valider le KYC dossier en mains.** Dans « Opérations → Clients & KYC », chaque
+  ligne remonte le nombre de pièces encore à approuver et un signal si le dernier mot du chat
+  revient au client ; un bouton « Pièces du client » ouvre le dossier et amène directement à la
+  carte des documents pour les lire et les approuver en temps réel. Le rappel
+  « examinez et approuvez d'abord les pièces » s'affiche tant qu'il en reste (verrous :
+  `docsEnAttente` et `chatNonLu` remontés par `listeComptesClients`).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -471,7 +484,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (203 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (205 verrous)
 ```
 
 ## Commandes

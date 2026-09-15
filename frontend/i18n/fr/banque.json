@@ -166,5 +166,9 @@
   "ops.docsApproved": "Approuvé — aucune action requise.",
   "notify.credit": "Un virement entrant de {montant} a été crédité sur votre compte.",
   "chat.retention": "Les conversations sont conservées 7 jours puis effacées automatiquement.",
-  "ops.tabNotifications": "Notifications"
+  "ops.tabNotifications": "Notifications",
+  "ops.docsPending": "{n} à approuver",
+  "ops.docsCta": "Pièces du client",
+  "ops.chatNonLu": "Message client sans réponse",
+  "ops.kycDocsHint": "Pour valider le KYC, examinez et approuvez d'abord les pièces fournies par le client."
 }

@@ -21,12 +21,12 @@ import {
   type BanqueCompte, type MessageChat, type Referentiel,
 } from "@/lib/banque";
 import {
-  creerCompte, lireMagasin, ouvrirSessionServeur, type Magasin, type SessionServeur,
+  creerCompte, deposerDocument, lireMagasin, ouvrirSessionServeur, type Magasin, type SessionServeur,
 } from "@/lib/serveur";
 
 const cleDemo = "client@kredit.be::CUSTOMER";
 import {
-  DUREE_CONVERSATION_MS, PHOTO_MAX_OCTETS, actionAdmin, actionClient, banqueDeSession, chatPour,
+  DUREE_CONVERSATION_MS, PHOTO_MAX_OCTETS, actionAdmin, actionClient, apercuPlateforme, banqueDeSession, chatPour,
   listeComptesClients, ouvrirBanquePour, purgerMessagesChat, referentielPourApi, surchargerReferentiel,
 } from "@/lib/serveur-banque";
 
@@ -414,5 +414,46 @@ describe("rétention du chat : une conversation ne vit jamais plus d'une semaine
     expect(r.purge).toBe(true);
     expect(r.messages.map((m) => m.id)).toEqual(["R1"]);
     void session;
+  });
+});
+
+describe("Aperçu de l'administration (slice 22)", () => {
+  it("apercuPlateforme agrège clients, KYC, transactions, volumes et un fil trié du plus récent", () => {
+    const magasin = lireMagasin(dossier); // sème le client démo « vitrine » (tx, virements, chat)
+    const a = apercuPlateforme(magasin);
+    expect(a.totaux.clients).toBeGreaterThanOrEqual(1);
+    expect(a.totaux.transactions).toBeGreaterThan(0);
+    expect(a.totaux.volumeEntrant).toBeGreaterThan(0);
+    expect(a.totaux.soldeCumule).toBeGreaterThan(0);
+    expect(a.totaux.kycVerifies + a.totaux.kycEnAttente).toBe(a.totaux.clients);
+    // Le fil d'activité est trié du plus récent au plus ancien, borné à 30 lignes.
+    expect(a.recent.length).toBeGreaterThan(0);
+    expect(a.recent.length).toBeLessThanOrEqual(30);
+    for (let i = 1; i < a.recent.length; i++) expect(a.recent[i - 1].ts >= a.recent[i].ts).toBe(true);
+    // Le client démo est vérifié : au moins un KYC « vérifié » dans le fil.
+    expect(a.recent.some((e) => e.type === "kyc" && e.detail === "verifie")).toBe(true);
+  });
+
+  it("listeComptesClients remonte pièces en attente et dernier mot du chat (dossier en mains)", () => {
+    const magasin = lireMagasin(dossier);
+    const session = sessionClient(magasin); // nina@exemple.be
+    ouvrirBanquePour(magasin, session.email, session.role, MAINTENANT);
+    // Une pièce soumise pour Nina.
+    const d = deposerDocument(magasin, {
+      email: session.email, demandeId: "KRD-TEST", code: "ID", nom: "carte.png",
+      donnees: "data:image/png;base64,xx", taille: 100, maintenant: MAINTENANT,
+    });
+    expect(d.document).toBeDefined();
+    // Le dernier mot du chat revient au client → non lu par le support.
+    magasin.chats = { [cle]: [{ id: "M1", de: "client", auteur: "Nina", texte: "Bonjour", ts: MAINTENANT }] };
+    const ligne = listeComptesClients(magasin).find((x) => x.id === cle)!;
+    expect(ligne.docsEnAttente).toBe(1);
+    expect(ligne.chatNonLu).toBe(true);
+    // Le support répond : le chat n'est plus « à traiter ».
+    magasin.chats = { [cle]: [
+      { id: "M1", de: "client", auteur: "Nina", texte: "Bonjour", ts: MAINTENANT },
+      { id: "M2", de: "support", auteur: "Support", texte: "À vous", ts: MAINTENANT },
+    ] };
+    expect(listeComptesClients(magasin).find((x) => x.id === cle)!.chatNonLu).toBe(false);
   });
 });

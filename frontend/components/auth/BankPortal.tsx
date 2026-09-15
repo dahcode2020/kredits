@@ -146,6 +146,17 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
     return () => { actif = false; };
   }, []);
 
+  // Les réponses du support arrivent en direct : léger sondage du chat toutes les 15 s.
+  useEffect(() => {
+    let actif = true;
+    const sonde = window.setInterval(() => {
+      apiGet<{ messages: MessageChat[] }>(API.banqueChat()).then((c) => {
+        if (actif && c.ok) setMessages(c.corps.messages);
+      });
+    }, 15000);
+    return () => { actif = false; window.clearInterval(sonde); };
+  }, []);
+
   useEffect(() => { finChat.current?.scrollIntoView({ block: "nearest" }); }, [messages.length]);
 
   if (apiKo) {
