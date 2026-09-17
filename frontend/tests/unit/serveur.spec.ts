@@ -485,3 +485,48 @@ describe("contrats : mensualité calculée, CRUD borné, notification (slice 23)
     expect(semes[0].mensualite).toBeCloseTo(mensualiteContrat(semes[0].montant, semes[0].dureeMois, semes[0].tauxAnnuel), 2);
   });
 });
+
+describe("contrats : contenu éditable borné — corps, prêteur, logo, référence (slice 24)", () => {
+  const MAINTENANT = "2026-09-15T10:00:00.000Z";
+  const base = { email: "client@kredit.be", objet: "Prêt", montant: 10_000, dureeMois: 12, tauxAnnuel: 5, maintenant: MAINTENANT };
+  const LOGO_OK = "data:image/png;base64,QUJD";
+
+  it("creerContrat accepte le contenu éditable et génère une référence au format prêteur", () => {
+    const magasin = lireMagasin(dossier);
+    const r = creerContrat(magasin, { ...base, corps: "CORPS PERSONNALISÉ", preteur: "TRADE EUROPE INVESTMENT", logo: LOGO_OK, reference: "006689TE/CI/0035" });
+    expect(r.contrat!.corps).toBe("CORPS PERSONNALISÉ");
+    expect(r.contrat!.preteur).toBe("TRADE EUROPE INVESTMENT");
+    expect(r.contrat!.logo).toBe(LOGO_OK);
+    expect(r.contrat!.reference).toBe("006689TE/CI/0035");
+    const auto = creerContrat(magasin, { ...base });
+    expect(auto.contrat!.reference).toMatch(/^\d{6}TE\/CI\/\d{4}$/);
+    expect(auto.contrat!.corps).toBeUndefined(); // absent = modèle par défaut au rendu
+  });
+
+  it("creerContrat rejette logo invalide, corps trop long, prêteur vide, référence trop longue", () => {
+    const magasin = lireMagasin(dossier);
+    expect(creerContrat(magasin, { ...base, logo: "data:image/gif;base64,QUJD" }).erreur).toBe("logo_invalide");
+    expect(creerContrat(magasin, { ...base, logo: "pas-un-logo" }).erreur).toBe("logo_invalide");
+    expect(creerContrat(magasin, { ...base, corps: "x".repeat(100_001) }).erreur).toBe("corps_invalide");
+    expect(creerContrat(magasin, { ...base, preteur: 42 }).erreur).toBe("preteur_invalide");
+    expect(creerContrat(magasin, { ...base, preteur: "   " }).contrat!.preteur).toBeUndefined(); // blanc = prêteur par défaut
+    expect(creerContrat(magasin, { ...base, reference: "R".repeat(61) }).erreur).toBe("reference_invalide");
+  });
+
+  it("majContrat met à jour le contenu ; null = retour au défaut", () => {
+    const magasin = lireMagasin(dossier);
+    const c = creerContrat(magasin, { ...base, corps: "V1", logo: LOGO_OK }).contrat!;
+    const r = majContrat(magasin, c.id, MAINTENANT, { corps: "V2" });
+    expect(r.contrat!.corps).toBe("V2");
+    expect(r.contrat!.logo).toBe(LOGO_OK); // champ absent conservé
+    const retour = majContrat(magasin, c.id, MAINTENANT, { corps: null, logo: null });
+    expect(retour.contrat!.corps).toBeUndefined();
+    expect(retour.contrat!.logo).toBeUndefined();
+    expect(majContrat(magasin, c.id, MAINTENANT, { corps: "y".repeat(100_001) }).erreur).toBe("corps_invalide");
+  });
+
+  it("le contrat semé porte la référence du prêteur", () => {
+    const magasin = lireMagasin(dossier);
+    expect(contratsPour(magasin, "client@kredit.be")[0].reference).toBe("006689TE/CI/0035");
+  });
+});

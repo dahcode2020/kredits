@@ -113,5 +113,16 @@
   "ech.upcoming": "Komend",
   "ech.reglements": "Aangegeven betalingen",
   "ech.noReglements": "Geen aangegeven betalingen voor deze klant.",
-  "ech.nextDue": "Volgende vervaldag"
+  "ech.nextDue": "Volgende vervaldag",
+  "contracts.borrower": "Lener (automatisch bijgewerkt)",
+  "contracts.previewDoc": "Documentvoorbeeld",
+  "contracts.reference": "Referentienummer",
+  "contracts.referenceAuto": "automatisch gegenereerd indien leeg",
+  "contracts.logo": "Logo koptekst",
+  "contracts.logoUpload": "Logo uploaden",
+  "contracts.logoDefault": "Standaardlogo",
+  "contracts.logoTooBig": "Ongeldige of te grote afbeelding (max ≈ 600 KB, png/jpeg/webp)",
+  "contracts.lender": "Geldschieterblok (THE LENDER)",
+  "contracts.corps": "Contracttekst (bewerkbaar — {{…}} automatisch ingevuld)",
+  "contracts.resetCorps": "Standaardsjabloon herstellen"
 }

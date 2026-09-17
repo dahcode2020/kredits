@@ -435,6 +435,19 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   (`créé le + n mois`), la mensualité, le capital restant dû et le statut échu/à venir ; une
   pastille signale la prochaine échéance, et le volet « Règlements déclarés » liste les paiements
   MENSUALITE du client avec leur statut (en attente / déclaré / payé).
+- **Compte admin : le contrat devient un « LOAN AGREEMENT » complet.** Le menu Contrats intègre le
+  modèle de prêt fourni (récitals + 12 articles) rendu en document autonome : entête avec LOGO
+  téléversable (défaut `public/logos/tei.png`, tout autre logo png/jpeg/webp accepté, borné),
+  bloc prêteur éditable, EMPRUNTEUR recomposé automatiquement depuis le profil du client
+  (nom, email, téléphone, adresse — mis à jour sans ressaisie), référence au format du prêteur
+  (`006689TE/CI/0035`, générée si vide), corps du contrat éditable avec placeholders `{{…}}`
+  remplis depuis le crédit (montant en lettres, taux, nombre de mensualités) et bouton
+  « restaurer le modèle ». L'aperçu en direct (iframe) est exactement le fichier téléchargé ;
+  les DONNÉES DU CRÉDIT figurent en ANNEXE (montant, taux, mensualité, total, intérêts, première
+  et dernière échéances) avec l'échéancier complet. L'annuité vit une seule fois dans
+  `lib/contrat-doc` (serveur, aperçu, échéanciers, verrous). Verrous : nombres en lettres, date
+  ordinale, placeholders, emprunteur auto, annexe, bornes corps/prêteur/logo/référence,
+  null = retour au défaut — 17 nouveaux (228 au total).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -503,7 +516,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (211 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (228 verrous)
 ```
 
 ## Commandes

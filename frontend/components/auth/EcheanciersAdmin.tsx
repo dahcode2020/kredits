@@ -14,30 +14,17 @@ import { formatDate } from "@/lib/formatters";
 import { Locale, t } from "@/lib/i18n";
 import { API, apiGet } from "@/lib/api";
 import { simulateCredit } from "@/lib/credit-engine";
+import { echeanceDe, lignesEcheancierContrat } from "@/lib/contrat-doc";
 import type { ContratServeur, DemandeServeur, PaiementServeur } from "@/lib/serveur";
 
 interface ClientOps { id: string; email: string; nom: string }
 interface Ligne { mois: number; date: string; paiement: number; solde: number }
 
-/** Date du i-ème règlement : un mois après la date d'origine, de mois en mois (UTC). */
-function echeanceDe(origineISO: string, i: number): string {
-  const d = new Date(origineISO);
-  d.setUTCMonth(d.getUTCMonth() + i);
-  return d.toISOString();
-}
-/** Amortissement annuité constante (miroir d'affichage de la formule serveur) : les lignes de
- *  l'échéancier d'un contrat. Le serveur reste la source de vérité des montants. */
+/** Échéancier d'un contrat : l'annuité vit UNE SEULE FOIS dans `lib/contrat-doc`
+ *  (même source que le serveur et que l'ANNEXE du document). */
 function lignesContrat(c: ContratServeur): Ligne[] {
-  const r = c.tauxAnnuel / 100 / 12;
-  const lignes: Ligne[] = [];
-  let solde = c.montant;
-  for (let i = 1; i <= c.dureeMois; i++) {
-    const interets = solde * r;
-    const capital = Math.min(c.mensualite - interets, solde);
-    solde = Math.max(0, solde - capital);
-    lignes.push({ mois: i, date: echeanceDe(c.creeA, i), paiement: c.mensualite, solde: Math.round(solde * 100) / 100 });
-  }
-  return lignes;
+  return lignesEcheancierContrat(c.montant, c.dureeMois, c.tauxAnnuel, c.creeA)
+    .map((l) => ({ mois: l.mois, date: l.date, paiement: l.mensualite, solde: l.capitalRestant }));
 }
 
 export default function EcheanciersAdmin({ locale }: { locale: Locale }) {

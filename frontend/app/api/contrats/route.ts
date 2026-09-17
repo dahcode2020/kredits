@@ -52,6 +52,9 @@ export async function POST(req: Request) {
       tauxAnnuel: Number(corps.tauxAnnuel),
       mentions: corps.mentions,
       demandeId: typeof corps.demandeId === "string" ? corps.demandeId : undefined,
+      // Contenu éditable du document (le champ s'appelle `corps` comme la variable locale :
+      // `corps.corps` = le corps du contrat demandé).
+      corps: corps.corps, preteur: corps.preteur, logo: corps.logo, reference: corps.reference,
       maintenant,
     });
     if (!r.contrat) return NextResponse.json({ erreur: r.erreur }, { status: 400 });
@@ -63,6 +66,7 @@ export async function POST(req: Request) {
     const r = majContrat(magasin, String(corps.contratId ?? ""), maintenant, {
       objet: corps.objet, montant: corps.montant, dureeMois: corps.dureeMois,
       tauxAnnuel: corps.tauxAnnuel, mentions: corps.mentions,
+      corps: corps.corps, preteur: corps.preteur, logo: corps.logo, reference: corps.reference,
     });
     if (!r.contrat) return NextResponse.json({ erreur: r.erreur }, { status: 400 });
     ecrireMagasin(magasin);

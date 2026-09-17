@@ -113,5 +113,16 @@
   "ech.upcoming": "Upcoming",
   "ech.reglements": "Declared payments",
   "ech.noReglements": "No declared payments for this client.",
-  "ech.nextDue": "Next due date"
+  "ech.nextDue": "Next due date",
+  "contracts.borrower": "Borrower (updated automatically)",
+  "contracts.previewDoc": "Document preview",
+  "contracts.reference": "Reference number",
+  "contracts.referenceAuto": "auto-generated if empty",
+  "contracts.logo": "Header logo",
+  "contracts.logoUpload": "Upload a logo",
+  "contracts.logoDefault": "Default logo",
+  "contracts.logoTooBig": "Invalid or too large image (max ≈ 600 KB, png/jpeg/webp)",
+  "contracts.lender": "Lender block (THE LENDER)",
+  "contracts.corps": "Contract body (editable — {{…}} placeholders filled automatically)",
+  "contracts.resetCorps": "Restore default template"
 }

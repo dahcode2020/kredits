@@ -113,5 +113,16 @@
   "ech.upcoming": "À venir",
   "ech.reglements": "Règlements déclarés",
   "ech.noReglements": "Aucun règlement déclaré pour ce client.",
-  "ech.nextDue": "Prochaine échéance"
+  "ech.nextDue": "Prochaine échéance",
+  "contracts.borrower": "Emprunteur (mis à jour automatiquement)",
+  "contracts.previewDoc": "Aperçu du document",
+  "contracts.reference": "Numéro de référence",
+  "contracts.referenceAuto": "généré automatiquement si vide",
+  "contracts.logo": "Logo d'entête",
+  "contracts.logoUpload": "Charger un logo",
+  "contracts.logoDefault": "Logo par défaut",
+  "contracts.logoTooBig": "Image invalide ou trop lourde (max ≈ 600 Ko, png/jpeg/webp)",
+  "contracts.lender": "Bloc prêteur (THE LENDER)",
+  "contracts.corps": "Corps du contrat (modifiable — placeholders {{…}} remplis automatiquement)",
+  "contracts.resetCorps": "Restaurer le modèle par défaut"
 }

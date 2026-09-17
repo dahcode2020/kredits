@@ -113,5 +113,16 @@
   "ech.upcoming": "Bevorstehend",
   "ech.reglements": "Gemeldete Zahlungen",
   "ech.noReglements": "Keine gemeldeten Zahlungen für diesen Kunden.",
-  "ech.nextDue": "Nächster Zahlungstermin"
+  "ech.nextDue": "Nächster Zahlungstermin",
+  "contracts.borrower": "Darlehensnehmer (automatisch aktualisiert)",
+  "contracts.previewDoc": "Dokumentvorschau",
+  "contracts.reference": "Referenznummer",
+  "contracts.referenceAuto": "automatisch erzeugt, wenn leer",
+  "contracts.logo": "Logo Kopfzeile",
+  "contracts.logoUpload": "Logo hochladen",
+  "contracts.logoDefault": "Standardlogo",
+  "contracts.logoTooBig": "Ungültiges oder zu großes Bild (max ≈ 600 KB, png/jpeg/webp)",
+  "contracts.lender": "Darlehensgeber-Block (THE LENDER)",
+  "contracts.corps": "Vertragstext (bearbeitbar — {{…}} automatisch ausgefüllt)",
+  "contracts.resetCorps": "Standardvorlage wiederherstellen"
 }
