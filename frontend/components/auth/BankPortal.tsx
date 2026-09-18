@@ -409,13 +409,15 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                     </div>
                     <span className={cn("ml-auto text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", COULEUR_STATUT[v.statut])}>{tr(CLES_STATUT[v.statut])}</span>
                   </div>
-                  <div className="mt-4"><BarrePipeline v={v} referentiel={ref} tr={tr} /></div>
+                  {/* Les NIVEAUX de validation sont réservés à l'administration : le client ne doit
+                      ni les voir ni les connaître au préalable (demande explicite). Il ne voit que
+                      le statut de son virement et, le cas échéant, de quoi lever l'arrêt. */}
                   {blocageActif && (
                     /* ——— Arrêt de la barre : motif + explications + montant à régler + code ——— */
                     <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 p-5 text-[13px] leading-6 text-red-700">
                       <div className="font-extrabold flex items-center gap-2">
                         <ShieldAlert className="w-4 h-4" aria-hidden="true" />
-                        {tr("banque:vir.stopTitle", { pct: progressionDe(v, ref) })}
+                        {tr("banque:vir.stopTitleClient")}
                       </div>
                       <ul className="mt-2 space-y-2">
                         {v.blocages.filter((b) => !b.leveA).map((b) => (

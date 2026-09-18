@@ -463,6 +463,16 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   (notification site + e-mail + WhatsApp au client, mention « approuvé » dans son menu
   Documents) — exactement le geste du dossier KYC, sans quitter le menu. Rafraîchissement comme
   l'Aperçu (15 s + bouton manuel). Verrou : agrégation staff + isolation par client — 1 nouveau.
+- **Virements : les niveaux de validation cachés au client.** Le client ne doit ni voir ni
+  connaître les niveaux au préalable : la barre (noms des niveaux, seuils 10/30/60/100 %) et le
+  titre « Arrêt au niveau X % » disparaissent du portail client — il ne voit que le statut de
+  ses virements et, en cas d'arrêt, le motif, les explications, le montant à régler et le champ
+  code ; les textes (explications des défauts, attente, déblocage, message du support) ne
+  parlent plus de « niveau » ni de barre. La barre complète (animée, légende avec seuils) reste
+  l'apanage de l'administration, désormais SERVIE PAR UN COMPOSANT UNIQUE `BarrePipeline`
+  réutilisé dans OpsPortal (la copie en ligne dupliquée est supprimée). Verrou : le portail
+  client rendu avec un virement bloqué et un en cours montre statut/motif/montant/code mais rien
+  des niveaux — 1 nouveau (236 au total).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -531,7 +541,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (235 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (236 verrous)
 ```
 
 ## Commandes

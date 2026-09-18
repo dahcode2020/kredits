@@ -15,6 +15,7 @@ import {
   Lock, MessageCircle, Send, ServerOff, ShieldAlert, ShieldX, UserRound, Users,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
+import { BarrePipeline } from "@/components/auth/BankPortal";
 import { formatEUR2, cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { Locale, t, tSiCle } from "@/lib/i18n";
@@ -234,21 +235,11 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     </span>
   );
 
-  const barrePipeline = (v: BanqueCompte["virements"][number]) => (
-    <div className="mt-3 flex h-2.5 gap-1">
-      {(() => { let precedent = 0; return ref.pipeline.map((niveau) => { const largeur = niveau.pct - precedent; precedent = niveau.pct; const pct = progressionDe(v, ref); const fait = pct >= niveau.pct; return (
-        <div key={niveau.code} style={{ width: `${largeur}%` }} className="h-full rounded-full bg-slate-100 overflow-hidden" title={libelleNiveau(niveau.code, niveau.pct)}>
-          <div className={cn("h-full", v.statut === "BLOQUE" ? "bg-red-500" : v.statut === "EN_COURS" ? "bg-primary" : v.statut === "EXECUTE" ? "bg-emerald-500" : "bg-slate-300")} style={{ width: fait ? "100%" : "0%" }} />
-        </div>
-      ); }); })()}
-    </div>
-  );
-
   const actionsVirement = (id: string, v: BanqueCompte["virements"][number]) => {
     const blocageActif = v.statut === "BLOQUE" ? v.blocages.find((b) => !b.leveA) : undefined;
     return (
       <div className="mt-3">
-        {barrePipeline(v)}
+        {ref && <BarrePipeline v={v} referentiel={ref} tr={tr} />}
         {blocageActif && (
           <div className="mt-3 rounded-xl bg-red-50 border border-red-100 p-3 text-[12px] text-red-700 font-bold flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />

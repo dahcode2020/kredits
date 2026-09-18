@@ -2,7 +2,8 @@
  * @jest-environment jsdom
  */
 /**
- * Verrou de rendu de la barre de pipeline (portail bancaire client).
+ * Verrou de rendu de la barre de pipeline — vue ADMINISTRATION (OpsPortal ; le client n'y a
+ * plus accès depuis la slice 22, voir tests/unit/pipeline-cachee-client.spec.tsx).
  *
  * Régression attrapée en production (slice 13) : la barre recevait son référentiel sous le nom
  * `ref` — prop RÉSERVÉ par React, jamais transmise à un composant fonction — et l'écran plantait
