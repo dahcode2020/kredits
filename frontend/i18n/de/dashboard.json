@@ -124,5 +124,8 @@
   "contracts.logoTooBig": "Ungültiges oder zu großes Bild (max ≈ 600 KB, png/jpeg/webp)",
   "contracts.lender": "Darlehensgeber-Block (THE LENDER)",
   "contracts.corps": "Vertragstext (bearbeitbar — {{…}} automatisch ausgefüllt)",
-  "contracts.resetCorps": "Standardvorlage wiederherstellen"
+  "contracts.resetCorps": "Standardvorlage wiederherstellen",
+  "contracts.langue": "Dokumentsprache",
+  "contracts.langueEN": "English — Originalvorlage",
+  "contracts.langueFR": "Français"
 }

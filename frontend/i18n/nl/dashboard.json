@@ -124,5 +124,8 @@
   "contracts.logoTooBig": "Ongeldige of te grote afbeelding (max ≈ 600 KB, png/jpeg/webp)",
   "contracts.lender": "Geldschieterblok (THE LENDER)",
   "contracts.corps": "Contracttekst (bewerkbaar — {{…}} automatisch ingevuld)",
-  "contracts.resetCorps": "Standaardsjabloon herstellen"
+  "contracts.resetCorps": "Standaardsjabloon herstellen",
+  "contracts.langue": "Documenttaal",
+  "contracts.langueEN": "English — origineel sjabloon",
+  "contracts.langueFR": "Français"
 }

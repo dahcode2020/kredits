@@ -18,8 +18,8 @@ import { formatDateTime, formatNumber } from "@/lib/formatters";
 import { Locale, t, tSiCle } from "@/lib/i18n";
 import { API, apiGet, apiPost } from "@/lib/api";
 import {
-  CONTRAT_LOGO_MAX, CORPS_CONTRAT_DEFAUT, PRETEUR_DEFAUT, emprunteurDe, mensualiteContrat,
-  rendreHtmlContrat, type ArgsDocumentContrat,
+  CONTRAT_LOGO_MAX, PRETEUR_DEFAUT, corpsDefautDe, emprunteurDe, mensualiteContrat,
+  rendreHtmlContrat, type ArgsDocumentContrat, type LangueContrat,
 } from "@/lib/contrat-doc";
 import type { ContratServeur } from "@/lib/serveur";
 
@@ -51,7 +51,8 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
   const [demandeId, setDemandeId] = useState("");
   const [reference, setReference] = useState("");
   const [preteur, setPreteur] = useState(PRETEUR_DEFAUT);
-  const [corps, setCorps] = useState(CORPS_CONTRAT_DEFAUT);
+  const [langue, setLangue] = useState<LangueContrat>("EN");
+  const [corps, setCorps] = useState(() => corpsDefautDe("EN"));
   const [logo, setLogo] = useState("");
   const [mentions, setMentions] = useState<string[]>([]);
   const [mention, setMention] = useState("");
@@ -95,8 +96,14 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
 
   const resetFormulaire = () => {
     setObjet(""); setMontant(""); setDuree(""); setTaux(""); setDemandeId("");
-    setReference(""); setPreteur(PRETEUR_DEFAUT); setCorps(CORPS_CONTRAT_DEFAUT); setLogo("");
+    setReference(""); setPreteur(PRETEUR_DEFAUT); setLangue("EN"); setCorps(corpsDefautDe("EN")); setLogo("");
     setMentions([]); setMention(""); setMsg(null); setMsgNotif(null); setLogoErr(false);
+  };
+
+  /** Change la langue du document ; si le corps n'est pas personnalisé, il suit le modèle de la langue. */
+  const changerLangue = (l: LangueContrat) => {
+    setCorps((prev) => (prev === corpsDefautDe(langue) ? corpsDefautDe(l) : prev));
+    setLangue(l);
   };
 
   /** Emprunteur recomposé automatiquement depuis le profil du client sélectionné. */
@@ -119,9 +126,9 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
         objet: objet.trim() || "—", creeA: contratOuvert?.creeA ?? horodatage, majA: contratOuvert?.majA ?? horodatage,
       },
       emprunteur, preteur, corps, logoSrc: logo || LOGO_DEFAUT,
-      mentions: mentions.map((x) => tSiCle(locale, x)),
+      mentions: mentions.map((x) => tSiCle(locale, x)), langue,
     };
-  }, [cible, emprunteur, montant, duree, taux, objet, reference, preteur, corps, logo, mentions, contratOuvert, locale, horodatage]);
+  }, [cible, emprunteur, montant, duree, taux, objet, reference, preteur, corps, logo, mentions, contratOuvert, locale, horodatage, langue]);
 
   const apercuHtml = useMemo(() => (docFormulaire ? rendreHtmlContrat(docFormulaire) : ""), [docFormulaire]);
 
@@ -148,8 +155,9 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
   const payloadContenu = () => ({
     reference: reference.trim() || undefined,
     preteur: preteur.trim() === PRETEUR_DEFAUT.trim() ? undefined : preteur,
-    corps: corps.trim() === CORPS_CONTRAT_DEFAUT.trim() ? undefined : corps,
+    corps: corps.trim() === corpsDefautDe(langue).trim() ? undefined : corps,
     logo: logo || undefined,
+    langue,
   });
 
   const creer = async () => {
@@ -197,7 +205,8 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
     setOuvert(c.id);
     setObjet(c.objet); setMontant(String(c.montant)); setDuree(String(c.dureeMois)); setTaux(String(c.tauxAnnuel));
     setMentions([...c.mentions]); setDemandeId(c.demandeId ?? "");
-    setReference(c.reference ?? ""); setPreteur(c.preteur ?? PRETEUR_DEFAUT); setCorps(c.corps ?? CORPS_CONTRAT_DEFAUT); setLogo(c.logo ?? "");
+    setReference(c.reference ?? ""); setPreteur(c.preteur ?? PRETEUR_DEFAUT);
+    setLangue(c.langue ?? "EN"); setCorps(c.corps ?? corpsDefautDe(c.langue ?? "EN")); setLogo(c.logo ?? "");
     setMsg(null); setMsgNotif(null); setLogoErr(false);
   };
 
@@ -225,8 +234,8 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
   const telecharger = async (c: ContratServeur) => {
     const em = emprunteurDe(cible?.nom ?? c.email, c.email, cible?.profil);
     const doc: ArgsDocumentContrat = {
-      contrat: c, emprunteur: em, preteur: c.preteur ?? PRETEUR_DEFAUT, corps: c.corps ?? CORPS_CONTRAT_DEFAUT,
-      logoSrc: await logoDataUrl(c.logo), mentions: c.mentions.map((x) => tSiCle(locale, x)),
+      contrat: c, emprunteur: em, preteur: c.preteur ?? PRETEUR_DEFAUT, corps: c.corps ?? corpsDefautDe(c.langue ?? "EN"),
+      logoSrc: await logoDataUrl(c.logo), mentions: c.mentions.map((x) => tSiCle(locale, x)), langue: c.langue ?? "EN",
     };
     const blob = new Blob([rendreHtmlContrat(doc)], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -320,6 +329,13 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("dashboard.contracts.reference")}</span>
             <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={tr("dashboard.contracts.referenceAuto")} className={cn(champ, "mt-1 w-full font-mono")} />
           </label>
+          <label>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("dashboard.contracts.langue")}</span>
+            <select value={langue} onChange={(e) => changerLangue(e.target.value === "FR" ? "FR" : "EN")} className={cn(champ, "mt-1 w-full")}>
+              <option value="EN">{tr("dashboard.contracts.langueEN")}</option>
+              <option value="FR">{tr("dashboard.contracts.langueFR")}</option>
+            </select>
+          </label>
           {!contratOuvert && (
             <label>
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("dashboard.ech.demande")}</span>
@@ -361,7 +377,7 @@ export default function ContratsAdmin({ locale }: { locale: Locale }) {
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tr("dashboard.contracts.corps")}</span>
           <textarea value={corps} onChange={(e) => setCorps(e.target.value)} rows={12} className={cn(champ, "mt-1 w-full h-auto py-2 font-mono text-[11px] leading-5")} />
         </label>
-        <button type="button" onClick={() => setCorps(CORPS_CONTRAT_DEFAUT)} className={cn(buttonClasses("outline-light", "sm"), "mt-2")}>
+        <button type="button" onClick={() => setCorps(corpsDefautDe(langue))} className={cn(buttonClasses("outline-light", "sm"), "mt-2")}>
           <RotateCcw className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("dashboard.contracts.resetCorps")}</span>
         </button>
 

@@ -530,3 +530,17 @@ describe("contrats : contenu éditable borné — corps, prêteur, logo, référ
     expect(contratsPour(magasin, "client@kredit.be")[0].reference).toBe("006689TE/CI/0035");
   });
 });
+
+describe("contrats : langue du document bornée à EN/FR", () => {
+  const MAINTENANT = "2026-09-15T10:00:00.000Z";
+  const base = { email: "client@kredit.be", objet: "Prêt", montant: 10_000, dureeMois: 12, tauxAnnuel: 5, maintenant: MAINTENANT };
+  it("FR accepté, langue hors liste rejetée, null = retour EN", () => {
+    const magasin = lireMagasin(dossier);
+    const fr = creerContrat(magasin, { ...base, langue: "FR" });
+    expect(fr.contrat!.langue).toBe("FR");
+    expect(creerContrat(magasin, { ...base, langue: "DE" }).erreur).toBe("langue_invalide");
+    const retour = majContrat(magasin, fr.contrat!.id, MAINTENANT, { langue: null });
+    expect(retour.contrat!.langue).toBeUndefined();
+    expect(majContrat(magasin, fr.contrat!.id, MAINTENANT, { langue: "XX" }).erreur).toBe("langue_invalide");
+  });
+});

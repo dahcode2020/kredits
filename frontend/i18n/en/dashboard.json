@@ -124,5 +124,8 @@
   "contracts.logoTooBig": "Invalid or too large image (max ≈ 600 KB, png/jpeg/webp)",
   "contracts.lender": "Lender block (THE LENDER)",
   "contracts.corps": "Contract body (editable — {{…}} placeholders filled automatically)",
-  "contracts.resetCorps": "Restore default template"
+  "contracts.resetCorps": "Restore default template",
+  "contracts.langue": "Document language",
+  "contracts.langueEN": "English — original template",
+  "contracts.langueFR": "Français"
 }

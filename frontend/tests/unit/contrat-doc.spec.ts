@@ -3,9 +3,9 @@
  * date au format du document, placeholders, emprunteur automatique, annexe et rendu HTML.
  */
 import {
-  CORPS_CONTRAT_DEFAUT, PRETEUR_DEFAUT, dateContratEn, decouperCorps, emprunteurDe,
-  lignesEcheancierContrat, mensualiteContrat, montantEnLettresEn, rendreHtmlContrat,
-  substituerPlaceholders, varsContrat,
+  CORPS_CONTRAT_DEFAUT, CORPS_CONTRAT_FR, PRETEUR_DEFAUT, dateContratEn, dateContratFr,
+  decouperCorps, emprunteurDe, lignesEcheancierContrat, mensualiteContrat, montantEnLettresEn,
+  montantEnLettresFr, rendreHtmlContrat, substituerPlaceholders, varsContrat,
 } from "@/lib/contrat-doc";
 
 describe("contrat-doc : nombres en lettres anglais", () => {
@@ -117,5 +117,55 @@ describe("contrat-doc : rendu HTML autonome", () => {
     const blocs = decouperCorps(CORPS_CONTRAT_DEFAUT);
     expect(blocs.filter((b) => b.type === "titre").length).toBeGreaterThanOrEqual(12);
     expect(html).toContain("ARTICLE 10: GOVERNING LAW AND DISPUTE RESOLUTION");
+  });
+});
+
+describe("contrat-doc : version FRANÇAISE (deux langues suffisent)", () => {
+  it("nombres en lettres français (vingt et un, quatre-vingts, cents, mille, million)", () => {
+    expect(montantEnLettresFr(0)).toBe("zéro");
+    expect(montantEnLettresFr(21)).toBe("vingt et un");
+    expect(montantEnLettresFr(80)).toBe("quatre-vingts");
+    expect(montantEnLettresFr(200)).toBe("deux cents");
+    expect(montantEnLettresFr(755_000)).toBe("sept cent cinquante-cinq mille");
+    expect(montantEnLettresFr(1_000_000)).toBe("un million");
+    expect(montantEnLettresFr(2_000_000)).toBe("deux millions");
+    expect(montantEnLettresFr(1_234_567)).toBe("un million deux cent trente-quatre mille cinq cent soixante-sept");
+    expect(montantEnLettresFr(71)).toBe("soixante et onze");
+    expect(montantEnLettresFr(91)).toBe("quatre-vingt-onze");
+  });
+
+  it("date française : 1er, pas d'ordinal ensuite", () => {
+    expect(dateContratFr("2026-09-01T10:00:00.000Z")).toBe("1er septembre 2026");
+    expect(dateContratFr("2026-09-03T10:00:00.000Z")).toBe("3 septembre 2026");
+  });
+
+  it("le corps FR porte les mêmes placeholders, remplis en français", () => {
+    const contrat = { montant: 755_000, objet: "Travaux immobiliers", tauxAnnuel: 1.5, dureeMois: 240, reference: "006689TE/CI/0035" };
+    const rendu = substituerPlaceholders(CORPS_CONTRAT_FR, varsContrat(contrat, "FR"));
+    expect(rendu.toLowerCase()).toContain("sept cent cinquante-cinq mille euros");
+    expect(rendu).toContain("taux fixe de 1,5 % par an");
+    expect(rendu).toContain("remboursera le Prêt en 240 échéances constantes");
+    expect(rendu).toContain("Travaux immobiliers");
+    expect(rendu).not.toContain("{{");
+  });
+
+  it("rendu HTML FR : titres, annexe et lang=fr", () => {
+    const html = rendreHtmlContrat({
+      contrat: { id: "CTR-9", reference: "R-1", montant: 10_000, dureeMois: 12, tauxAnnuel: 5, mensualite: mensualiteContrat(10_000, 12, 5), objet: "Véhicule", creeA: "2026-09-01T10:00:00.000Z", majA: "2026-09-01T10:00:00.000Z" },
+      emprunteur: { nom: "Jeanne Dupont", email: "j@e.be", telephone: "", adresse: "" },
+      preteur: PRETEUR_DEFAUT, corps: CORPS_CONTRAT_FR, logoSrc: null, mentions: [], langue: "FR",
+    });
+    expect(html).toContain('<html lang="fr">');
+    expect(html).toContain("CONTRAT DE PRÊT");
+    expect(html).toContain("Annexe — Données du crédit");
+    expect(html).toContain("Annexe — Échéancier de remboursement");
+    expect(html).toContain("L'EMPRUNTEUR");
+    expect(html).toContain("1er septembre 2026");
+    expect(html).toContain("ARTICLE 10 : LOI APPLICABLE ET RÈGLEMENT DES LITIGES");
+  });
+
+  it("decouperCorps traite EXPOSÉ PRÉALABLE et les ARTICLE comme titres", () => {
+    const blocs = decouperCorps(CORPS_CONTRAT_FR);
+    expect(blocs.filter((b) => b.type === "titre").length).toBeGreaterThanOrEqual(13);
   });
 });

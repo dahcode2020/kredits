@@ -124,5 +124,8 @@
   "contracts.logoTooBig": "Image invalide ou trop lourde (max ≈ 600 Ko, png/jpeg/webp)",
   "contracts.lender": "Bloc prêteur (THE LENDER)",
   "contracts.corps": "Corps du contrat (modifiable — placeholders {{…}} remplis automatiquement)",
-  "contracts.resetCorps": "Restaurer le modèle par défaut"
+  "contracts.resetCorps": "Restaurer le modèle par défaut",
+  "contracts.langue": "Langue du document",
+  "contracts.langueEN": "English — modèle original",
+  "contracts.langueFR": "Français"
 }

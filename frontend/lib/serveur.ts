@@ -27,7 +27,7 @@ import { t, tSiCle, type Locale } from "@/lib/i18n";
 // L'annuité du crédit vit UNE SEULE FOIS dans le module isomorphe `contrat-doc` (importable
 // côté navigateur pour l'aperçu/annexe) ; ce module Node la ré-exporte pour ses appels internes
 // et pour les verrous qui l'importent historiquement d'ici.
-import { mensualiteContrat, CONTRAT_CORPS_MAX, CONTRAT_PRETEUR_MAX, CONTRAT_REFERENCE_MAX, CONTRAT_LOGO_MAX, LOGO_DATAURL_RE } from "@/lib/contrat-doc";
+import { mensualiteContrat, langueContratValide, type LangueContrat, CONTRAT_CORPS_MAX, CONTRAT_PRETEUR_MAX, CONTRAT_REFERENCE_MAX, CONTRAT_LOGO_MAX, LOGO_DATAURL_RE } from "@/lib/contrat-doc";
 export { mensualiteContrat } from "@/lib/contrat-doc";
 import {
   configNotifDepuisEnv, envoyerEmailResend, envoyerWhatsAppMeta, numeroInternational,
@@ -98,13 +98,16 @@ export interface ContratServeur {
   preteur?: string;
   /** Logo de l'entête en dataURL (png/jpeg/webp) ; absent = logo par défaut `/logos/tei.png`. */
   logo?: string;
+  /** Langue du document : EN (modèle fourni) ou FR ; absent = EN. Deux langues, pas davantage. */
+  langue?: LangueContrat;
   statut: StatutContrat; creeA: string; majA: string; notifieA?: string;
 }
 
-export type ErreurContenuContrat = "corps_invalide" | "preteur_invalide" | "logo_invalide" | "reference_invalide";
+export type ErreurContenuContrat = "corps_invalide" | "preteur_invalide" | "logo_invalide" | "reference_invalide" | "langue_invalide";
 
 /** `null` = « revenir au défaut » (modèle, prêteur, logo, référence régénérée). */
-function contenuContratValide(c: { corps?: unknown; preteur?: unknown; logo?: unknown; reference?: unknown }): ErreurContenuContrat | null {
+function contenuContratValide(c: { corps?: unknown; preteur?: unknown; logo?: unknown; reference?: unknown; langue?: unknown }): ErreurContenuContrat | null {
+  if (c.langue !== undefined && c.langue !== null && !langueContratValide(c.langue)) return "langue_invalide";
   if (c.corps !== undefined && c.corps !== null && (typeof c.corps !== "string" || c.corps.length > CONTRAT_CORPS_MAX)) return "corps_invalide";
   if (c.preteur !== undefined && c.preteur !== null && (typeof c.preteur !== "string" || c.preteur.length > CONTRAT_PRETEUR_MAX)) return "preteur_invalide";
   if (c.logo !== undefined && c.logo !== null && (typeof c.logo !== "string" || c.logo.length > CONTRAT_LOGO_MAX || !LOGO_DATAURL_RE.test(c.logo))) return "logo_invalide";
@@ -543,7 +546,7 @@ function mentionsValides(brutes: unknown): string[] | null {
 /** L'administration établit un contrat pour un client. La mensualité est calculée ici. */
 export function creerContrat(
   magasin: Magasin,
-  d: { email: string; objet: string; montant: number; dureeMois: number; tauxAnnuel: number; mentions?: unknown; demandeId?: string; maintenant: string; corps?: unknown; preteur?: unknown; logo?: unknown; reference?: unknown },
+  d: { email: string; objet: string; montant: number; dureeMois: number; tauxAnnuel: number; mentions?: unknown; demandeId?: string; maintenant: string; corps?: unknown; preteur?: unknown; logo?: unknown; reference?: unknown; langue?: unknown },
 ): { contrat?: ContratServeur; erreur?: "compte_introuvable" | "montant_invalide" | "duree_invalide" | "taux_invalide" | "objet_invalide" | "mentions_invalides" | ErreurContenuContrat } {
   const email = d.email.trim().toLowerCase();
   if (!magasin.comptes.some((c) => c.email === email && c.role === "CUSTOMER")) return { erreur: "compte_introuvable" };
@@ -567,6 +570,7 @@ export function creerContrat(
     corps: typeof d.corps === "string" && d.corps.trim() ? d.corps : undefined,
     preteur: typeof d.preteur === "string" && d.preteur.trim() ? d.preteur.trim() : undefined,
     logo: typeof d.logo === "string" ? d.logo : undefined,
+    langue: langueContratValide(d.langue) ? d.langue : undefined,
     statut: "BROUILLON", creeA: d.maintenant, majA: d.maintenant,
   };
   magasin.contrats = [...(magasin.contrats ?? []), contrat];
@@ -576,7 +580,7 @@ export function creerContrat(
  *  `majA` bouge. Les champs absents du patch sont conservés tels quels. */
 export function majContrat(
   magasin: Magasin, contratId: string, maintenant: string,
-  patch: { objet?: unknown; montant?: unknown; dureeMois?: unknown; tauxAnnuel?: unknown; mentions?: unknown; corps?: unknown; preteur?: unknown; logo?: unknown; reference?: unknown },
+  patch: { objet?: unknown; montant?: unknown; dureeMois?: unknown; tauxAnnuel?: unknown; mentions?: unknown; corps?: unknown; preteur?: unknown; logo?: unknown; reference?: unknown; langue?: unknown },
 ): { contrat?: ContratServeur; erreur?: "introuvable" | "montant_invalide" | "duree_invalide" | "taux_invalide" | "objet_invalide" | "mentions_invalides" | ErreurContenuContrat } {
   const contrat = (magasin.contrats ?? []).find((c) => c.id === contratId);
   if (!contrat) return { erreur: "introuvable" };
@@ -615,6 +619,7 @@ export function majContrat(
   if (patch.preteur !== undefined) contrat.preteur = typeof patch.preteur === "string" && patch.preteur.trim() ? patch.preteur.trim() : undefined;
   if (patch.logo !== undefined) contrat.logo = typeof patch.logo === "string" ? patch.logo : undefined;
   if (patch.reference !== undefined) contrat.reference = typeof patch.reference === "string" && patch.reference.trim() ? patch.reference.trim().slice(0, CONTRAT_REFERENCE_MAX) : referenceContrat(magasin);
+  if (patch.langue !== undefined) contrat.langue = langueContratValide(patch.langue) ? patch.langue : undefined;
   contrat.mensualite = mensualiteContrat(montant, dureeMois, tauxAnnuel);
   contrat.majA = maintenant;
   return { contrat };

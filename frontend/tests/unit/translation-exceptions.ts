@@ -8,6 +8,7 @@
 export const VALEURS_PARTAGEES = new Set([
   "common:language.fr",   // endonyme: un locuteur néerlandais dit aussi « Français »
   "common:testimonials.a3", // toponyme: « Liège » s'écrit ainsi en anglais
+  "dashboard.contracts.langueFR", // endonyme: le nom de la langue française est « Français » partout
 ]);
 
 export const estPartagee = (cle: string) => VALEURS_PARTAGEES.has(cle) || VALEURS_PARTAGEES.has(`common:${cle}`);
