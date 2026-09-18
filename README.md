@@ -488,6 +488,10 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   reprise par code, immobilité des états finaux), le serveur notifie à chaque événement (site +
   dénouement à l'exécution), le suivi en direct et les toasts push côté client (variables
   résolues) — 8 nouveaux (244 au total).
+- **Solde client : le grand compteur affiche le total réel, jamais « 0,00 € ».** Le compteur
+  animé recevait la cible 0 au lieu du solde : il « montait » de 0 à 0 et restait figé sur
+  0,00 € tant que l'onglet différait requestAnimationFrame (aperçu, iframe). La cible est le
+  solde réel du compte ; le verrou client exige le total des fonds à l'écran.
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide

@@ -82,6 +82,11 @@ it("le client voit statut + motif + montant + code, mais JAMAIS les niveaux de v
   expect(txt).toContain(t("fr", "banque:defaut.CERT_ASSURANCE"));
   expect(txt).toContain(t("fr", "banque:vir.stopAmount", { montant: formatEUR2(120, "fr") }));
 
+  // — Le SOLDE affiche le total RÉEL des fonds, jamais « 0,00 € » (régression du compteur animé
+  // qui recevait la cible 0 au lieu du solde).
+  await act(async () => { await new Promise((r) => window.setTimeout(r, 1050)); });
+  expect(el.textContent ?? "").toContain(formatEUR2(4000, "fr"));
+
   // — Le suivi EN DIRECT (slice 22) est là : barre continue, jamais la légende des niveaux.
   expect(txt).toContain(t("fr", "banque:vir.live.title"));
   expect(txt).toContain(t("fr", "banque:vir.live.suspended"));

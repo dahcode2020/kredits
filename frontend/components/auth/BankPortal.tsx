@@ -346,10 +346,12 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
         <div className="flex flex-wrap items-start gap-6 justify-between relative">
           <div>
             {/* Solde affiché = montant RÉEL du compte (total des fonds) ; le disponible
-                (fonds − virements en cours ou bloqués) et le réservé restent détaillés dessous. */}
+                (fonds − virements en cours ou bloqués) et le réservé restent détaillés dessous.
+                `a` est la CIBLE de l'animation : jamais 0 — avec 0, le compteur montait de 0 à 0
+                et restait figé sur « 0,00 € » tant que l'onglet différait requestAnimationFrame. */}
             <div className="text-[11px] font-bold tracking-widest uppercase text-white/50">{tr("banque:balance")}</div>
             <div className="mt-1 font-display font-extrabold text-[40px] leading-none tabular-nums">
-              <CountUp a={0} final={formatEUR2(solde, locale)} format={(n) => formatEUR2(n, locale)} declencheur="montage" />
+              <CountUp a={solde} final={formatEUR2(solde, locale)} format={(n) => formatEUR2(n, locale)} declencheur="montage" />
             </div>
             <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-[12px] text-white/70">
               <span>{tr("banque:available")} : <strong className="text-white tabular-nums">{formatEUR2(disponible, locale)}</strong></span>
