@@ -25,5 +25,7 @@
   "testCta": "Een testmelding verzenden",
   "testBody": "Dit is een testmelding van het KREDIT-platform: uw bezorgkanalen werken zoals geconfigureerd.",
   "chat.fromSupport": "Nieuw bericht van {auteur} in uw bankchat",
-  "chat.fromClient": "{client} heeft geantwoord in de bankchat"
+  "chat.fromClient": "{client} heeft geantwoord in de bankchat",
+  "contact.nouveau": "Nieuw contactbericht: {sujet} — {nom} ({ref})",
+  "contact.traite": "Uw bericht “{sujet}” is door ons team in behandeling genomen."
 }

@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import {
-  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, Bell, FileCheck2, FolderOpen, Landmark,
+  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BadgeCheck, Bell, FileCheck2, FolderOpen, Inbox, Landmark,
   Lock, MessageCircle, Send, ServerOff, ShieldAlert, ShieldX, UserRound, Users,
 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/Button";
@@ -20,12 +20,13 @@ import { formatEUR2, cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/formatters";
 import { Locale, t, tSiCle } from "@/lib/i18n";
 import type { Session } from "@/lib/auth";
-import { API, apiGet, apiPost } from "@/lib/api";
+import { API, apiGet, apiPatch, apiPost } from "@/lib/api";
 import {
   disponibleDe, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel, type Transaction,
 } from "@/lib/banque";
 import type { DocumentServeur, NotificationServeur, PaiementServeur, TypePaiement } from "@/lib/serveur";
+import type { MessageContact } from "@/lib/contact"; // type isomorphe : jamais d'import de lib/serveur côté navigateur
 import type { DOCUMENT_CODES } from "@/lib/credit-engine";
 
 const CLES_PIPELINE: Record<string, string> = {
@@ -50,7 +51,7 @@ interface ClientOps {
   /** Le KYC se valide dossier en mains : pièces encore à approuver, dernier mot du chat au client. */
   docsEnAttente: number; chatNonLu: boolean;
 }
-type OngletOps = "clients" | "dossier" | "transactions" | "referentiel" | "notifications";
+type OngletOps = "clients" | "dossier" | "transactions" | "referentiel" | "notifications" | "messages";
 
 export default function OpsPortal({ locale, session }: { locale: Locale; session: Session }) {
   const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
@@ -75,6 +76,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
   const [pret, setPret] = useState(false);
   const [apiKo, setApiKo] = useState(false);
   const [notifsStaff, setNotifsStaff] = useState<NotificationServeur[]>([]);
+  const [messagesContact, setMessagesContact] = useState<MessageContact[]>([]);
 
   const chargerMessages = async (idCompte: string) => {
     const r = await apiGet<{ messages: MessageChat[] }>(API.banqueChat(idCompte));
@@ -114,8 +116,24 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
       setNotifsStaff([...r.corps.notifications].sort((a, b) => b.creeA.localeCompare(a.creeA)));
     });
   };
+  /** Messages du menu Contact (bas de page) : la file publique reçue par l'équipe, la plus
+   *  récente d'abord (le serveur trie). */
+  const chargerMessagesContact = () => {
+    apiGet<{ messages: MessageContact[] }>(API.contact).then((r) => {
+      if (!r.ok) return;
+      setMessagesContact(r.corps.messages);
+    });
+  };
+  /** Prendre un message en charge : le serveur passe NOUVEAU → TRAITE et notifie le client. */
+  const traiterMessageContact = async (id: string) => {
+    const r = await apiPatch<{ message?: MessageContact }>(API.contact, { id });
+    if (r.ok && r.corps.message) {
+      const neuf = r.corps.message;
+      setMessagesContact((prev) => prev.map((x) => (x.id === neuf.id ? neuf : x)));
+    }
+  };
 
-  useEffect(() => { rafraichir(); chargerNotifs(); }, []);
+  useEffect(() => { rafraichir(); chargerNotifs(); chargerMessagesContact(); }, []);
   useEffect(() => {
     if (choisi) { void chargerMessages(choisi); void chargerPaiements(choisi); void chargerDocuments(choisi); }
   }, [choisi]);
@@ -131,8 +149,9 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     }
   }, [focusDocs, onglet, choisi]);
   useEffect(() => {
-    // L'onglet Notifications se recharge à chaque ouverture (les réponses clients arrivent en direct).
+    // Les onglets Notifications et Messages se rechargent à chaque ouverture (tout arrive en direct).
     if (onglet === "notifications") chargerNotifs();
+    if (onglet === "messages") chargerMessagesContact();
   }, [onglet]);
 
   if (!pret) return null;
@@ -282,6 +301,7 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
     { id: "transactions", cle: "banque:ops.tabTransactions", icone: ArrowLeftRight },
     { id: "referentiel", cle: "banque:ops.tabReferentiel", icone: Landmark },
     { id: "notifications", cle: "banque:ops.tabNotifications", icone: Bell },
+    { id: "messages", cle: "banque:ops.tabMessages", icone: Inbox },
   ];
 
   return (
@@ -754,6 +774,37 @@ export default function OpsPortal({ locale, session }: { locale: Locale; session
                 </li>
               );
             })}
+          </ul>
+        </div>
+      )}
+
+      {onglet === "messages" && (
+        <div className="bg-white rounded-[24px] shadow-card border p-6">
+          <h3 className="font-display font-extrabold text-ink flex items-center gap-2"><Inbox className="w-5 h-5 text-primary" aria-hidden="true" /> {tr("banque:ops.tabMessages")}</h3>
+          {messagesContact.length === 0 && <p className="mt-4 text-[13px] text-slate-400">{tr("banque:ops.messagesVides")}</p>}
+          <ul className="mt-4 space-y-3">
+            {messagesContact.map((m) => (
+              <li key={m.id} className={cn("rounded-2xl border p-4", m.statut === "TRAITE" ? "bg-white border-slate-100" : "bg-surface border-primary/20")}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[13px] font-bold text-ink">{tSiCle(m.locale, m.sujet)}</span>
+                  {m.statut === "NOUVEAU" ? (
+                    <span className="px-2 py-0.5 rounded-full bg-primary-light text-primary text-[10px] font-extrabold uppercase tracking-wider">{tr("banque:ops.msgNeuf")}</span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-extrabold uppercase tracking-wider">{tr("banque:ops.msgTraite")}</span>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[13px] leading-6 text-slate-600">{tSiCle(m.locale, m.message)}</p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-[11px] text-slate-400 tabular-nums">{m.nom} · {m.email} · {formatDateTime(m.creeA, locale)}</div>
+                  {m.statut === "NOUVEAU" && (
+                    <button type="button" onClick={() => void traiterMessageContact(m.id)}
+                      className={buttonClasses("dark", "sm")}>
+                      {tr("banque:ops.msgTraite")}
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
           </ul>
         </div>
       )}

@@ -501,6 +501,18 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   plus présente, et une bannière pleine largeur entre Services et Témoignages dont le titre est
   la clé dormante `cta.simulate`, enfin rendue, avec CTA réel vers le simulateur. Aucune donnée
   fausse : photos décoratives (alt vide), aucun nouveau texte hors dictionnaires.
+- **Menu Contact en bas de page : le site a enfin une porte d'entrée.** Les clés `contact.*`
+  existaient depuis la slice 1 et restaient non rendues — le pied de page gagne une colonne
+  Contact (adresse, horaires, e-mail, WhatsApp, lien vers le formulaire), l'en-tête un lien
+  « Contact », et l'accueil une section complète : coordonnées + plan illustratif (placeholder
+  RGPD-friendly, la clé `contact.map` le dit elle-même) et formulaire réel. Le POST part dans le
+  MÊME magasin que tout le reste (/api/contact : dépôt borné, consentement RGPD exigé, jamais
+  pré-coché, équipe notifiée sur site + e-mail), fonctionne SANS JavaScript (action native +
+  réponse HTML traduite), et l'administration traite la file dans un onglet « Messages de
+  contact » (NOUVEAU → TRAITE, le client est notifié). Bornes et table erreur→clé i18n vivent
+  dans lib/contact.ts, importé du navigateur ET du serveur (un seul endroit). Verrous :
+  tests/unit/contact.spec.tsx (dépôt champ par champ, consentement, transition unique, action
+  native, aucune case pré-cochée, colonne du pied de page) — 8 nouveaux (253 au total).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -521,7 +533,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
 | --- | --- |
 | `stats.*`, `trust.*`, `hero.trust` (« 8 400+ clients », « 4 800 avis »…) | Statistiques marketing sans source réelle : les clés existent, elles resteront non rendues tant qu'aucune donnée réelle ne peut les porter. |
 | `faq.q1` / `faq.a1` | Sa copie attend un nombre (« TAEG à partir de, … ») que seule la slice simulateur pourra fournir proprement ; l'information équivalente est déjà à l'écran (grille + contre-exemple). |
-| sections `roles` / `auth`, formulaire `contact` | Écrans des slices 3 et suivantes ; un formulaire qui ne répond pas est un écran faux. |
+| sections `roles` / `auth` | Écrans des slices suivantes ; un écran qui ne répond pas est un écran faux. Le formulaire `contact`, lui, est rendu depuis le menu Contact du bas de page : il poste dans le magasin via /api/contact. |
 | `testimonials.verified`, étoiles | Les témoignages rendus sont **explicitement illustratifs** (`testimonials.note` est affiché) ; un badge « client vérifié » sur un avis illustratif serait une donnée fausse. |
 
 ## Les six contraintes non négociables (posées au commit n°1)
@@ -568,7 +580,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (245 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque, contact (253 verrous)
 ```
 
 ## Commandes

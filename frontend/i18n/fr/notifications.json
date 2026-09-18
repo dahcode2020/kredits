@@ -25,5 +25,7 @@
   "testCta": "Envoyer une notification de test",
   "testBody": "Ceci est une notification de test de la plateforme KREDIT : vos canaux de distribution fonctionnent comme configuré.",
   "chat.fromSupport": "Nouveau message de {auteur} dans votre chat bancaire",
-  "chat.fromClient": "{client} a répondu dans le chat bancaire"
+  "chat.fromClient": "{client} a répondu dans le chat bancaire",
+  "contact.nouveau": "Nouveau message de contact : {sujet} — {nom} ({ref})",
+  "contact.traite": "Votre message « {sujet} » a été pris en charge par notre équipe."
 }

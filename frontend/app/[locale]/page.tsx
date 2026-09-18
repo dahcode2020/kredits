@@ -8,6 +8,7 @@ import ServicesSection from "@/components/home/ServicesSection";
 import CtaBand from "@/components/home/CtaBand";
 import TestimonialsSection from "@/components/home/TestimonialsSection";
 import FaqSection from "@/components/home/FaqSection";
+import ContactSection from "@/components/home/ContactSection";
 
 /**
  * Page d'accueil — slice 1, périmètre: UNE page, 4 langues, animée, zéro donnée fausse.
@@ -38,6 +39,7 @@ export default function HomePage({ params }: { params: { locale: string } }) {
       <CtaBand locale={locale} />
       <TestimonialsSection locale={locale} />
       <FaqSection locale={locale} />
+      <ContactSection locale={locale} />
     </div>
   );
 }

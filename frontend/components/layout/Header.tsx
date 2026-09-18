@@ -39,12 +39,14 @@ export default function Header({ locale }: { locale: Locale }) {
   };
   const tr = (k: string) => t(locale, k);
 
-  // Liens réels: le simulateur (slice 2) et les deux ancres de l'accueil — déclarés une fois,
+  // Liens réels: le simulateur (slice 2), les ancres de l'accueil (produits, à propos, contact —
+  // la section contact existe depuis le menu Contact du bas de page) — déclarés une fois,
   // réutilisés par le menu mobile.
   const ancres = [
     { href: `/${locale}/credit/simulator`, label: tr("nav.simulator") },
     { href: `/${locale}#produits`, label: tr("nav.products") },
     { href: `/${locale}#apropos`, label: tr("nav.about") },
+    { href: `/${locale}#contact`, label: tr("nav.contact") },
   ];
 
   return (

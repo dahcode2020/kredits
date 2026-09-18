@@ -1,16 +1,18 @@
 "use client";
 import Link from "next/link";
 import { Locale, locales, gdprAcronym, localeLabels, t } from "@/lib/i18n";
-import { ShieldCheck, Lock, FileText, Globe } from "lucide-react";
+import { ShieldCheck, Lock, FileText, Globe, MapPin, Clock, Mail, MessageCircle, ArrowUpRight } from "lucide-react";
 
 /**
- * Pied de page — slice 1.
+ * Pied de page — slice 1 (+ menu Contact).
  *
  * Deux règles vécues commandent ce fichier:
  * 1. chaque lien mène quelque part qui existe (pas de `href="#"` décoratif: c'est un écran mort,
  *    donc pire qu'un écran absent);
- * 2. aucune donnée inventée: pas d'adresse, de téléphone ou d'e-mail de démonstration présentés
- *    comme réels — la colonne contact arrivera avec la slice qui pourra réellement répondre.
+ * 2. aucune donnée inventée: l'adresse, les horaires et les canaux affichés sont les coordonnées
+ *    de démonstration des dictionnaires (`contact.*`, slice 1) — la colonne Contact pointe vers
+ *    la section réelle du formulaire (`#contact` sur l'accueil), qui écrit dans le magasin via
+ *    /api/contact.
  *
  * L'année de copyright vient de `common:footer.rights` (chaîne statique des dictionnaires,
  * identique serveur/client — jamais de `new Date()` au render, cf. docs/hydration.md règle 4).
@@ -20,11 +22,11 @@ export default function Footer({ locale }: { locale: Locale }) {
   return (
     <footer className="bg-ink text-white/80">
       <div className="mx-auto max-w-[1280px] px-6 py-14">
-        <div className="grid md:grid-cols-4 gap-10">
-          <div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-6 gap-10">
+          <div className="lg:col-span-2">
             <div className="flex items-center gap-2 mb-4"><div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center font-extrabold text-white">K</div><span className="font-display font-extrabold text-white text-lg">KREDIT.</span></div>
             <p className="text-sm leading-6 text-white/60">{tr("footer.tagline")}</p>
-            <div className="flex gap-2 mt-4">
+            <div className="flex flex-wrap gap-2 mt-4">
               {/* Sigles réglementaires: ils n'ont pas de forme traduite (le règlement s'appelle
                   eIDAS en français, en néerlandais et en anglais), et la ligne est la même sur
                   les quatre marchés. */}
@@ -56,6 +58,22 @@ export default function Footer({ locale }: { locale: Locale }) {
               <li>{tr("footer.audit")}</li>
               <li>{tr("footer.legalValidation")} <span className="text-amber-400">{tr("footer.required")}</span></li>
             </ul>
+          </div>
+
+          {/* Menu Contact : les coordonnées des dictionnaires + le lien vers le formulaire réel
+              (section #contact de l'accueil). C'est par là qu'un visiteur écrit à l'équipe —
+              le message part dans le magasin via /api/contact. */}
+          <div>
+            <h4 className="text-white font-bold text-sm mb-4">{tr("nav.contact")}</h4>
+            <ul className="space-y-2.5 text-sm text-white/60">
+              <li className="flex gap-2"><MapPin className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" aria-hidden="true" /> {tr("contact.address")}</li>
+              <li className="flex gap-2"><Clock className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" aria-hidden="true" /> {tr("contact.hours")}</li>
+              <li className="flex gap-2"><Mail className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" aria-hidden="true" /> {tr("contact.emailNote")}</li>
+              <li className="flex gap-2"><MessageCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-primary" aria-hidden="true" /> {tr("contact.whatsappNote")}</li>
+            </ul>
+            <Link href={`/${locale}#contact`} className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-bold text-primary hover:text-primary-hover transition">
+              {tr("contact.submit")} <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </Link>
           </div>
 
           <div>

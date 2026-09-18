@@ -25,5 +25,7 @@
   "testCta": "Send a test notification",
   "testBody": "This is a test notification from the KREDIT platform: your delivery channels are working as configured.",
   "chat.fromSupport": "New message from {auteur} in your bank chat",
-  "chat.fromClient": "{client} replied in the bank chat"
+  "chat.fromClient": "{client} replied in the bank chat",
+  "contact.nouveau": "New contact message: {sujet} — {nom} ({ref})",
+  "contact.traite": "Your message “{sujet}” has been taken care of by our team."
 }

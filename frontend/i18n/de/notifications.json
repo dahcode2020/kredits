@@ -25,5 +25,7 @@
   "testCta": "Eine Testbenachrichtigung senden",
   "testBody": "Dies ist eine Testbenachrichtigung der KREDIT-Plattform: Ihre Zustellkanäle funktionieren wie konfiguriert.",
   "chat.fromSupport": "Neue Nachricht von {auteur} in Ihrem Bank-Chat",
-  "chat.fromClient": "{client} hat im Bank-Chat geantwortet"
+  "chat.fromClient": "{client} hat im Bank-Chat geantwortet",
+  "contact.nouveau": "Neue Kontaktnachricht: {sujet} — {nom} ({ref})",
+  "contact.traite": "Ihre Nachricht „{sujet}“ wurde von unserem Team bearbeitet."
 }

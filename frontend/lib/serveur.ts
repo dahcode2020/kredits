@@ -23,7 +23,10 @@ import {
 import { COMPTES_PORTE_DEMO, type RoleServeur } from "@/lib/serveur-demo";
 import type { BanqueCompte, MessageChat, SurchargesReferentiel } from "@/lib/banque";
 import type { EtatSimulation } from "@/lib/application";
-import { t, tSiCle, type Locale } from "@/lib/i18n";
+import { locales, t, tSiCle, type Locale } from "@/lib/i18n";
+// L'e-mail ne se valide qu'une seule fois dans le dépôt (lib/auth.ts) : le formulaire de contact
+// du serveur utilise le même prédicat que l'inscription, pas une seconde expression.
+import { emailValide } from "@/lib/auth";
 // L'annuité du crédit vit UNE SEULE FOIS dans le module isomorphe `contrat-doc` (importable
 // côté navigateur pour l'aperçu/annexe) ; ce module Node la ré-exporte pour ses appels internes
 // et pour les verrous qui l'importent historiquement d'ici.
@@ -79,6 +82,17 @@ export interface NotificationServeur {
 
 /** Préférences de distribution réelle du client (source de vérité : le serveur). */
 export interface PrefsNotifServeur { email: boolean; whatsapp: boolean }
+
+/* ——— Messages de contact : le domaine vit ici (magasin, dépôt, transitions), les types, bornes
+ *  et la table erreur→clé i18n vivent dans lib/contact.ts (isomorphe) et sont ré-exportés. ——— */
+import {
+  CLES_ERREUR_CONTACT, CONTACT_MESSAGE_MAX, CONTACT_MESSAGE_MIN, CONTACT_NOM_MAX, CONTACT_SUJET_MAX,
+  type MessageContact,
+} from "@/lib/contact";
+export {
+  CLES_ERREUR_CONTACT, CONTACT_MESSAGE_MAX, CONTACT_MESSAGE_MIN, CONTACT_NOM_MAX, CONTACT_SUJET_MAX,
+} from "@/lib/contact";
+export type { MessageContact, StatutMessageContact } from "@/lib/contact";
 
 /** Contrat de crédit établi par l'administration pour un client (menu Contrats, slice 23) :
  *  conditions + mentions libres, aperçu et téléchargement, puis notification au client par
@@ -141,13 +155,14 @@ export interface Magasin {
   documents?: DocumentServeur[];
   contrats?: ContratServeur[];
   notifications?: NotificationServeur[];
+  messages?: MessageContact[];
   /** Version du format de données : un magasin d'une autre version est re-semé, jamais migré à
    *  l'aveugle — aucun vieux fichier ne peut produire des comportements fantômes après un déploiement. */
   versionMagasin?: number;
 }
 
 /** À incrémenter à chaque changement de forme des données du magasin. */
-export const VERSION_MAGASIN = 8;
+export const VERSION_MAGASIN = 9;
 
 export const DUREE_SESSION_JOURS = 7;
 export const NOM_COOKIE = "kredit_session_v1";
@@ -186,6 +201,7 @@ export function lireMagasin(dossier: string = dossierDonnees()): Magasin {
   if (!magasin.paiements) semerPaiementsDemo(magasin);
   if (!magasin.documents) semerDocumentsDemo(magasin);
   if (!magasin.contrats) semerContratsDemo(magasin);
+  if (!magasin.messages) semerMessagesDemo(magasin);
   if (!magasin.comptes.find((c) => c.email === COMPTES_PORTE_DEMO[0].email)?.prefsNotif) {
     const demo = magasin.comptes.find((c) => c.email === COMPTES_PORTE_DEMO[0].email);
     if (demo) demo.prefsNotif = { email: true, whatsapp: true };
@@ -517,6 +533,66 @@ function semerContratsDemo(magasin: Magasin): void {
     reference: "006689TE/CI/0035",
     statut: "BROUILLON", creeA: "2026-09-13T10:00:00.000Z", majA: "2026-09-13T10:00:00.000Z",
   }];
+}
+
+/** Message de contact de démonstration : un seul, NON traité, pour que le menu Messages de
+ *  l'administration montre un cas réel dès la première ouverture (même philosophie que les
+ *  demandes, paiements et documents semés). Son sujet et son corps sont des CLÉS i18n — jamais
+ *  de la copie en dur dans le serveur. */
+function semerMessagesDemo(magasin: Magasin): void {
+  magasin.messages = [{
+    id: "MSG-2026-DEMOA1", nom: "Client KREDIT", email: "client@kredit.be",
+    sujet: "contact.demoSubject", message: "contact.demoMessage",
+    locale: "fr", creeA: "2026-09-16T08:12:00.000Z", statut: "NOUVEAU",
+  }];
+}
+
+let compteurMessage = 0;
+export function idMessageContact(maintenant: string, existants: string[]): string {
+  for (;;) {
+    compteurMessage += 1;
+    const id = `MSG-${maintenant.slice(0, 10).replace(/-/g, "")}-${Math.floor(Math.random() * 46_656).toString(36).toUpperCase().padStart(3, "0")}${(compteurMessage % 36).toString(36).toUpperCase()}`;
+    if (!existants.includes(id)) return id;
+  }
+}
+/** Dépôt d'un message de contact (formulaire public). Tout est borné et tranché ici : un
+ *  visiteur ne peut pas écrire un nom de 10 000 caractères ni un message vide. */
+export function deposerMessageContact(
+  magasin: Magasin,
+  m: { nom: string; email: string; sujet: string; message: string; consentement: unknown; locale?: string; maintenant: string },
+): { message?: MessageContact; erreur?: "nom_invalide" | "email_invalide" | "sujet_invalide" | "message_invalide" | "consentement_requis" } {
+  const nom = String(m.nom ?? "").trim();
+  const email = String(m.email ?? "").trim().toLowerCase();
+  const sujet = String(m.sujet ?? "").trim();
+  const message = String(m.message ?? "").trim();
+  if (nom.length < 2 || nom.length > CONTACT_NOM_MAX) return { erreur: "nom_invalide" };
+  if (!emailValide(email)) return { erreur: "email_invalide" };
+  if (sujet.length < 2 || sujet.length > CONTACT_SUJET_MAX) return { erreur: "sujet_invalide" };
+  if (message.length < CONTACT_MESSAGE_MIN || message.length > CONTACT_MESSAGE_MAX) return { erreur: "message_invalide" };
+  // Sans consentement, pas de dépôt : c'est la seule base légale du traitement (RGPD).
+  if (m.consentement !== true) return { erreur: "consentement_requis" };
+  const locale: Locale = (locales as readonly string[]).includes(String(m.locale)) ? (m.locale as Locale) : "fr";
+  const msg: MessageContact = {
+    id: idMessageContact(m.maintenant, (magasin.messages ?? []).map((x) => x.id)),
+    nom, email, sujet, message, locale, creeA: m.maintenant, statut: "NOUVEAU",
+  };
+  magasin.messages = [...(magasin.messages ?? []), msg];
+  return { message: msg };
+}
+/** Liste de l'administration : le plus récent d'abord (ce sont les messages à traiter). */
+export function messagesContact(magasin: Magasin): MessageContact[] {
+  return [...(magasin.messages ?? [])].sort((a, b) => b.creeA.localeCompare(a.creeA));
+}
+/** Un membre du personnel prend le message en charge : transition pure, la notification au
+ *  client est émise par la route (site + e-mail réel si le fournisseur est configuré). */
+export function traiterMessageContact(
+  magasin: Magasin, id: string, par: string, maintenant: string,
+): { message?: MessageContact; erreur?: "introuvable" | "etat_inchange" } {
+  const msg = (magasin.messages ?? []).find((x) => x.id === id);
+  if (!msg) return { erreur: "introuvable" };
+  if (msg.statut === "TRAITE") return { erreur: "etat_inchange" };
+  msg.statut = "TRAITE"; msg.traiteA = maintenant; msg.traitePar = par;
+  return { message: msg };
 }
 
 let compteurContrat = 0;

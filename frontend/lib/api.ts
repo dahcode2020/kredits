@@ -25,6 +25,13 @@ export const apiPost = <T>(chemin: string, corps: unknown, extra?: RequestInit) 
     ...extra,
   });
 
+export const apiPatch = <T>(chemin: string, corps: unknown) =>
+  requete<T>(chemin, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corps),
+  });
+
 /* Endpoints nommés — un seul endroit pour les chemins de l'API. */
 export const API = {
   inscription: "/api/auth/inscription",
@@ -46,5 +53,6 @@ export const API = {
   banqueOperations: "/api/banque/operations",
   activite: "/api/activite",
   banqueChat: (compte?: string) => (compte ? `/api/banque/chat?compte=${encodeURIComponent(compte)}` : "/api/banque/chat"),
+  contact: "/api/contact",
   banqueReferentiel: "/api/banque/referentiel",
 } as const;
