@@ -127,5 +127,18 @@
   "contracts.resetCorps": "Standardvorlage wiederherstellen",
   "contracts.langue": "Dokumentsprache",
   "contracts.langueEN": "English — Originalvorlage",
-  "contracts.langueFR": "Français"
+  "contracts.langueFR": "Français",
+  "dashboard.documentsAdmin.title": "Kundendokumente",
+  "dashboard.documentsAdmin.intro": "Alle von Kunden hochgeladenen Unterlagen — lesen, herunterladen und genehmigen; die Genehmigung benachrichtigt den Kunden und der Vermerk „genehmigt“ erscheint in seinem Menü Dokumente.",
+  "dashboard.documentsAdmin.client": "Kunde",
+  "dashboard.documentsAdmin.allClients": "Alle Kunden",
+  "dashboard.documentsAdmin.status": "Status",
+  "dashboard.documentsAdmin.allStatus": "Alle Status",
+  "dashboard.documentsAdmin.pending": "{n} zu genehmigen",
+  "dashboard.documentsAdmin.approvedCount": "{n} genehmigt",
+  "dashboard.documentsAdmin.empty": "Kein Dokument entspricht diesem Filter.",
+  "dashboard.documentsAdmin.refresh": "Aktualisieren",
+  "dashboard.documentsAdmin.updatedAt": "Ansicht Stand {date}",
+  "dashboard.documentsAdmin.approveOk": "Unterlage genehmigt — der Kunde wird benachrichtigt.",
+  "dashboard.documentsAdmin.approveErr": "Genehmigung nicht möglich (bereits genehmigt oder nicht gefunden)."
 }

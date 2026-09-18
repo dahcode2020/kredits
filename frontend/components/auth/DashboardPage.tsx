@@ -33,6 +33,7 @@ import OpsPortal from "@/components/auth/OpsPortal";
 import AdminOverview from "@/components/auth/AdminOverview";
 import ContratsAdmin from "@/components/auth/ContratsAdmin";
 import EcheanciersAdmin from "@/components/auth/EcheanciersAdmin";
+import DocumentsAdmin from "@/components/auth/DocumentsAdmin";
 import GrilleHistorique from "@/components/auth/GrilleHistorique";
 import { API, apiGet, apiPost } from "@/lib/api";
 import type { BanqueCompte } from "@/lib/banque";
@@ -358,7 +359,7 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
     ...(session.role !== "CUSTOMER" ? [{ id: "contrats" as Onglet, icone: FileSignature, cle: "dashboard.contracts.title" }] : []),
     { id: "echeanciers", icone: CalendarClock, cle: session.role === "CUSTOMER" ? "nav.repayments" : "dashboard.ech.title" },
     { id: "paiements", icone: Wallet, cle: "payments.title" },
-    { id: "documents", icone: Fingerprint, cle: "documents.title" },
+    { id: "documents", icone: Fingerprint, cle: session.role === "CUSTOMER" ? "documents.title" : "dashboard.documentsAdmin.title" },
     { id: "notifications", icone: Bell, cle: "notifications.title" },
     { id: "profil", icone: UserRound, cle: "nav.profile" },
   ];
@@ -634,7 +635,9 @@ export default function DashboardPage({ locale }: { locale: Locale }) {
             </Reveal>
           )}
 
-          {onglet === "documents" && (
+          {onglet === "documents" && session.role !== "CUSTOMER" && <DocumentsAdmin locale={locale} />}
+
+          {onglet === "documents" && session.role === "CUSTOMER" && (
             <Reveal as="div" variant="fade" className="bg-white rounded-[24px] border shadow-soft p-6 md:p-8">
               <h2 className="font-extrabold text-ink text-lg">{tr("documents.title")}</h2>
               {demandes.length === 0 ? (

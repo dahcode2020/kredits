@@ -127,5 +127,18 @@
   "contracts.resetCorps": "Restaurer le modèle par défaut",
   "contracts.langue": "Langue du document",
   "contracts.langueEN": "English — modèle original",
-  "contracts.langueFR": "Français"
+  "contracts.langueFR": "Français",
+  "dashboard.documentsAdmin.title": "Documents des clients",
+  "dashboard.documentsAdmin.intro": "Toutes les pièces déposées par les clients — lecture, téléchargement et approbation ; l'approbation notifie le client et la mention « approuvé » apparaît dans son menu Documents.",
+  "dashboard.documentsAdmin.client": "Client",
+  "dashboard.documentsAdmin.allClients": "Tous les clients",
+  "dashboard.documentsAdmin.status": "Statut",
+  "dashboard.documentsAdmin.allStatus": "Tous les statuts",
+  "dashboard.documentsAdmin.pending": "{n} à approuver",
+  "dashboard.documentsAdmin.approvedCount": "{n} approuvée(s)",
+  "dashboard.documentsAdmin.empty": "Aucune pièce ne correspond à ce filtre.",
+  "dashboard.documentsAdmin.refresh": "Rafraîchir",
+  "dashboard.documentsAdmin.updatedAt": "Vue à jour à {date}",
+  "dashboard.documentsAdmin.approveOk": "Pièce approuvée — le client est notifié.",
+  "dashboard.documentsAdmin.approveErr": "Approbation impossible (pièce déjà approuvée ou introuvable)."
 }

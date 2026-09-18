@@ -544,3 +544,20 @@ describe("contrats : langue du document bornée à EN/FR", () => {
     expect(majContrat(magasin, fr.contrat!.id, MAINTENANT, { langue: "XX" }).erreur).toBe("langue_invalide");
   });
 });
+
+describe("documents : la vue staff agrège tous les clients, le client reste isolé (menu Documents admin)", () => {
+  it("deux clients distincts : le magasin agrège, documentsPour sépare", () => {
+    const magasin = lireMagasin(dossier);
+    const avant = (magasin.documents ?? []).length;
+    // Un second client dépose une pièce : elle rejoint la vue agrégée de l'administration
+    // sans toucher au dossier du client vitrine.
+    const dep = deposerDocument(magasin, {
+      email: "docs@exemple.be", demandeId: "KRD-2026-DOCS", code: "ID",
+      nom: "carte.png", donnees: "data:image/png;base64,QUJD", taille: 3, maintenant: "2026-09-14T09:10:00.000Z",
+    });
+    expect(dep.document?.statut).toBe("SOUMIS");
+    expect((magasin.documents ?? []).length).toBe(avant + 1); // vue agrégée staff
+    expect(documentsPour(magasin, "docs@exemple.be")).toHaveLength(1);
+    expect(documentsPour(magasin, "client@kredit.be").some((d) => d.email === "docs@exemple.be")).toBe(false); // isolation
+  });
+});

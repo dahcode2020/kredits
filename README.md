@@ -447,7 +447,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   et dernière échéances) avec l'échéancier complet. L'annuité vit une seule fois dans
   `lib/contrat-doc` (serveur, aperçu, échéanciers, verrous). Verrous : nombres en lettres, date
   ordinale, placeholders, emprunteur auto, annexe, bornes corps/prêteur/logo/référence,
-  null = retour au défaut — 17 nouveaux (234 au total).
+  null = retour au défaut — 17 nouveaux (235 au total).
 - **Contrat bilingue : EN et FR, deux langues suffisent.** Le menu Contrats porte un sélecteur de
   langue borné à l'anglais (modèle fourni) et au français : modèle complet traduit (exposé +
   12 articles, mêmes placeholders), montant en lettres françaises (« sept cent cinquante-cinq
@@ -456,6 +456,13 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   de la langue tant qu'il n'est pas personnalisé ; le bouton « restaurer » suit la langue choisie.
   Le serveur borne la langue (`langue_invalide` hors EN/FR). Verrous : lettres FR, dates FR,
   rendu FR, bornes langue — 6 nouveaux.
+- **Compte admin : un vrai menu « Documents » transversal.** À la place du menu client, le
+  personnel voit TOUTES les pièces déposées par TOUS les clients (même table du magasin, mêmes
+  codes `credit:documents.*`, mêmes statuts) : filtres par client et par statut, compteurs
+  « à approuver / approuvées », lecture et téléchargement de la pièce, approbation en un geste
+  (notification site + e-mail + WhatsApp au client, mention « approuvé » dans son menu
+  Documents) — exactement le geste du dossier KYC, sans quitter le menu. Rafraîchissement comme
+  l'Aperçu (15 s + bouton manuel). Verrou : agrégation staff + isolation par client — 1 nouveau.
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -524,7 +531,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (234 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (235 verrous)
 ```
 
 ## Commandes

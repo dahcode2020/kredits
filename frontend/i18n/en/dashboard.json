@@ -127,5 +127,18 @@
   "contracts.resetCorps": "Restore default template",
   "contracts.langue": "Document language",
   "contracts.langueEN": "English — original template",
-  "contracts.langueFR": "Français"
+  "contracts.langueFR": "Français",
+  "dashboard.documentsAdmin.title": "Client documents",
+  "dashboard.documentsAdmin.intro": "Every file uploaded by clients — read, download and approve; approval notifies the client and the “approved” mention appears in their Documents menu.",
+  "dashboard.documentsAdmin.client": "Client",
+  "dashboard.documentsAdmin.allClients": "All clients",
+  "dashboard.documentsAdmin.status": "Status",
+  "dashboard.documentsAdmin.allStatus": "All statuses",
+  "dashboard.documentsAdmin.pending": "{n} to approve",
+  "dashboard.documentsAdmin.approvedCount": "{n} approved",
+  "dashboard.documentsAdmin.empty": "No document matches this filter.",
+  "dashboard.documentsAdmin.refresh": "Refresh",
+  "dashboard.documentsAdmin.updatedAt": "View up to date at {date}",
+  "dashboard.documentsAdmin.approveOk": "Document approved — the client is notified.",
+  "dashboard.documentsAdmin.approveErr": "Unable to approve (already approved or not found)."
 }

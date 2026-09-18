@@ -127,5 +127,18 @@
   "contracts.resetCorps": "Standaardsjabloon herstellen",
   "contracts.langue": "Documenttaal",
   "contracts.langueEN": "English — origineel sjabloon",
-  "contracts.langueFR": "Français"
+  "contracts.langueFR": "Français",
+  "dashboard.documentsAdmin.title": "Klantdocumenten",
+  "dashboard.documentsAdmin.intro": "Alle door klanten aangeleverde stukken — lezen, downloaden en goedkeuren; de goedkeuring meldt het en de vermelding “goedgekeurd” verschijnt in zijn menu Documenten.",
+  "dashboard.documentsAdmin.client": "Klant",
+  "dashboard.documentsAdmin.allClients": "Alle klanten",
+  "dashboard.documentsAdmin.status": "Status",
+  "dashboard.documentsAdmin.allStatus": "Alle statussen",
+  "dashboard.documentsAdmin.pending": "{n} goed te keuren",
+  "dashboard.documentsAdmin.approvedCount": "{n} goedgekeurd",
+  "dashboard.documentsAdmin.empty": "Geen enkel document komt overeen met dit filter.",
+  "dashboard.documentsAdmin.refresh": "Vernieuwen",
+  "dashboard.documentsAdmin.updatedAt": "Beeld bijgewerkt om {date}",
+  "dashboard.documentsAdmin.approveOk": "Stuk goedgekeurd — de klant wordt gemeld.",
+  "dashboard.documentsAdmin.approveErr": "Goedkeuring onmogelijk (al goedgekeurd of niet gevonden)."
 }
