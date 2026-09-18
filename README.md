@@ -492,6 +492,15 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   animé recevait la cible 0 au lieu du solde : il « montait » de 0 à 0 et restait figé sur
   0,00 € tant que l'onglet différait requestAnimationFrame (aperçu, iframe). La cible est le
   solde réel du compte ; le verrou client exige le total des fonds à l'écran.
+- **Accueil : interligne resserré + sections réorganisées autour d'images.** Le titre du héro
+  retrouvait l'interligne par défaut : `leading-[0.95]` écrit avant les tailles `text-[…]` était
+  supprimé par tailwind-merge (conflit font-size/line-height) — l'interligne serré vient
+  désormais APRÈS les tailles, et un verrou rend le héro pour exiger la classe sur le h1. La
+  page gagne en relief : photos de marque par étape du parcours (demande, examen, signature,
+  déblocage), cartes produits à image haute avec zoom au survol (motion-safe), héro à la photo
+  plus présente, et une bannière pleine largeur entre Services et Témoignages dont le titre est
+  la clé dormante `cta.simulate`, enfin rendue, avec CTA réel vers le simulateur. Aucune donnée
+  fausse : photos décoratives (alt vide), aucun nouveau texte hors dictionnaires.
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide
@@ -511,7 +520,6 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
 | Élément du dictionnaire | Pourquoi il n'est pas rendu |
 | --- | --- |
 | `stats.*`, `trust.*`, `hero.trust` (« 8 400+ clients », « 4 800 avis »…) | Statistiques marketing sans source réelle : les clés existent, elles resteront non rendues tant qu'aucune donnée réelle ne peut les porter. |
-| `cta.simulate` (« Simuler maintenant ») | Variante du CTA simulateur, déjà rendu au hero, à la carte et à la navigation ; reste non rendue tant qu'aucun emplacement ne la réclame. |
 | `faq.q1` / `faq.a1` | Sa copie attend un nombre (« TAEG à partir de, … ») que seule la slice simulateur pourra fournir proprement ; l'information équivalente est déjà à l'écran (grille + contre-exemple). |
 | sections `roles` / `auth`, formulaire `contact` | Écrans des slices 3 et suivantes ; un formulaire qui ne répond pas est un écran faux. |
 | `testimonials.verified`, étoiles | Les témoignages rendus sont **explicitement illustratifs** (`testimonials.note` est affiché) ; un badge « client vérifié » sur un avis illustratif serait une donnée fausse. |
@@ -560,7 +568,7 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
     ├── i18n/                  12 namespaces × 4 langues, parité stricte
     ├── lib/                   i18n, intl, formatters, locale-detection, credit-engine, banque (pure), serveur, serveur-banque, api, motion…
     ├── scripts/               les gardes (dont check-regles : grille + référentiel) + fresh.mjs
-    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (236 verrous)
+    └── tests/unit/            parité, clés, hydratation/Intl, motion, grille, échéancier, banque, serveur, serveur-banque (245 verrous)
 ```
 
 ## Commandes

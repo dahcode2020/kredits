@@ -76,9 +76,9 @@ export default function ProductSection({ locale }: { locale: Locale }) {
             const mini = tauxMiniProduit(code);
             const miniFinal = formatPercent(mini, locale, 2);
             return (
-              <Reveal as="div" key={code} retard={i * 80} pas={28} spotlight className="bg-white rounded-[20px] shadow-soft border overflow-hidden lift">
-                <div className="relative h-40">
-                  <img src={IMAGES[code]} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
+              <Reveal as="div" key={code} retard={i * 80} pas={28} spotlight className="group bg-white rounded-[20px] shadow-soft border overflow-hidden lift">
+                <div className="relative h-48 overflow-hidden">
+                  <img src={IMAGES[code]} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 motion-safe:group-hover:scale-[1.06]" />
                   <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent" aria-hidden="true" />
                   <span className="absolute left-4 top-4 px-2.5 py-1 rounded-full bg-ink/70 backdrop-blur text-[10px] font-bold tracking-widest uppercase text-white border border-white/20">{tr(cles.tag)}</span>
                 </div>

@@ -5,6 +5,7 @@ import ProductSection from "@/components/home/ProductSection";
 import AboutSection from "@/components/home/AboutSection";
 import ProcessSection from "@/components/home/ProcessSection";
 import ServicesSection from "@/components/home/ServicesSection";
+import CtaBand from "@/components/home/CtaBand";
 import TestimonialsSection from "@/components/home/TestimonialsSection";
 import FaqSection from "@/components/home/FaqSection";
 
@@ -34,6 +35,7 @@ export default function HomePage({ params }: { params: { locale: string } }) {
       <AboutSection locale={locale} />
       <ProcessSection locale={locale} />
       <ServicesSection locale={locale} />
+      <CtaBand locale={locale} />
       <TestimonialsSection locale={locale} />
       <FaqSection locale={locale} />
     </div>

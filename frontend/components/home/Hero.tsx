@@ -26,7 +26,7 @@ export default function Hero({ locale }: { locale: Locale }) {
       {/* Profondeur: le maillage dérive doucement (Parallax, translate3d uniquement). */}
       <Parallax amplitude={14} className="absolute -inset-[4%]">
         {/* Image décorative (générée, aria-hidden, alt="") : ambiance, pas une promesse. */}
-        <img src="/images/hero-bg.jpg" alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+        <img src="/images/hero-bg.jpg" alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover opacity-50" />
         <div className="maillage opacity-70" aria-hidden="true" />
         <div className="absolute inset-0 bg-gradient-to-r from-ink via-ink/80 to-ink/30" />
       </Parallax>
@@ -37,7 +37,11 @@ export default function Hero({ locale }: { locale: Locale }) {
             <Reveal as="div" variant="fade" className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] tracking-widest uppercase font-bold text-white/90 backdrop-blur">
               <span className="w-2 h-2 rounded-full bg-emerald-400" aria-hidden="true" /> {tr("hero.eyebrow")}
             </Reveal>
-            <Reveal as="h1" retard={90} pas={28} className="mt-6 font-display font-extrabold text-white leading-[0.95] tracking-tight text-[42px] md:text-[56px]">
+            {/* L'interligne serré DOIT venir après les tailles `text-[…]` : tailwind-merge
+                (via cn dans Reveal) traite `leading-[…]` placé avant comme un conflit de
+                font-size et le supprime silencieusement — le titre retrouvait alors
+                l'interligne par défaut, aéré. Verrou : tests/unit/hero-interligne.spec.tsx. */}
+            <Reveal as="h1" retard={90} pas={28} className="mt-6 font-display font-extrabold text-white tracking-tight text-[42px] md:text-[56px] leading-[0.95]">
               {tr("hero.title1")} <br />
               <span className="text-white">{tr("hero.title2")}</span> <br />
               <span className="text-primary">{tr("hero.title3")}</span>

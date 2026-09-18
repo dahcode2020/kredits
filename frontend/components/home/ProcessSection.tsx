@@ -18,6 +18,10 @@ const ONGLETS = [
   { t: "process.tab4", d: "process.tab4d", h: "process.h4", hd: "process.h4d" },
 ];
 
+/* Photographies de marque (générées, décoratives : alt="", aria-hidden) — une par étape,
+   l'étiquette et le texte restent ceux des dictionnaires. */
+const IMAGES_ETAPES = ["/images/process-1.jpg", "/images/process-2.jpg", "/images/process-3.jpg", "/images/process-4.jpg"];
+
 export default function ProcessSection({ locale }: { locale: Locale }) {
   const tr = (k: string) => t(locale, k);
   const [actif, setActif] = useState(0);
@@ -59,10 +63,12 @@ export default function ProcessSection({ locale }: { locale: Locale }) {
             <li className="flex gap-2"><Check className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" aria-hidden="true" /> {tr("process.check3")}</li>
           </ul>
         </div>
-        <Reveal as="div" variant="right" pas={20} uneFois={false} className="relative h-[260px] rounded-2xl overflow-hidden bg-ink">
-          <div className="maillage" aria-hidden="true" />
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="font-display font-extrabold text-white/90 text-[56px] tracking-tight">{actif + 1}<span className="text-primary">/4</span></div>
+        <Reveal as="div" variant="right" pas={20} uneFois={false} className="relative h-[300px] rounded-2xl overflow-hidden bg-ink">
+          {/* `key` = l'onglet : la photo est remontée et l'entrée joue (motion-pop, CSS seul). */}
+          <img key={actif} src={IMAGES_ETAPES[actif]} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover motion-pop" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/10 to-transparent" aria-hidden="true" />
+          <div className="absolute left-4 bottom-4 rounded-full bg-ink/70 backdrop-blur border border-white/15 px-4 py-2 font-display font-extrabold text-white text-[20px] leading-none tracking-tight">
+            {actif + 1}<span className="text-primary">/4</span>
           </div>
         </Reveal>
       </div>
