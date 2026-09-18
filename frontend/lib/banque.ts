@@ -128,7 +128,15 @@ export interface Virement {
   blocages: Blocage[];
   /** Code émis par l'administration pour débloquer le niveau d'arrêt courant (jamais servi au client). */
   codeDeblocage?: string;
+  /** Instant (ISO) où le prochain niveau sera confirmé — la progression avance dans le temps réel. */
+  prochainNiveauA?: string;
 }
+
+/** Cadence de la progression en direct (slice 22) : un niveau confirmé toutes les 10 secondes.
+ *  Le client suit la barre et reçoit une notification à chaque palier ; un arrêt suspend la
+ *  marche jusqu'au code de déblocage, puis elle reprend à la même cadence. */
+export const DELAI_NIVEAU_MS = 10_000;
+const plusTard = (iso: string, ms: number) => new Date(new Date(iso).getTime() + ms).toISOString();
 
 export interface BanqueCompte {
   iban: string; verifie: boolean; photo: string | null;
@@ -185,6 +193,8 @@ export function initierVirement(
     beneficiaireAdresse: coordonnees?.adresse?.trim() || undefined,
     beneficiaireBic: coordonnees?.bic?.replace(/\s+/g, "").toUpperCase() || undefined,
     montant, motif, creeA: maintenant, statut: "EN_COURS", niveau: 0, blocages: [],
+    // La progression en direct démarre : premier palier confirmé après le délai de cadence.
+    prochainNiveauA: plusTard(maintenant, DELAI_NIVEAU_MS),
   };
   return { compte: { ...compte, virements: [...compte.virements, v] } };
 }
@@ -216,15 +226,80 @@ export function evolutionVirement(compte: BanqueCompte, virementId: string, ref:
   return mapVirement(compte, virementId, (v) => {
     if (v.statut !== "EN_COURS") return v;
     const arret = arretsActifs(ref).find((a) => a.pct > progressionDe(v, ref));
-    if (!arret) return { ...v, niveau: ref.pipeline.length, statut: "EXECUTE", codeDeblocage: undefined };
+    if (!arret) return { ...v, niveau: ref.pipeline.length, statut: "EXECUTE", codeDeblocage: undefined, prochainNiveauA: undefined };
     return {
       ...v,
       niveau: niveauPourPct(ref, arret.pct),
       statut: "BLOQUE",
       blocages: [...v.blocages, ...arret.defauts.map((d) => ({ code: d.code, cout: d.cout, depuis: maintenant, motif: d.motif ?? `banque:defaut.${d.code}` }))],
       codeDeblocage,
+      prochainNiveauA: undefined,
     };
   });
+}
+
+/* ——— Progression en direct (slice 22) : la machine avance avec le temps réel ——— */
+
+/** Événement de progression émis par `avancerVirements` — le serveur le traduit en
+ *  notification « push » pour le client (site + toasts), jamais l'inverse. */
+export type EvenementPipeline =
+  | { virementId: string; type: "NIVEAU"; pct: number; codeNiveau: string }
+  | { virementId: string; type: "ARRET"; pct: number; codeNiveau: string; codesDefauts: string[] }
+  | { virementId: string; type: "EXECUTION"; pct: number };
+
+/** Un virement EN_COURS avance d'un niveau chaque fois que l'échéance `prochainNiveauA` est
+ *  passée : palier confirmé (événement NIVEAU), arrêt sur défaut actif (BLOQUE + événement
+ *  ARRET), ou dernier niveau atteint (EXECUTE + événement EXECUTION). Plusieurs échéances
+ *  écoulées d'un coup (client hors ligne) sont rattrapées en une seule passe. Pur : le code de
+ *  déblocage est injecté par l'appelant (le serveur), jamais inventé ici. */
+export function avancerVirement(
+  v0: Virement, ref: Referentiel, maintenant: string, genererCode: () => string,
+): { virement: Virement; evenements: EvenementPipeline[] } {
+  let v = v0;
+  const evenements: EvenementPipeline[] = [];
+  if (v.statut !== "EN_COURS") return { virement: v, evenements };
+  if (!v.prochainNiveauA) return { virement: { ...v, prochainNiveauA: plusTard(maintenant, DELAI_NIVEAU_MS) }, evenements };
+  while (v.statut === "EN_COURS" && v.prochainNiveauA !== undefined && new Date(v.prochainNiveauA).getTime() <= new Date(maintenant).getTime()) {
+    const prochain = v.niveau + 1;
+    if (prochain > ref.pipeline.length) { // garde-fou : plus aucun niveau à confirmer
+      v = { ...v, statut: "EXECUTE", prochainNiveauA: undefined };
+      evenements.push({ virementId: v.id, type: "EXECUTION", pct: progressionDe(v, ref) });
+      break;
+    }
+    const niveau = ref.pipeline[prochain - 1];
+    const echeanceSuivante = plusTard(v.prochainNiveauA, DELAI_NIVEAU_MS);
+    if (prochain === ref.pipeline.length) {
+      v = { ...v, niveau: prochain, statut: "EXECUTE", codeDeblocage: undefined, prochainNiveauA: undefined };
+      evenements.push({ virementId: v.id, type: "EXECUTION", pct: niveau.pct });
+      break;
+    }
+    const arret = arretsActifs(ref).find((a) => a.pct === niveau.pct);
+    if (arret) {
+      v = {
+        ...v, niveau: prochain, statut: "BLOQUE", prochainNiveauA: undefined, codeDeblocage: genererCode(),
+        blocages: [...v.blocages, ...arret.defauts.map((d) => ({ code: d.code, cout: d.cout, depuis: maintenant, motif: d.motif ?? `banque:defaut.${d.code}` }))],
+      };
+      evenements.push({ virementId: v.id, type: "ARRET", pct: niveau.pct, codeNiveau: niveau.code, codesDefauts: arret.defauts.map((d) => d.code) });
+      break;
+    }
+    v = { ...v, niveau: prochain, prochainNiveauA: echeanceSuivante };
+    evenements.push({ virementId: v.id, type: "NIVEAU", pct: niveau.pct, codeNiveau: niveau.code });
+  }
+  return { virement: v, evenements };
+}
+
+/** Le compte entier avance : chaque virement EN_COURS suit sa propre échéance. */
+export function avancerVirements(
+  compte: BanqueCompte, ref: Referentiel, maintenant: string, genererCode: () => string,
+): { compte: BanqueCompte; evenements: EvenementPipeline[] } {
+  const evenements: EvenementPipeline[] = [];
+  const virements = compte.virements.map((v0) => {
+    const r = avancerVirement(v0, ref, maintenant, genererCode);
+    evenements.push(...r.evenements);
+    return r.virement;
+  });
+  if (evenements.length === 0 && virements.every((v, i) => v === compte.virements[i])) return { compte, evenements };
+  return { compte: { ...compte, virements }, evenements };
 }
 
 /** Le client renseigne le code émis par l'administration : le niveau se débloque et la machine repart. */
@@ -238,6 +313,8 @@ export function debloquerParCode(compte: BanqueCompte, virementId: string, code:
       statut: "EN_COURS",
       codeDeblocage: undefined,
       blocages: x.blocages.map((b) => (b.leveA ? b : { ...b, leveA: maintenant })),
+      // La machine repart : le palier suivant sera confirmé à la cadence habituelle.
+      prochainNiveauA: plusTard(maintenant, DELAI_NIVEAU_MS),
     })),
     ok: true,
   };
@@ -248,7 +325,7 @@ export function leverBlocage(compte: BanqueCompte, virementId: string, maintenan
   return mapVirement(compte, virementId, (v) => {
     if (v.statut !== "BLOQUE") return v;
     const blocages = v.blocages.map((b) => (b.leveA ? b : { ...b, leveA: maintenant }));
-    return { ...v, statut: "EN_COURS", blocages, codeDeblocage: undefined };
+    return { ...v, statut: "EN_COURS", blocages, codeDeblocage: undefined, prochainNiveauA: plusTard(maintenant, DELAI_NIVEAU_MS) };
   });
 }
 

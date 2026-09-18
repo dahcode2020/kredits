@@ -6,27 +6,29 @@
  *
  * Ce qui est verrouillé : l'ouverture de la banque côté serveur (IBAN BE valide + dotation démo,
  * idempotente), le client n'envoie que des INTENTIONS (un compte non vérifié ne peut pas virer),
- * le pipeline auto-évolutif : l'initiation arrête la barre au premier défaut actif (30 %) avec un
- * code de déblocage émis côté serveur (jamais servi au client, l'admin le lit dans sa vue), le bon
- * code fait repartir la barre jusqu'au prochain arrêt puis 100 % + dénouement, un mauvais code ne
- * bouge rien, lever (admin) débloque sans code et la machine repart, refuser libère la réserve, CUSTOMER ne peut ni agir en staff ni lire la banque d'autrui, le chat est isolé par
- * compte, la photo est plafonnée, et une surcharge du référentiel change l'effectif SANS toucher
- * à la table canonique.
+ * la progression EN DIRECT (slice 22) : l'initiation planifie la cadence sans précipiter l'arrêt,
+ * chaque palier échu est confirmé par le serveur avec une notification site, le point de
+ * validation arrête la marche (code émis côté serveur, jamais servi au client, l'admin le lit
+ * dans sa vue), le bon code replanifie la cadence et la progression reprend de la même façon
+ * jusqu'à l'arrêt suivant puis EXECUTION + dénouement, un mauvais code ne bouge rien, lever
+ * (admin) débloque sans code et reprend la cadence, refuser libère la réserve, CUSTOMER ne peut
+ * ni agir en staff ni lire la banque d'autrui, le chat est isolé par compte, la photo est
+ * plafonnée, et une surcharge du référentiel change l'effectif SANS toucher à la table canonique.
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  MONTANT_DEMO, REFERENTIEL_CANONIQUE, bicValide, disponibleDe, ibanBEValide, soldeDe,
+  DELAI_NIVEAU_MS, MONTANT_DEMO, REFERENTIEL_CANONIQUE, bicValide, disponibleDe, ibanBEValide, soldeDe,
   type BanqueCompte, type MessageChat, type Referentiel,
 } from "@/lib/banque";
 import {
-  creerCompte, deposerDocument, lireMagasin, ouvrirSessionServeur, type Magasin, type SessionServeur,
+  creerCompte, deposerDocument, lireMagasin, notificationsPour, ouvrirSessionServeur, type Magasin, type SessionServeur,
 } from "@/lib/serveur";
 
 const cleDemo = "client@kredit.be::CUSTOMER";
 import {
-  DUREE_CONVERSATION_MS, PHOTO_MAX_OCTETS, actionAdmin, actionClient, apercuPlateforme, banqueDeSession, chatPour,
+  DUREE_CONVERSATION_MS, PHOTO_MAX_OCTETS, actionAdmin, actionClient, apercuPlateforme, avancerEtNotifier, banqueDeSession, chatPour,
   listeComptesClients, ouvrirBanquePour, purgerMessagesChat, referentielPourApi, surchargerReferentiel,
 } from "@/lib/serveur-banque";
 
@@ -89,44 +91,71 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(r.modifie).toBe(false);
   });
 
-  it("une fois vérifié : l'initiation arrête la barre à 30 % ; codes admin → 60 % puis EXECUTE", () => {
+  it("une fois vérifié : progression en direct — palier notifié, arrêt à 30 %, codes admin → 60 % puis EXECUTION", () => {
     const magasin = lireMagasin(dossier);
     const session = sessionClient(magasin);
     const admin = sessionAdmin(magasin);
     banqueDeSession(magasin, session); // le portail ouvre la banque à l'affichage (comme le GET réel)
     expect(actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true }).statut).toBe(200);
 
+    // L'initiation NE PRÉCIPITE rien : le virement part, la cadence est planifiée.
     const r = actionClient(magasin, session, ordre(500, "acompte"));
     expect(r.statut).toBe(200);
     expect(r.modifie).toBe(true);
     const compte = r.corps.compte as BanqueCompte;
     const v = compte.virements[0];
-    expect(v.statut).toBe("BLOQUE"); // la barre évolue puis s'arrête au premier défaut actif (30 %)
-    expect(v.niveau).toBe(2);
+    expect(v.statut).toBe("EN_COURS");
+    expect(v.niveau).toBe(0);
+    expect(v.prochainNiveauA).toBeDefined();
     expect(v.codeDeblocage).toBeUndefined(); // le code n'est JAMAIS servi au client
-    expect(disponibleDe(compte)).toBe(MONTANT_DEMO - 500 - 25); // montant + coût du défaut réservés
+    expect(disponibleDe(compte)).toBe(MONTANT_DEMO - 500); // seul le montant est réservé au départ
     expect(soldeDe(compte)).toBe(MONTANT_DEMO); // rien n'est débité avant le dénouement
+    const creeA = new Date(v.creeA).getTime();
+    const instant = (n: number) => new Date(creeA + n * DELAI_NIVEAU_MS).toISOString();
+
+    // Premier palier confirmé à l'échéance : événement NIVEAU + notification site au client.
+    const e1 = avancerEtNotifier(magasin, session.email, "CUSTOMER", instant(1));
+    expect(e1.map((e) => e.type)).toEqual(["NIVEAU"]);
+    expect(notificationsPour(magasin, session.email).some((n) => n.cle === "banque.vir.notify.level")).toBe(true);
+
+    // Le POINT DE VALIDATION (30 %) arrête la marche : événement ARRET, code émis côté serveur.
+    const e2 = avancerEtNotifier(magasin, session.email, "CUSTOMER", instant(2));
+    expect(e2.map((e) => e.type)).toEqual(["ARRET"]);
+    const dossierBloque = listeComptesClients(magasin).find((x) => x.id === cle)!.compte;
+    expect(dossierBloque.virements[0].statut).toBe("BLOQUE");
+    expect(dossierBloque.virements[0].niveau).toBe(2);
+    expect(disponibleDe(dossierBloque)).toBe(MONTANT_DEMO - 500 - 25); // montant + coût du défaut réservés
+    expect(soldeDe(dossierBloque)).toBe(MONTANT_DEMO); // rien n'est débité avant le dénouement
 
     // Mauvais code : 400, rien ne bouge.
     expect(actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: "FAUX" }))
       .toMatchObject({ statut: 400, corps: { erreur: "code_invalide" }, modifie: false });
 
-    // L'administration lit le code dans sa vue (dossier client).
+    // L'administration lit le code dans sa vue (dossier client) ; le client le saisit → reprise.
     const code1 = listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements[0].codeDeblocage!;
     expect(code1).toMatch(/^[A-Z0-9]{12}$/); // généré automatiquement : 12 caractères alphanumériques
     const d1 = actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code1.toLowerCase() });
     expect(d1.statut).toBe(200); // insensible à la casse
     const v1 = (d1.corps.compte as BanqueCompte).virements.find((x) => x.id === v.id)!;
-    expect(v1.statut).toBe("BLOQUE");
-    expect(v1.niveau).toBe(3); // la barre repart et s'arrête à 60 %
+    expect(v1.statut).toBe("EN_COURS"); // la cadence replanifiée : la barre repart au prochain palier
+    expect(v1.niveau).toBe(2);
+    expect(v1.prochainNiveauA).toBeDefined();
 
+    // La progression reprend de la même façon et rencontre l'arrêt suivant (60 %).
+    const reprise = new Date(v1.prochainNiveauA!).getTime();
+    const e3 = avancerEtNotifier(magasin, session.email, "CUSTOMER", new Date(reprise).toISOString());
+    expect(e3.map((e) => e.type)).toEqual(["ARRET"]);
     const code2 = listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements[0].codeDeblocage!;
     const d2 = actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code2 });
     expect(d2.statut).toBe(200);
-    const fin = (d2.corps.compte as BanqueCompte).virements.find((x) => x.id === v.id)!;
-    expect(fin.statut).toBe("EXECUTE"); // dernier déblocage : barre à 100 %, exécution
-    const c2 = d2.corps.compte as BanqueCompte;
-    expect(soldeDe(c2)).toBe(MONTANT_DEMO - 500 - 25 - 150); // dénouement : montant + frais des défauts
+    const v2 = (d2.corps.compte as BanqueCompte).virements.find((x) => x.id === v.id)!;
+    expect(v2.statut).toBe("EN_COURS");
+    // Dernier palier : EXECUTION à 100 % + dénouement immédiat (montant + frais des défauts).
+    const e4 = avancerEtNotifier(magasin, session.email, "CUSTOMER", v2.prochainNiveauA!);
+    expect(e4.map((e) => e.type)).toEqual(["EXECUTION"]);
+    const c2 = listeComptesClients(magasin).find((x) => x.id === cle)!.compte;
+    expect(c2.virements.find((x) => x.id === v.id)!.statut).toBe("EXECUTE");
+    expect(soldeDe(c2)).toBe(MONTANT_DEMO - 500 - 25 - 150);
     expect(disponibleDe(c2)).toBe(MONTANT_DEMO - 500 - 25 - 150);
     // Un virement exécuté n'est plus déblocable.
     expect(actionClient(magasin, session, { action: "debloquer", virementId: v.id, code: code2 }).statut).toBe(400);
@@ -152,7 +181,7 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     expect(bicValide("GEBABEB")).toBe(false);
   });
 
-  it("l'arrêt réserve montant + coût ; lever (admin, sans code) repart au prochain arrêt", () => {
+  it("l'arrêt réserve montant + coût ; lever (admin, sans code) reprend la cadence au prochain arrêt", () => {
     const magasin = lireMagasin(dossier);
     const session = sessionClient(magasin);
     const admin = sessionAdmin(magasin);
@@ -160,17 +189,30 @@ describe("le client envoie des intentions, le serveur applique la machine", () =
     actionAdmin(magasin, admin, { action: "verifier", compteId: cle, verifie: true });
     const r = actionClient(magasin, session, ordre(300, "frais"));
     const v = (r.corps.compte as BanqueCompte).virements[0];
-    expect(v.statut).toBe("BLOQUE");
-    expect(v.blocages[0]).toMatchObject({ code: "JUSTIF_DOMICILE", cout: 25 });
-    expect(disponibleDe(r.corps.compte as BanqueCompte)).toBe(MONTANT_DEMO - 300 - 25);
+    expect(v.statut).toBe("EN_COURS"); // départ en direct, pas d'arrêt instantané
+    const creeA = new Date(v.creeA).getTime();
+    const arret = avancerEtNotifier(magasin, session.email, "CUSTOMER", new Date(creeA + 2 * DELAI_NIVEAU_MS).toISOString());
+    expect(arret.map((e) => e.type)).toEqual(["NIVEAU", "ARRET"]);
+    const compteBloque = listeComptesClients(magasin).find((x) => x.id === cle)!.compte;
+    const vb = compteBloque.virements[0];
+    expect(vb.statut).toBe("BLOQUE");
+    expect(vb.blocages[0]).toMatchObject({ code: "JUSTIF_DOMICILE", cout: 25 });
+    expect(disponibleDe(compteBloque)).toBe(MONTANT_DEMO - 300 - 25);
 
     const rl = actionAdmin(magasin, admin, { action: "lever", compteId: cle, virementId: v.id });
     expect(rl.statut).toBe(200);
     const leve = rl.corps.compte as BanqueCompte;
     const vl = leve.virements.find((x) => x.id === v.id)!;
-    expect(vl.statut).toBe("BLOQUE"); // la machine repart et s'arrête au prochain défaut (60 %)
-    expect(vl.niveau).toBe(3);
-    expect(disponibleDe(leve)).toBe(MONTANT_DEMO - 300 - 150); // coût levé libéré, nouveau coût réservé
+    expect(vl.statut).toBe("EN_COURS"); // le geste replanifie la cadence…
+    expect(vl.niveau).toBe(2);
+    expect(vl.prochainNiveauA).toBeDefined();
+    // …et le prochain palier rencontre l'arrêt suivant (60 %) : coût levé libéré, nouveau réservé.
+    avancerEtNotifier(magasin, session.email, "CUSTOMER", vl.prochainNiveauA!);
+    const suite = listeComptesClients(magasin).find((x) => x.id === cle)!.compte;
+    const vs = suite.virements.find((x) => x.id === v.id)!;
+    expect(vs.statut).toBe("BLOQUE");
+    expect(vs.niveau).toBe(3);
+    expect(disponibleDe(suite)).toBe(MONTANT_DEMO - 300 - 150);
   });
 
   it("refuser libère toute la réserve ; annuler reste un droit du client tant que c'est vivant", () => {
@@ -347,20 +389,26 @@ describe("chat, photo et référentiel", () => {
     const vid = (r.corps.compte as BanqueCompte).virements.at(-1)!.id;
     const lireCode = () => listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements.find((x) => x.id === vid)!.codeDeblocage!;
     const etat = () => listeComptesClients(magasin).find((x) => x.id === cle)!.compte.virements.find((x) => x.id === vid)!;
+    // La progression en direct avance jusqu'au prochain point de validation (rattrapage d'échéances).
+    const pousser = () => avancerEtNotifier(magasin, session.email, "CUSTOMER", new Date(Date.now() + 3_600_000).toISOString());
+    pousser();
     expect(etat().niveau).toBe(2); // premier arrêt : 30 %
 
     let d = actionClient(magasin, session, { action: "debloquer", virementId: vid, code: lireCode() });
     expect(d.statut).toBe(200);
-    expect(etat().niveau).toBe(3); // la barre s'arrête au champ créé (45 %)
+    pousser(); // la reprise rencontre le champ créé (45 %)
+    expect(etat().niveau).toBe(3);
     expect(etat().blocages.filter((b) => !b.leveA)[0]).toMatchObject({ code: "FRAIS_NOTAIRE", cout: 80, motif: "Frais de notaire" });
 
     d = actionClient(magasin, session, { action: "debloquer", virementId: vid, code: lireCode() });
+    pousser();
     expect(etat().niveau).toBe(4); // puis 60 %
     d = actionClient(magasin, session, { action: "debloquer", virementId: vid, code: lireCode() });
-    expect(etat().statut).toBe("EXECUTE"); // dernier code : 100 %
+    pousser();
+    expect(etat().statut).toBe("EXECUTE"); // dernier code : 100 % + dénouement
 
     // Le compte du client porte une transaction de frais avec le motif défini par l'admin.
-    const final = d.corps.compte as BanqueCompte;
+    const final = listeComptesClients(magasin).find((x) => x.id === cle)!.compte;
     expect(final.transactions.find((t) => t.motifLibre === "Frais de notaire")).toMatchObject({ sens: "sortant", montant: 80 });
     expect(soldeDe(final)).toBe(MONTANT_DEMO - 400 - 25 - 80 - 150);
   });

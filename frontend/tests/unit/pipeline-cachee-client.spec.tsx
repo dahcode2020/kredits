@@ -5,9 +5,10 @@
  * Verrou de confidentialité du pipeline de validation (slice 22, demande explicite) :
  * « Le client ne doit pas voir ou connaître les niveaux de validation au préalable. »
  *
- * La barre de pipeline (niveaux, seuils en %, légende) est désormais RÉSERVÉE à
- * l'administration (OpsPortal). Ce test rend le portail bancaire client complet avec
- * un virement bloqué et un virement en cours, puis exige :
+ * La barre de pipeline (niveaux, seuils en %, légende) est RÉSERVÉE à l'administration
+ * (OpsPortal) ; le client suit une barre CONTINUE sans noms ni seuils des niveaux à venir.
+ * Ce test rend le portail bancaire client complet avec un virement bloqué et un virement
+ * en cours, puis exige :
  *  - que le client voie toujours son statut opérationnel et de quoi lever l'arrêt
  *    (motif, montant à régler, champ code — slice 15) ;
  *  - que RIEN dans le rendu client ne révèle les niveaux (ni légende, ni « Arrêt au
@@ -25,7 +26,7 @@ import { t, type Locale } from "@/lib/i18n";
 const COMPTE: BanqueCompte = {
   iban: "BE68539007547034", verifie: true, photo: null,
   transactions: [
-    { id: "TX-1", sens: "entrant", montant: 4000, date: "2026-09-10T00:00:00.000Z", contrepartie: "Employeur", motifLibre: "Salaire" },
+    { id: "TX-1", sens: "entrant", montant: 4000, date: "2026-09-10T00:00:00.000Z", contrepartie: "Employeur", motifLibre: "banque.tx.demoSalary" },
   ],
   virements: [
     {
@@ -49,6 +50,7 @@ beforeEach(() => {
     const u = String(url);
     if (u.startsWith("/api/banque/chat")) return reponse({ messages: [] });
     if (u.startsWith("/api/banque")) return reponse({ compte: COMPTE, referentiel: referentielEffectif() });
+    if (u.startsWith("/api/notifications")) return reponse({ notifications: [] });
     return reponse({});
   }) as jest.Mock;
 });
@@ -79,6 +81,10 @@ it("le client voit statut + motif + montant + code, mais JAMAIS les niveaux de v
   expect(txt).toContain(t("fr", "banque:vir.stopTitleClient"));
   expect(txt).toContain(t("fr", "banque:defaut.CERT_ASSURANCE"));
   expect(txt).toContain(t("fr", "banque:vir.stopAmount", { montant: formatEUR2(120, "fr") }));
+
+  // — Le suivi EN DIRECT (slice 22) est là : barre continue, jamais la légende des niveaux.
+  expect(txt).toContain(t("fr", "banque:vir.live.title"));
+  expect(txt).toContain(t("fr", "banque:vir.live.suspended"));
 
   // — Les niveaux de validation sont totalement cachés au client.
   for (const code of ["RECEPTION", "CONFORMITE", "CERTIFICATS", "EXECUTION"]) {

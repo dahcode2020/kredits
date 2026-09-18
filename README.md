@@ -473,6 +473,21 @@ est du texte libre (résolu par `tSiCle` : une clé i18n s'affiche traduite, un 
   réutilisé dans OpsPortal (la copie en ligne dupliquée est supprimée). Verrou : le portail
   client rendu avec un virement bloqué et un en cours montre statut/motif/montant/code mais rien
   des niveaux — 1 nouveau (236 au total).
+- **Progression en direct : la barre avance avec le temps réel, en notifications push.** Après
+  l'initiation, le virement ne saute plus d'un coup à son arrêt : le serveur le fait avancer
+  palier par palier à cadence fixe (`DELAI_NIVEAU_MS`, un niveau confirmé toutes les 10 s). Le
+  portail client sonde toutes les 4 s ; la barre CONTINUE monte en douceur avec compteur animé,
+  et CHAQUE palier franchi, CHAQUE arrêt, CHAQUE exécution arrivent en NOTIFICATION PUSH (toast
+  animé + entrée au centre de notifications ; arrêt et exécution partent aussi en e-mail /
+  WhatsApp selon préférences). Au point de validation, la barre s'arrête, le panneau exige le
+  code et expose le motif de la suspension temporaire et le montant à régler ; le bon code
+  replanifie la cadence et la progression reprend de la même façon, jusqu'à l'exécution. Les
+  niveaux à venir restent cachés : on les découvre en les vivant, jamais au préalable. Un client
+  hors ligne rattrape tous les paliers échus d'un coup ; BLOQUE/EXECUTE n'avancent plus jamais.
+  Verrous : machine à états temps réel (planification, palier, arrêt, rattrapage, exécution,
+  reprise par code, immobilité des états finaux), le serveur notifie à chaque événement (site +
+  dénouement à l'exécution), le suivi en direct et les toasts push côté client (variables
+  résolues) — 8 nouveaux (244 au total).
 - **Virement sortant : IBAN de n'importe quel pays.** La validation accepte désormais tout IBAN du
   registre officiel (92 pays : structure, longueur exacte, checksum ISO 7064 — les lettres du BBAN
   incluses), plus seulement la Belgique ; le client valide avant l'aperçu, le serveur re-valide

@@ -8,9 +8,9 @@
  * le nouvel état : rien n'est calculé ni stocké dans le navigateur. Contrat d'hydratation : tout
  * est lu dans un effect ; si l'API est injoignable, l'écran le dit au lieu d'inventer un solde.
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowDownLeft, ArrowUpRight, BadgeCheck, Check, Copy, Landmark, Lock, MessageCircle, Send,
+  ArrowDownLeft, ArrowUpRight, BadgeCheck, Check, CheckCircle2, Copy, Landmark, Lock, MessageCircle, Send,
   ServerOff, ShieldAlert, UserRound,
 } from "lucide-react";
 import CountUp from "@/components/motion/CountUp";
@@ -20,6 +20,7 @@ import { formatDateTime } from "@/lib/formatters";
 import { Locale, t, tSiCle } from "@/lib/i18n";
 import type { Session } from "@/lib/auth";
 import { API, apiGet, apiPost } from "@/lib/api";
+import type { NotificationServeur } from "@/lib/serveur";
 import {
   bicValide, disponibleDe, ibanValide, progressionDe, reserveDe, soldeDe,
   type BanqueCompte, type Blocage, type MessageChat, type Referentiel, type StatutVirement, type Virement,
@@ -110,6 +111,58 @@ export function BarrePipeline({ v, referentiel, tr }: { v: Virement; referentiel
   );
 }
 
+/** Notification « push » affichée en toast (slice 22) : chaque palier de la progression en
+ *  direct, l'arrêt exigeant le code, et l'exécution arrivent ainsi sans recharger la page. */
+interface ToastVirement { id: string; titreCle: string; texteCle: string; vars: Record<string, string>; ton: "palier" | "arret" | "succes" }
+
+/** Suivi en direct du virement (slice 22) : barre CONTINUE qui monte vers la progression
+ *  confirmée par le serveur, compteur animé, pulsation en cas d'arrêt. Les NIVEAUX à venir
+ *  (noms, seuils) restent cachés : le client découvre chaque palier en le vivant, via la barre
+ *  et les notifications — jamais au préalable. */
+function BarreSuivi({ pct, statut, tr }: { pct: number; statut: StatutVirement; tr: (k: string, vars?: Record<string, string | number>) => string }) {
+  const bloque = statut === "BLOQUE";
+  const [affiche, setAffiche] = useState(0);
+  const afficheRef = useRef(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+      afficheRef.current = pct; setAffiche(pct); return;
+    }
+    const id = window.setInterval(() => {
+      const courant = afficheRef.current;
+      if (courant >= pct) { window.clearInterval(id); return; }
+      afficheRef.current = Math.min(pct, courant + Math.max(0.4, pct / 70));
+      setAffiche(afficheRef.current);
+    }, 28);
+    return () => window.clearInterval(id);
+  }, [pct]);
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-gradient-to-r from-slate-50 to-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+          <span className="relative flex h-2 w-2" aria-hidden="true">
+            <span className={cn("absolute inline-flex h-full w-full rounded-full opacity-60 motion-safe:animate-ping", bloque ? "bg-red-400" : "bg-emerald-400")} />
+            <span className={cn("relative inline-flex h-2 w-2 rounded-full", bloque ? "bg-red-500" : "bg-emerald-500")} />
+          </span>
+          {tr("banque:vir.live.title")}
+        </span>
+        <span className={cn("tabular-nums text-[13px] font-extrabold", bloque ? "text-red-600" : "text-primary")}>{Math.round(affiche)} %</span>
+      </div>
+      <div className="mt-2 h-2.5 rounded-full bg-slate-100 overflow-hidden">
+        <div
+          className={cn("h-full rounded-full", bloque ? "bg-gradient-to-r from-red-400 to-red-500 motion-safe:animate-pulse" : "bg-gradient-to-r from-primary to-emerald-500")}
+          style={{ width: `${affiche}%` }}
+        />
+      </div>
+      <div className="mt-1.5 text-[10px] font-extrabold uppercase tracking-wider">
+        {bloque
+          ? <span className="inline-flex items-center gap-1 text-red-500"><ShieldAlert className="w-3.5 h-3.5" aria-hidden="true" /> {tr("banque:vir.live.suspended")}</span>
+          : <span className="text-slate-400">{tr("banque:vir.live.running")}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function BankPortal({ locale, session }: { locale: Locale; session: Session }) {
   const tr = (k: string, vars?: Record<string, string | number>) => t(locale, k, vars);
   const [banque, setBanque] = useState<BanqueCompte | null>(null);
@@ -129,22 +182,57 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
   const [errCode, setErrCode] = useState<Record<string, boolean>>({});
   const [ref, setRef] = useState<Referentiel | null>(null);
   const [apiKo, setApiKo] = useState(false);
+  const [toasts, setToasts] = useState<ToastVirement[]>([]);
   const finChat = useRef<HTMLDivElement>(null);
+  /** Ids des notifications déjà vues : `null` = premier chargement (pas de rafale de toasts). */
+  const notifsConnues = useRef<Set<string> | null>(null);
+  const minuteries = useRef<number[]>([]);
+  useEffect(() => () => { minuteries.current.forEach((m) => window.clearTimeout(m)); }, []);
 
+  /** Une notification push entre en scène : toast animé, retrait automatique après 9 s. */
+  const pousserToast = useCallback((titreCle: string, texteCle: string, vars: Record<string, string>, ton: ToastVirement["ton"]) => {
+    const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setToasts((p) => [...p.slice(-3), { id, titreCle, texteCle, vars, ton }]);
+    minuteries.current.push(window.setTimeout(() => setToasts((p) => p.filter((x) => x.id !== id)), 9000));
+  }, []);
+
+  /** Traduit une notification du pipeline en toast : palier confirmé, arrêt (code requis), exécution. */
+  const toastDepuisNotif = useCallback((n: NotificationServeur) => {
+    const vars = n.vars ?? {};
+    if (n.cle === "banque.vir.notify.level") pousserToast("banque:vir.notify.levelTitle", "banque:vir.notify.level", vars, "palier");
+    else if (n.cle === "banque.vir.notify.levelCustom") pousserToast("banque:vir.notify.levelTitle", "banque:vir.notify.levelCustom", vars, "palier");
+    else if (n.cle === "banque.vir.notify.stop") pousserToast("banque:vir.notify.stopTitle", "banque:vir.notify.stop", vars, "arret");
+    else if (n.cle === "banque.vir.notify.done") pousserToast("banque:vir.notify.doneTitle", "banque:vir.notify.done", vars, "succes");
+  }, [pousserToast]);
+
+  // ——— Boucle temps réel (slice 22) : compte + notifications sondés toutes les 4 s. La barre
+  // avance palier par palier, chaque événement devient un toast ; le chat garde son 15 s. ———
   useEffect(() => {
     let actif = true;
-    Promise.all([
-      apiGet<{ compte: BanqueCompte; referentiel: Referentiel }>(API.banque),
-      apiGet<{ messages: MessageChat[] }>(API.banqueChat()),
-    ]).then(([b, c]) => {
+    const charger = async (premier: boolean) => {
+      const [b, c] = await Promise.all([
+        apiGet<{ compte: BanqueCompte; referentiel: Referentiel }>(API.banque),
+        apiGet<{ messages: MessageChat[] }>(API.banqueChat()),
+      ]);
       if (!actif) return;
-      if (!b.ok) { setApiKo(true); return; }
+      if (!b.ok) { if (premier) setApiKo(true); return; }
       setBanque(b.corps.compte);
       setRef(b.corps.referentiel);
-      setMessages(c.ok ? c.corps.messages : []);
-    });
-    return () => { actif = false; };
-  }, []);
+      if (c.ok) setMessages(c.corps.messages);
+      const n = await apiGet<{ notifications: NotificationServeur[] }>(API.notifications);
+      if (!actif || !n.ok) return;
+      const triees = [...(n.corps.notifications ?? [])].sort((x, y) => x.creeA.localeCompare(y.creeA));
+      if (notifsConnues.current === null) { notifsConnues.current = new Set(triees.map((x) => x.id)); return; }
+      for (const notif of triees) {
+        if (notifsConnues.current.has(notif.id)) continue;
+        notifsConnues.current.add(notif.id);
+        toastDepuisNotif(notif);
+      }
+    };
+    void charger(true);
+    const sonde = window.setInterval(() => void charger(false), 4000);
+    return () => { actif = false; window.clearInterval(sonde); };
+  }, [toastDepuisNotif]);
 
   // Les réponses du support arrivent en direct : léger sondage du chat toutes les 15 s.
   useEffect(() => {
@@ -204,6 +292,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
     setBanque(r.corps.compte);
     setApercu(null);
     setNomBenef(""); setIbanBenef(""); setAdresseBenef(""); setBicBenef(""); setMontant(""); setMotif(""); setOkEnvoi(true);
+    pousserToast("banque:vir.live.title", "banque:vir.toast.initie", {}, "succes");
   };
 
   const annulerSurServeur = async (virementId: string) => {
@@ -223,6 +312,7 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
       setBanque(r.corps.compte);
       setCodes((p) => ({ ...p, [virementId]: "" }));
       setErrCode((p) => ({ ...p, [virementId]: false }));
+      pousserToast("banque:vir.live.title", "banque:vir.toast.reprise", {}, "succes");
     } else {
       setErrCode((p) => ({ ...p, [virementId]: true }));
     }
@@ -409,9 +499,12 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
                     </div>
                     <span className={cn("ml-auto text-[11px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full", COULEUR_STATUT[v.statut])}>{tr(CLES_STATUT[v.statut])}</span>
                   </div>
-                  {/* Les NIVEAUX de validation sont réservés à l'administration : le client ne doit
-                      ni les voir ni les connaître au préalable (demande explicite). Il ne voit que
-                      le statut de son virement et, le cas échéant, de quoi lever l'arrêt. */}
+                  {/* Progression EN DIRECT (slice 22) : la barre continue avance palier par palier
+                      et chaque événement arrive en notification push. Les NIVEAUX à venir (noms,
+                      seuils) restent cachés — on les découvre en les vivant, jamais au préalable. */}
+                  {(v.statut === "EN_COURS" || v.statut === "BLOQUE") && (
+                    <BarreSuivi pct={progressionDe(v, ref)} statut={v.statut} tr={tr} />
+                  )}
                   {blocageActif && (
                     /* ——— Arrêt de la barre : motif + explications + montant à régler + code ——— */
                     <div className="mt-4 rounded-2xl bg-red-50 border border-red-100 p-5 text-[13px] leading-6 text-red-700">
@@ -495,6 +588,29 @@ export default function BankPortal({ locale, session }: { locale: Locale; sessio
             <Send className="w-4 h-4" aria-hidden="true" /> <span className="ml-2">{tr("banque:chat.send")}</span>
           </button>
         </div>
+      </div>
+
+      {/* ——— Notifications push (slice 22) : chaque palier franchi, chaque arrêt, chaque exécution
+          arrive en toast animé, sans recharger la page. ——— */}
+      <div className="fixed top-4 right-4 z-[70] flex w-[min(92vw,380px)] flex-col gap-2" role="status" aria-live="polite">
+        {toasts.map((toast) => {
+          const varsResolues: Record<string, string | number> = {};
+          for (const [k, v] of Object.entries(toast.vars)) varsResolues[k] = tSiCle(locale, v);
+          return (
+            <div key={toast.id} className={cn("motion-toast flex items-start gap-3 rounded-2xl border bg-white p-4 shadow-card",
+              toast.ton === "arret" ? "border-red-200" : toast.ton === "succes" ? "border-emerald-200" : "border-slate-200")}>
+              {toast.ton === "arret"
+                ? <ShieldAlert className="mt-0.5 w-5 h-5 shrink-0 text-red-500" aria-hidden="true" />
+                : toast.ton === "succes"
+                  ? <BadgeCheck className="mt-0.5 w-5 h-5 shrink-0 text-emerald-500" aria-hidden="true" />
+                  : <CheckCircle2 className="mt-0.5 w-5 h-5 shrink-0 text-primary" aria-hidden="true" />}
+              <div className="min-w-0">
+                <div className="text-[13px] font-extrabold text-ink">{tr(toast.titreCle)}</div>
+                <div className="mt-0.5 text-[12px] leading-5 text-slate-500">{tr(toast.texteCle, varsResolues)}</div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

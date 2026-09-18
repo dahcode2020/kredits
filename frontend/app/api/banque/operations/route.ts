@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ecrireMagasin, lireMagasin, notifierClient } from "@/lib/serveur";
-import { actionAdmin, sessionDeRequete } from "@/lib/serveur-banque";
+import { actionAdmin, avancerEtNotifier, notifierEvenementsPipeline, sessionDeRequete } from "@/lib/serveur-banque";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +12,18 @@ export async function POST(req: Request) {
   const magasin = lireMagasin();
   const session = sessionDeRequete(req, magasin);
   if (!session) return NextResponse.json({ erreur: "session" }, { status: 401 });
+  // Progression en direct : le compte ciblé avance jusqu'à maintenant AVANT le geste de
+  // l'administration — l'action porte sur l'état réel (un lever reprend ensuite la cadence).
+  let avance = false;
+  if (typeof corps.compteId === "string" && corps.compteId.includes("::")) {
+    const [email, role] = corps.compteId.split("::");
+    const maintenantAvance = new Date().toISOString();
+    const evts = avancerEtNotifier(magasin, email, role, maintenantAvance);
+    if (evts.length > 0) {
+      avance = true;
+      await notifierEvenementsPipeline(magasin, email, evts, maintenantAvance);
+    }
+  }
   const r = actionAdmin(magasin, session, corps);
   // Notification IMPORTANTE : un virement entrant crédité par l'administration (site + e-mail + WhatsApp).
   if (r.modifie && corps.action === "crediter" && typeof corps.compteId === "string") {
@@ -27,6 +39,6 @@ export async function POST(req: Request) {
       vars: { auteur: session.nom }, maintenant: new Date().toISOString(),
     });
   }
-  if (r.modifie) ecrireMagasin(magasin);
+  if (r.modifie || avance) ecrireMagasin(magasin);
   return NextResponse.json(r.corps, { status: r.statut });
 }

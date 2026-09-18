@@ -9,12 +9,12 @@
  * ADMIN / SUPER_ADMIN agissent sur tous les comptes (crédit, vérification, pipeline, référentiel,
  * chat support). Tout passe par la session httpOnly (voir lib/serveur.ts).
  */
-import { NOM_COOKIE, enregistrerVirementEntrant, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
+import { NOM_COOKIE, deposerNotification, enregistrerVirementEntrant, notifierClient, verifierSession, type Magasin, type SessionServeur } from "@/lib/serveur";
 import { COMPTES_PORTE_DEMO, banqueDemoIllustrative } from "@/lib/serveur-demo";
 import {
-  annulerVirement, bicValide, cleBanque, debloquerParCode, denouer, evolutionVirement, initierVirement,
+  annulerVirement, avancerVirements, bicValide, cleBanque, debloquerParCode, denouer, initierVirement,
   leverBlocage, ouvrirBanqueClient, referentielEffectif, refuserVirement, soldeDe,
-  type BanqueCompte, type MessageChat, type Referentiel, type SurchargesReferentiel,
+  type BanqueCompte, type EvenementPipeline, type MessageChat, type Referentiel, type SurchargesReferentiel,
 } from "@/lib/banque";
 
 export const PHOTO_MAX_OCTETS = 5 * 1024 * 1024;
@@ -42,11 +42,57 @@ export function vueClientCompte(compte: BanqueCompte): BanqueCompte {
   return { ...compte, virements: compte.virements.map((v) => ({ ...v, codeDeblocage: undefined })) };
 }
 
-/** Initiation puis évolution automatique : arrêt au premier défaut actif, ou exécution + dénouement. */
-export function initierEtEvoluer(compte: BanqueCompte, virementId: string, ref: Referentiel, maintenant: string): BanqueCompte {
-  const bloque = evolutionVirement(compte, virementId, ref, genererCodeDeblocage(), maintenant);
-  const v = bloque.virements.find((x) => x.id === virementId);
-  return v?.statut === "EXECUTE" ? denouer(bloque, virementId, maintenant) : bloque;
+/** Libellés canoniques des niveaux (les mêmes clés que l'administration) — servies comme
+ *  variables-clés des notifications : `tSiCle` les résout dans la langue du client. */
+const CLES_NIVEAUX_CANONIQUES: Record<string, string> = {
+  RECEPTION: "banque:pipeline.RECEPTION", CONFORMITE: "banque:pipeline.CONFORMITE",
+  CERTIFICATS: "banque:pipeline.CERTIFICATS", EXECUTION: "banque:pipeline.EXECUTION",
+};
+
+/** Progression en direct (slice 22) : fait avancer le compte du client jusqu'à maintenant.
+ *  Chaque palier confirmé devient une notification SITE ; les virements exécutés sont dénoués
+ *  immédiatement (ledger). Les événements ARRET / EXECUTION sont retournés : la route les
+ *  distribue sur les canaux réels via `notifierEvenementsPipeline`. */
+export function avancerEtNotifier(magasin: Magasin, email: string, role: string, maintenant: string): EvenementPipeline[] {
+  if (role !== "CUSTOMER") return [];
+  const cle = cleBanque(email, role);
+  const compte = magasin.banques?.[cle];
+  if (!compte) return [];
+  const r = avancerVirements(compte, referentielDuMagasin(magasin), maintenant, genererCodeDeblocage);
+  if (r.evenements.length === 0) return [];
+  let neuf = r.compte;
+  for (const e of r.evenements) if (e.type === "EXECUTION") neuf = denouer(neuf, e.virementId, maintenant);
+  magasin.banques![cle] = neuf;
+  for (const e of r.evenements) {
+    if (e.type !== "NIVEAU") continue; // palier intermédiaire : site uniquement, pas d'e-mail
+    const cleNiveau = CLES_NIVEAUX_CANONIQUES[e.codeNiveau];
+    deposerNotification(magasin, cleNiveau
+      ? { email, cle: "banque.vir.notify.level", vars: { nom: cleNiveau, pct: String(e.pct) }, maintenant }
+      : { email, cle: "banque.vir.notify.levelCustom", vars: { pct: String(e.pct) }, maintenant });
+  }
+  return r.evenements;
+}
+
+/** Les événements IMPORTANTS (arrêt exigeant un code, exécution) partent sur les canaux réels :
+ *  site + e-mail + WhatsApp selon les préférences du client (slice 21). */
+export async function notifierEvenementsPipeline(magasin: Magasin, email: string, evenements: EvenementPipeline[], maintenant: string): Promise<void> {
+  const compte = magasin.banques?.[cleBanque(email, "CUSTOMER")];
+  for (const e of evenements) {
+    const v = compte?.virements.find((x) => x.id === e.virementId);
+    if (!v) continue;
+    if (e.type === "ARRET") {
+      const b = v.blocages.filter((x) => !x.leveA).at(-1);
+      await notifierClient(magasin, {
+        email, cle: "banque.vir.notify.stop",
+        vars: { motif: b?.motif ?? `banque:defaut.${e.codesDefauts[0] ?? ""}` }, maintenant,
+      });
+    }
+    if (e.type === "EXECUTION") {
+      await notifierClient(magasin, {
+        email, cle: "banque.vir.notify.done", vars: { beneficiaire: v.beneficiaireNom }, maintenant,
+      });
+    }
+  }
 }
 
 export function sessionDeRequete(req: Request, magasin: Magasin): SessionServeur | null {
@@ -101,7 +147,6 @@ export function actionClient(
   if (session.role !== "CUSTOMER") return { statut: 403, corps: { erreur: "reserve_client" }, modifie: false };
   const compte = ouvrirBanquePour(magasin, session.email, session.role, new Date().toISOString());
   const maintenant = new Date().toISOString();
-  const ref = referentielDuMagasin(magasin);
 
   if (corps.action === "virement") {
     // L'ordre de virement complet exige l'adresse du bénéficiaire et un BIC/SWIFT valide.
@@ -112,20 +157,19 @@ export function actionClient(
       { adresse: String(corps.beneficiaireAdresse ?? ""), bic: String(corps.beneficiaireBic ?? "") },
     );
     if (r.erreur) return { statut: 400, corps: { erreur: r.erreur }, modifie: false };
-    // La barre évolue immédiatement : arrêt au premier défaut actif (code émis) ou exécution.
-    const id = r.compte.virements[r.compte.virements.length - 1].id;
-    const neuf = initierEtEvoluer(r.compte, id, ref, maintenant);
-    magasin.banques![cleBanque(session.email, session.role)] = neuf;
-    return { statut: 200, corps: { compte: vueClientCompte(neuf) }, modifie: true };
+    // La progression en direct démarre à l'initiation (premier palier à l'échéance) : le client
+    // suit la barre et reçoit une notification à chaque palier — le serveur n'avance rien ici.
+    magasin.banques![cleBanque(session.email, session.role)] = r.compte;
+    return { statut: 200, corps: { compte: vueClientCompte(r.compte) }, modifie: true };
   }
   if (corps.action === "debloquer") {
     // Le client fournit le code émis par l'administration : le niveau se débloque et la barre repart.
     if (typeof corps.virementId !== "string" || typeof corps.code !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
     const r = debloquerParCode(compte, corps.virementId, corps.code, maintenant);
     if (!r.ok) return { statut: 400, corps: { erreur: "code_invalide" }, modifie: false };
-    const neuf = initierEtEvoluer(r.compte, corps.virementId, ref, maintenant);
-    magasin.banques![cleBanque(session.email, session.role)] = neuf;
-    return { statut: 200, corps: { compte: vueClientCompte(neuf) }, modifie: true };
+    // La machine repart à la cadence habituelle : palier suivant confirmé à l'échéance replanifiée.
+    magasin.banques![cleBanque(session.email, session.role)] = r.compte;
+    return { statut: 200, corps: { compte: vueClientCompte(r.compte) }, modifie: true };
   }
   if (corps.action === "annuler") {
     if (typeof corps.virementId !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
@@ -193,7 +237,6 @@ export function actionAdmin(
   corps: { action?: string; compteId?: string; virementId?: string; verifie?: boolean; montant?: number; motif?: string; codeDefaut?: string; texte?: string },
 ): { statut: number; corps: Record<string, unknown>; modifie: boolean } {
   if (session.role === "CUSTOMER") return { statut: 403, corps: { erreur: "reserve_staff" }, modifie: false };
-  const ref = referentielDuMagasin(magasin);
   const maintenant = new Date().toISOString();
   const compteId = typeof corps.compteId === "string" ? corps.compteId : "";
   const compte = magasin.banques?.[compteId];
@@ -221,11 +264,12 @@ export function actionAdmin(
     return { statut: 200, corps: { compte: neuf }, modifie: true };
   }
   if (corps.action === "lever") {
-    // Geste d'administration : lève le blocage SANS code, puis la barre repart (arrêt suivant ou exécution).
+    // Geste d'administration : lève le blocage SANS code — la progression en direct reprend à la
+    // cadence habituelle (palier suivant à l'échéance replanifiée par leverBlocage).
     if (!compte || typeof corps.virementId !== "string") return { statut: 400, corps: { erreur: "champs_manquants" }, modifie: false };
     const v = compte.virements.find((x) => x.id === corps.virementId);
     if (!v || v.statut !== "BLOQUE") return { statut: 400, corps: { erreur: "etat_inchange" }, modifie: false };
-    const neuf = initierEtEvoluer(leverBlocage(compte, corps.virementId, maintenant), corps.virementId, ref, maintenant);
+    const neuf = leverBlocage(compte, corps.virementId, maintenant);
     persister(neuf);
     return { statut: 200, corps: { compte: neuf }, modifie: true };
   }

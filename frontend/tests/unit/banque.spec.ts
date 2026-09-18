@@ -10,8 +10,8 @@
  * atteint, avec le code et le coût du référentiel.
  */
 import {
-  LONGUEURS_IBAN, MONTANT_DEMO, REFERENTIEL_CANONIQUE, annulerVirement, arretsActifs,
-  debloquerParCode, denouer, disponibleDe, evolutionVirement, genererIbanBE, ibanBEValide,
+  DELAI_NIVEAU_MS, LONGUEURS_IBAN, MONTANT_DEMO, REFERENTIEL_CANONIQUE, annulerVirement, arretsActifs,
+  avancerVirements, debloquerParCode, denouer, disponibleDe, evolutionVirement, genererIbanBE, ibanBEValide,
   ibanValide, initierVirement, leverBlocage, ouvrirBanqueClient, progressionDe,
   referentielEffectif, refuserVirement, reserveDe, soldeDe, type BanqueCompte,
 } from "@/lib/banque";
@@ -233,5 +233,92 @@ describe("pipeline auto-évolutif à codes (référentiel canonique)", () => {
     const c3 = annulerVirement(c2, c2.virements[0].id);
     expect(c3.virements[0].statut).toBe("ANNULE");
     expect(soldeDe(c3)).toBe(MONTANT_DEMO);
+  });
+});
+
+describe("progression en direct : la machine avance avec le temps réel (slice 22)", () => {
+  const BENEF = { nom: "Garage Central", iban: "BE68539007547034" };
+  const initier = () => initierVirement(compteVerifie(), BENEF.nom, BENEF.iban, 1_200, "Acompte", MAINTENANT).compte;
+  const codes = (() => { let n = 0; return () => `CODE-${++n}`; })();
+  const dans = (ms: number) => new Date(new Date(MAINTENANT).getTime() + ms).toISOString();
+
+  it("l'initiation planifie le premier palier à la cadence (DELAI_NIVEAU_MS)", () => {
+    const v = initier().virements[0];
+    expect(v.statut).toBe("EN_COURS");
+    expect(v.prochainNiveauA).toBe(dans(DELAI_NIVEAU_MS));
+  });
+
+  it("avant l'échéance : rien ne bouge ; à l'échéance : palier confirmé + événement NIVEAU", () => {
+    const compte = initier();
+    const avant = avancerVirements(compte, ref, dans(DELAI_NIVEAU_MS - 1), codes);
+    expect(avant.evenements).toEqual([]);
+    expect(avant.compte).toBe(compte); // aucune mutation inutile
+    const r = avancerVirements(compte, ref, dans(DELAI_NIVEAU_MS), codes);
+    expect(r.evenements).toEqual([{ virementId: compte.virements[0].id, type: "NIVEAU", pct: 10, codeNiveau: "RECEPTION" }]);
+    const v = r.compte.virements[0];
+    expect(v.statut).toBe("EN_COURS");
+    expect(progressionDe(v, ref)).toBe(10);
+    expect(v.prochainNiveauA).toBe(dans(2 * DELAI_NIVEAU_MS)); // cadence régulière
+  });
+
+  it("le point de validation arrête la marche : BLOQUE + frais en réserve + code + événement ARRET", () => {
+    const compte = initier();
+    const r = avancerVirements(compte, ref, dans(2 * DELAI_NIVEAU_MS), codes);
+    const types = r.evenements.map((e) => e.type);
+    expect(types).toEqual(["NIVEAU", "ARRET"]); // 10 % confirmé, puis arrêt à 30 %
+    const arret = r.evenements[1];
+    expect(arret).toMatchObject({ type: "ARRET", pct: 30, codeNiveau: "CONFORMITE" });
+    const v = r.compte.virements[0];
+    expect(v.statut).toBe("BLOQUE");
+    expect(v.codeDeblocage).toBeDefined();
+    expect(v.prochainNiveauA).toBeUndefined(); // la marche est suspendue
+    expect(v.blocages.map((b) => b.code)).toEqual(["JUSTIF_DOMICILE"]);
+    expect(reserveDe(r.compte.virements)).toBe(1_200 + 25);
+  });
+
+  it("un client hors ligne rattrape TOUS les paliers échus en une seule passe", () => {
+    const compte = initier();
+    const r = avancerVirements(compte, ref, dans(10 * DELAI_NIVEAU_MS), codes);
+    expect(r.evenements.map((e) => e.type)).toEqual(["NIVEAU", "ARRET"]); // jamais au-delà de l'arrêt
+    expect(r.compte.virements[0].statut).toBe("BLOQUE");
+    expect(progressionDe(r.compte.virements[0], ref)).toBe(30);
+  });
+
+  it("sans défaut actif : les quatre paliers défilent puis EXECUTION à 100 %", () => {
+    const refLibre = referentielEffectif({ JUSTIF_DOMICILE: { actif: false }, CERT_ASSURANCE: { actif: false } });
+    const compte = initier();
+    const r = avancerVirements(compte, refLibre, dans(4 * DELAI_NIVEAU_MS), codes);
+    expect(r.evenements.map((e) => e.type)).toEqual(["NIVEAU", "NIVEAU", "NIVEAU", "EXECUTION"]);
+    expect(r.evenements.at(-1)).toMatchObject({ type: "EXECUTION", pct: 100 });
+    expect(r.compte.virements[0].statut).toBe("EXECUTE");
+    expect(r.compte.virements[0].prochainNiveauA).toBeUndefined();
+  });
+
+  it("le code de déblocage replanifie la cadence et la progression reprend au même point", () => {
+    const compte = initier();
+    const bloque = avancerVirements(compte, ref, dans(2 * DELAI_NIVEAU_MS), codes).compte;
+    const vBloque = bloque.virements[0];
+    const T = dans(3 * DELAI_NIVEAU_MS);
+    const r = debloquerParCode(bloque, vBloque.id, vBloque.codeDeblocage!, T);
+    expect(r.ok).toBe(true);
+    const v = r.compte.virements[0];
+    expect(v.statut).toBe("EN_COURS");
+    expect(v.prochainNiveauA).toBe(new Date(new Date(T).getTime() + DELAI_NIVEAU_MS).toISOString());
+    // La reprise avance d'un palier et rencontre l'arrêt suivant (60 %), frais compris.
+    const suite = avancerVirements(r.compte, ref, new Date(new Date(T).getTime() + DELAI_NIVEAU_MS).toISOString(), codes);
+    expect(suite.evenements.map((e) => e.type)).toEqual(["ARRET"]);
+    expect(suite.evenements[0]).toMatchObject({ type: "ARRET", pct: 60 });
+    const v2 = suite.compte.virements[0];
+    expect(progressionDe(v2, ref)).toBe(60);
+    expect(v2.blocages.filter((b) => !b.leveA).map((b) => b.code)).toEqual(["CERT_ASSURANCE"]);
+    expect(v2.blocages.find((b) => b.code === "JUSTIF_DOMICILE")?.leveA).toBe(T);
+  });
+
+  it("un BLOQUE ou EXECUTE n'avance plus jamais, même longtemps après", () => {
+    const compte = initier();
+    const bloque = avancerVirements(compte, ref, dans(2 * DELAI_NIVEAU_MS), codes).compte;
+    const r = avancerVirements(bloque, ref, dans(99 * DELAI_NIVEAU_MS), codes);
+    expect(r.evenements).toEqual([]);
+    expect(r.compte).toBe(bloque);
   });
 });
